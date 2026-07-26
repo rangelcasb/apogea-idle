@@ -1,8 +1,11 @@
-// Classes reais do Apogea: Knight, Mage, Rogue (fonte: apogea.fandom.com/wiki/Classes,
-// resumido via Sportskeeda "All Archetypes in Apogea"). Os multiplicadores por classe
-// (Defense, Health, HP Regen, Magic, Mana, MP Regen, Skill/Ability, Attack Speed) são reais;
-// os valores-base (antes do multiplicador) não são documentados publicamente, então usamos
-// uma base "Squire" neutra e aplicamos os percentuais reais sobre ela.
+import { applyTalentEffects } from './talents.js';
+
+// Classes reais do Apogea: Knight, Mage, Rogue. Multiplicadores da tabela "7.1
+// Comparação de Crescimento" enviada pelo usuário (Health/Defense/Magic/Mana/Attack
+// Speed/HP Regen/MP Regen são 100% reais e exatos). Ability e Capacity não aparecem
+// nessa tabela — mantemos neutros (100%) por não termos confirmação. Os valores-base
+// (antes do multiplicador) não são documentados publicamente, então usamos uma base
+// "Squire" neutra e aplicamos os percentuais reais sobre ela.
 const BASE_SQUIRE_STATS = {
   health: 100,
   mana: 60,
@@ -34,18 +37,18 @@ function defineClass(name, description, mult) {
 export const CLASSES = {
   Knight: defineClass(
     'Knight',
-    'Extremamente resistente: 200% de Vida, 150% de Defesa, 125% de HP Regen e a maior capacidade de carga.',
-    { health: 2.0, armor: 1.5, hpRegen: 1.25, capacity: 1.5 },
+    '+2 Health, +1.5 Armor/Defense/Capacity — o tanque.',
+    { health: 2.0, armor: 1.5, magic: 1.0, mana: 1.0, attackSpeed: 1.0, hpRegen: 1.25, mpRegen: 1.0 },
   ),
   Mage: defineClass(
     'Mage',
-    'Conjurador: 200% de Magic, Mana e MP Regen.',
-    { magic: 2.0, mana: 2.0, mpRegen: 2.0 },
+    '+2 Mana/Magic/MP Regen — poder arcano (frágil!).',
+    { health: 0.75, armor: 0.75, magic: 2.0, mana: 2.0, attackSpeed: 0.75, hpRegen: 1.0, mpRegen: 2.0 },
   ),
   Rogue: defineClass(
     'Rogue',
-    'Ágil e letal: 150% de Skill e Magic, 125% de Mana e a maior velocidade de ataque (125%).',
-    { ability: 1.5, magic: 1.5, mana: 1.25, attackSpeed: 1.25 },
+    'Ágil e letal: 120% Health, 150% Magic, 125% Mana, 125% Attack Speed.',
+    { health: 1.2, armor: 1.0, magic: 1.5, mana: 1.25, attackSpeed: 1.25, hpRegen: 1.0, mpRegen: 1.0, ability: 1.5 },
   ),
 };
 
@@ -125,7 +128,8 @@ export function allocatePoint(levelBatches, stat) {
 
 // Stats finais de combate: base da classe + pontos alocados (health, mana, magic,
 // ability, hpRegen, mpRegen, capacity) + bônus somado de todo equipamento vestido
-// (armor, damage, attackSpeed e outros vêm só da classe + equipamento, sem pontos).
+// (armor, damage, attackSpeed e outros vêm só da classe + equipamento, sem pontos)
+// + efeito simplificado dos talentos investidos.
 export function computeFinalStats(character) {
   const spent = sumSpentPoints(character.levelBatches);
   const stats = computeAllocatedStats(character.class, spent);
@@ -136,7 +140,7 @@ export function computeFinalStats(character) {
       stats[key] = Math.round(((stats[key] ?? 0) + val) * 100) / 100;
     }
   }
-  return stats;
+  return applyTalentEffects(stats, character.talentPoints);
 }
 
 export const ITEM_TYPES = {
@@ -146,10 +150,9 @@ export const ITEM_TYPES = {
   MATERIAL: 'material',
 };
 
-// Slots de equipamento reais do jogo, conforme a tela do Character Planner enviada
-// pelo usuário (Arma, Mão Secundária, Cabeça, Peitoral, Pernas, Botas, Munição,
-// Pescoço, Anel, Mochila). Adicionamos "hands" (Mãos) porque a categoria real "Gloves"
-// existe no Items Browser, mesmo não aparecendo nessa tela específica.
+// 10 slots de equipamento reais, exatamente como na tela "EQUIPAMENTO — MÃOS: 10/10"
+// que o usuário enviou (Arma, Mão Secundária, Cabeça, Peitoral, Pernas, Botas, Munição,
+// Pescoço, Anel, Mochila — sem slot dedicado de luvas; "Gloves" vira item de Material).
 export const EQUIP_SLOTS = {
   weapon: 'Arma',
   offhand: 'Mão Secundária',
@@ -157,11 +160,10 @@ export const EQUIP_SLOTS = {
   chest: 'Peitoral',
   legs: 'Pernas',
   boots: 'Botas',
-  hands: 'Mãos',
+  ammo: 'Munição',
   neck: 'Pescoço',
   ring: 'Anel',
   backpack: 'Mochila',
-  ammo: 'Munição',
 };
 
 // Chance de cada item de uma tabela de loot realmente cair quando o monstro morre,
@@ -1109,22 +1111,155 @@ const MONSTER_TEMPLATES = [
   { name: 'Young Amphitere', health: 1350, damage: 65, armor: 55, xp: 770 },
 ].map((m) => ({ ...m, loot: LOOT_TABLES[m.name] ?? [] }));
 
-function buildZones() {
-  const sorted = [...MONSTER_TEMPLATES].sort((a, b) => a.health - b.health);
-  const tierSize = Math.ceil(sorted.length / 4);
-  const tiers = [
-    { id: 'lowlands', name: 'Terras Baixas', minLevel: 1 },
-    { id: 'wilds', name: 'Terras Selvagens', minLevel: 8 },
-    { id: 'depths', name: 'Profundezas', minLevel: 18 },
-    { id: 'apex', name: 'Domínio dos Ápices', minLevel: 30 },
-  ];
-  return tiers.map((tier, i) => ({
-    ...tier,
-    monsters: sorted.slice(i * tierSize, (i + 1) * tierSize),
-  }));
-}
+const MONSTERS_BY_NAME = Object.fromEntries(MONSTER_TEMPLATES.map((m) => [m.name, m]));
 
-export const ZONES = buildZones();
+// Zonas de caça REAIS (nome, região, descrição, xp/h, gold/h) — transcritas da tela
+// "Zonas de Caça" que o usuário enviou (apogean.eu). O jogo real não expõe qual monstro
+// exato habita cada zona (só ícones na imagem), então a lista de monstros de cada zona
+// é nossa, escolhida por coerência temática com a descrição real (ex: "ovelhas, cordeiros
+// e ratos" -> Sheep/Lamb/Rat). minLevel das zonas reais sem trava visível foi estimado
+// por progressão; Monastério Abandonado (30) e Trilha da Pestilência (35) são os níveis
+// exatos mostrados com cadeado na imagem.
+const REAL_ZONES = [
+  {
+    id: 'fazendas-de-basile', name: 'Fazendas de Basile', region: 'Basile', minLevel: 1,
+    description: 'Campos tranquilos ao redor da cidade inicial. Ovelhas, cordeiros e ratos — perfeito para dar os primeiros golpes.',
+    xpPerHour: 787, goldPerHour: 39,
+    monsterNames: ['Sheep', 'Black Sheep', 'Lamb', 'Black Lamb', 'Rat', 'Deer'],
+  },
+  {
+    id: 'esgotos-de-basile', name: 'Esgotos de Basile', region: 'Basile', minLevel: 3,
+    description: 'Túneis úmidos sob a cidade. Ratos gigantes e esqueletos guardam moedas perdidas.',
+    xpPerHour: 1959, goldPerHour: 306,
+    monsterNames: ['Giant Rat', 'Skeleton', 'Rat Shipper'],
+  },
+  {
+    id: 'floresta-de-basile', name: 'Floresta de Basile', region: 'Basile', minLevel: 5,
+    description: 'A mata fecha e os lobos uivam. Cuidado com bandidos na estrada.',
+    xpPerHour: 3571, goldPerHour: 92,
+    monsterNames: ['Wolf', 'Bandit', 'Bear'],
+  },
+  {
+    id: 'estrada-da-caravana', name: 'Estrada da Caravana', region: 'Caravan', minLevel: 8,
+    description: 'A rota comercial até a Caravana é infestada de bandidos e goblins.',
+    xpPerHour: 4105, goldPerHour: 308,
+    monsterNames: ['Capozzi The Bandit', 'Gaglio The Bandit', 'Mateo The Bandit', 'Goblin'],
+  },
+  {
+    id: 'colinas-dos-goblins', name: 'Colinas dos Goblins', region: 'Nordha', minLevel: 10,
+    description: 'Acampamentos goblins espalhados pelas colinas a caminho de Nordha.',
+    xpPerHour: 7000, goldPerHour: 430,
+    monsterNames: ['Viscid Goblin', 'Digger', 'Mireling'],
+  },
+  {
+    id: 'cavernas-de-nordha', name: 'Cavernas de Nordha', region: 'Nordha', minLevel: 12,
+    description: 'Cavernas escuras cheias de aranhas e lintwurms jovens.',
+    xpPerHour: 8188, goldPerHour: 376,
+    monsterNames: ['Cave Spider', 'Cave Troll', 'Lintwurm', 'Great Lintwurm (Cave)', 'Ancient Snake'],
+  },
+  {
+    id: 'pantano-de-vecan', name: 'Pântano de Vecan', region: 'Swamp', minLevel: 15,
+    description: 'Águas paradas e criaturas viscosas. O cheiro é tão perigoso quanto os Pleas.',
+    xpPerHour: 11384, goldPerHour: 340,
+    monsterNames: ['Plea', 'Plea Occultist', 'Mireling Noble', 'Swamp Troll', 'Bone Eater'],
+  },
+  {
+    id: 'circulo-ocultista', name: 'Círculo Ocultista', region: 'Plains', minLevel: 17,
+    description: 'Cultistas se reúnem em círculos de pedra para rituais proibidos.',
+    xpPerHour: 10921, goldPerHour: 472,
+    monsterNames: ['Crazed Occultist', 'Occultist Acolyte', 'Occultist Apprentice', 'Occultist Enforcer', 'Occultist Scholar', 'Cube Of Doom', 'Necromancer'],
+  },
+  {
+    id: 'monasterio-abandonado', name: 'Monastério Abandonado', region: 'Plains', minLevel: 30,
+    description: 'Monges corrompidos e imps vagam pelos corredores sagrados.',
+    xpPerHour: 15000, goldPerHour: 600,
+    monsterNames: ['Monk', 'Imp', 'Profaner', 'Tomb Diviner', 'Tomb Guardian', 'Tomb Worker'],
+  },
+  {
+    id: 'trilha-da-pestilencia', name: 'Trilha da Pestilência', region: 'Swamp', minLevel: 35,
+    description: 'A doença se espalha por esta trilha. Stingers e spawns da pestilência à solta.',
+    xpPerHour: 18000, goldPerHour: 700,
+    monsterNames: ['Pestilence Spawn', 'Pestilence Stinger', 'Pestilence Plague', 'Eye Of Pestilence', 'Devil Spider'],
+  },
+  {
+    id: 'toca-do-alpha-wolf', name: 'Toca do Alpha Wolf', region: 'Nordha', minLevel: 20, boss: true,
+    description: 'BOSS — O lendário Alpha Wolf aparece no centro de Nordha. Loot raro para quem aguentar.',
+    xpPerHour: 9000, goldPerHour: 500,
+    monsterNames: ['Alpha Wolf'],
+  },
+  {
+    id: 'tundra-de-dorosam', name: 'Tundra de Dorosam', region: 'Dorosam', minLevel: 22,
+    description: 'O frio do norte esconde ursos ferozes e ratos da tundra.',
+    xpPerHour: 9500, goldPerHour: 420,
+    monsterNames: ['Grizzly Bear', 'Tundra Rat'],
+  },
+];
+
+// Zonas ADICIONAIS (não estavam na imagem enviada — inventadas por nós só pra dar um
+// lugar coerente aos monstros restantes do bestiário que não couberam nas 12 zonas
+// reais). xp/h e gold/h são estimativas, não dados do jogo.
+const EXTRA_ZONES = [
+  {
+    id: 'deserto-de-sunskin', name: 'Deserto de Sunskin', region: 'Desert', minLevel: 24,
+    description: 'Areias escaldantes onde criaturas queimadas de sol espreitam.',
+    xpPerHour: 13500, goldPerHour: 550,
+    monsterNames: ['Sunskin', 'Sunskin Enchanter', 'Walking Boletus', 'Rubellus'],
+  },
+  {
+    id: 'acampamento-orc', name: 'Acampamento Orc', region: 'Nordha', minLevel: 25,
+    description: 'Um exército orc se prepara nas planícies de guerra.',
+    xpPerHour: 15800, goldPerHour: 610,
+    monsterNames: ['Orc Infantry', 'Orc Berserker', 'Orc Shaman', 'Orc General'],
+  },
+  {
+    id: 'ruinas-da-conquista', name: 'Ruínas da Conquista', region: 'Plains', minLevel: 27,
+    description: 'Vestígios de um exército derrotado, agora assombrados.',
+    xpPerHour: 17200, goldPerHour: 680,
+    monsterNames: ['Conquest Crow', 'Conquest Fowler', 'Conquest Priestess', 'Banshee'],
+  },
+  {
+    id: 'covil-dos-foras-da-lei', name: 'Covil dos Foras-da-Lei', region: 'Caravan', minLevel: 28,
+    description: 'Onde os criminosos mais procurados se escondem.',
+    xpPerHour: 18000, goldPerHour: 900,
+    monsterNames: ['The Blackhat', 'Minotaur', 'Tock'],
+  },
+  {
+    id: 'covil-da-amphitere', name: 'Covil da Amphitere', region: 'Dorosam', minLevel: 33,
+    description: 'Ninho nas montanhas geladas de uma criatura alada lendária.',
+    xpPerHour: 24000, goldPerHour: 750,
+    monsterNames: ['Young Amphitere', 'Amphitere', 'Terror Spider', 'Deadly Webcap'],
+  },
+  {
+    id: 'fortaleza-pestilenta', name: 'Fortaleza Pestilenta', region: 'Swamp', minLevel: 40, boss: true,
+    description: 'O coração da praga — só os mais fortes retornam.',
+    xpPerHour: 40000, goldPerHour: 1200,
+    monsterNames: ['Pestilence Knight'],
+  },
+  {
+    id: 'dominio-esquecido', name: 'Domínio Esquecido', region: 'Plains', minLevel: 45,
+    description: 'Guardiões antigos e enigmas que ainda vigiam ruínas esquecidas.',
+    xpPerHour: 45000, goldPerHour: 1000,
+    monsterNames: ['Obelisk', 'The Gardener', 'The Augur', 'The Broodmother'],
+  },
+];
+
+export const ZONES = [...REAL_ZONES, ...EXTRA_ZONES].map((zone) => ({
+  ...zone,
+  monsters: zone.monsterNames.map((name) => MONSTERS_BY_NAME[name]).filter(Boolean),
+}));
+
+export const ALL_MONSTERS = MONSTER_TEMPLATES;
+export const BOOSTED_MULTIPLIER = 1.5;
+
+// "Boosted do dia" — funcionalidade real da tela enviada ("+50% XP e gold hoje" num
+// monstro específico). Escolhemos o monstro do dia de forma determinística pela data,
+// assim todo mundo que jogar no mesmo dia vê o mesmo monstro boostado.
+export function getDailyBoostedMonster() {
+  const day = new Date().toISOString().slice(0, 10);
+  let hash = 0;
+  for (let i = 0; i < day.length; i++) hash = (hash * 31 + day.charCodeAt(i)) >>> 0;
+  return MONSTER_TEMPLATES[hash % MONSTER_TEMPLATES.length];
+}
 
 export function slugify(name) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
@@ -1233,7 +1368,7 @@ const CATEGORY_INFO = {
   'Heavy Legs': { slot: 'legs', type: ITEM_TYPES.ARMOR },
   'Light Boots': { slot: 'boots', type: ITEM_TYPES.ARMOR },
   'Heavy Boots': { slot: 'boots', type: ITEM_TYPES.ARMOR },
-  Gloves: { slot: 'hands', type: ITEM_TYPES.ARMOR },
+  Gloves: { slot: null, type: ITEM_TYPES.MATERIAL },
   Necklace: { slot: 'neck', type: ITEM_TYPES.ARMOR },
   'Light Neck': { slot: 'neck', type: ITEM_TYPES.ARMOR },
   Ring: { slot: 'ring', type: ITEM_TYPES.ARMOR },
@@ -1293,7 +1428,6 @@ function estimateEquipStats(name, slot) {
     case 'chest':
     case 'legs':
     case 'boots':
-    case 'hands':
       return { armor: Math.max(1, Math.round(tier * 0.8)) };
     case 'neck':
     case 'ring':
@@ -1316,19 +1450,39 @@ function estimateConsumableStats(name) {
   return { health: 12 };
 }
 
+// Peso (oz) e preço de venda estimados — o site fonte não expõe nem um nem outro.
+function estimateWeight(type, tier) {
+  if (type === ITEM_TYPES.CONSUMABLE || type === ITEM_TYPES.MATERIAL) return 1;
+  return Math.max(2, tier * 3);
+}
+
+function estimateSellPrice(type, tier) {
+  if (type === ITEM_TYPES.CONSUMABLE) return Math.max(1, tier * 2);
+  if (type === ITEM_TYPES.MATERIAL) return Math.max(1, tier);
+  return Math.max(1, tier * 8);
+}
+
 // Monta a definição completa de um item de loot: categoria real (se conhecida),
-// slot de equipamento, tipo e stats estimados.
+// slot de equipamento, tipo e stats/peso/preço estimados.
 export function getItemDefinition(name) {
   const category = REAL_ITEM_CATEGORIES[slugify(name)];
   const info = category ? CATEGORY_INFO[category] : guessItemInfo(name);
   const type = info?.type ?? ITEM_TYPES.MATERIAL;
   const slot = info?.slot ?? null;
+  const tier = estimateTier(name);
 
   let stats;
   if (type === ITEM_TYPES.CONSUMABLE) stats = estimateConsumableStats(name);
   else if (slot) stats = estimateEquipStats(name, slot);
 
-  return { type, slot, category: category ?? null, ...(stats ? { stats } : {}) };
+  return {
+    type,
+    slot,
+    category: category ?? null,
+    weight: estimateWeight(type, tier),
+    sellPrice: estimateSellPrice(type, tier),
+    ...(stats ? { stats } : {}),
+  };
 }
 
 // Sorteia o loot de um monstro derrotado. Cada item da tabela é sorteado de forma

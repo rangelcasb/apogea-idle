@@ -1,0 +1,71 @@
+import { TALENTS, TALENT_BRANCHES, TALENTS_BY_ID, canInvestTalent } from '../data/talents';
+
+function TalentNode({ talent, points, canInvest, onInvest }) {
+  const isMaxed = points >= talent.maxPoints;
+  return (
+    <div
+      className={`bg-wood border rounded-lg p-3 flex flex-col gap-1
+        ${points > 0 ? 'border-gold' : 'border-wood-lighter'} ${!canInvest && !isMaxed ? 'opacity-50' : ''}`}
+    >
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-medium text-neutral-100">{talent.name}</p>
+        <span className="text-xs text-gold">{points}/{talent.maxPoints}</span>
+      </div>
+      <p className="text-[11px] text-neutral-500">{talent.description}</p>
+      {talent.ranks.length > 0 && (
+        <p className="text-[10px] text-neutral-600">Ranks: {talent.ranks.join(' → ')}</p>
+      )}
+      <button
+        onClick={() => onInvest(talent.id)}
+        disabled={!canInvest || isMaxed}
+        className="mt-1 self-start text-xs font-medium bg-gold text-wood px-2.5 py-1 rounded
+                   disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer hover:bg-yellow-500"
+      >
+        +1 ponto
+      </button>
+    </div>
+  );
+}
+
+export default function Talentos({ character, talentPointsAvailable, investTalent }) {
+  const branches = Object.keys(TALENT_BRANCHES).filter((b) => b !== 'core');
+  const talentPoints = character.talentPoints ?? {};
+
+  return (
+    <div className="flex-1">
+      <div className="bg-wood-light border border-wood-lighter rounded-lg p-4 mb-4">
+        <h3 className="text-gold font-semibold tracking-wide mb-1">◆ TALENTOS</h3>
+        <p className="text-xs text-neutral-400">
+          {talentPointsAvailable} ponto(s) disponível(is) — 1 ponto a cada 2 níveis.
+        </p>
+        <p className="text-[11px] text-neutral-600 mt-1">
+          Árvore real do Apogea (nomes, descrições e ramos). Como este jogo idle não tem o
+          sistema de magias ativas do original, o efeito de cada talento aqui é uma
+          aproximação simplificada — não é o efeito real do jogo completo.
+        </p>
+      </div>
+
+      {branches.map((branch) => {
+        const nodes = TALENTS.filter((t) => t.branch === branch);
+        return (
+          <div key={branch} className="mb-4">
+            <h4 className="text-sm font-semibold text-neutral-300 mb-2">{TALENT_BRANCHES[branch]}</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              {nodes.map((talent) => {
+                const points = talentPoints[talent.id] ?? 0;
+                const canInvest = talentPointsAvailable > 0 && canInvestTalent(talentPoints, talent.id);
+                const parentName = talent.parent !== null ? TALENTS_BY_ID[talent.parent]?.name : null;
+                return (
+                  <div key={talent.id} className="flex flex-col gap-1">
+                    {parentName && <p className="text-[10px] text-neutral-600">↳ requer {parentName}</p>}
+                    <TalentNode talent={talent} points={points} canInvest={canInvest} onInvest={investTalent} />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}

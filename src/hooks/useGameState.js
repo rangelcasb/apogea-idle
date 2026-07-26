@@ -5,17 +5,21 @@ import {
   ITEM_TYPES,
   EQUIP_SLOTS,
   POINTS_PER_LEVEL,
+  BOOSTED_MULTIPLIER,
   xpForNextLevel,
   rollLoot,
   computeFinalStats,
   canAllocatePoint,
   allocatePoint,
   unspentPoints,
+  getDailyBoostedMonster,
 } from '../data/gameData';
+import { talentPointsForLevel, spentTalentPoints, canInvestTalent } from '../data/talents';
 
 const TURN_MS = 2000;
 const REGEN_TICK_MS = 2000;
 const STORAGE_KEY = 'apogea-idle-character';
+const RESPEC_COST = 200;
 
 function mergeLoot(inventory, droppedItems) {
   const next = [...inventory];
@@ -34,13 +38,19 @@ function emptyEquipment() {
   return Object.fromEntries(Object.keys(EQUIP_SLOTS).map((slot) => [slot, null]));
 }
 
-function createCharacter(className) {
+function createCharacter(className, name) {
   const raw = {
+    name: name?.trim() || 'Aventureiro',
     class: className,
     level: 1,
     xp: 0,
     gold: 0,
+    kills: 0,
+    deaths: 0,
+    totalGoldEarned: 0,
+    totalXpEarned: 0,
     levelBatches: [],
+    talentPoints: {},
     equipment: emptyEquipment(),
     inventory: STARTER_ITEMS.map((i) => ({ ...i })),
     currentHealth: 0,
@@ -53,13 +63,20 @@ function createCharacter(className) {
   return raw;
 }
 
-// Personagens salvos antes do sistema de pontos/equipamento não têm esses campos —
-// preenchemos com valores neutros pra não quebrar a tela ao carregar um save antigo.
+// Personagens salvos antes do sistema de pontos/equipamento/talentos não têm esses
+// campos — preenchemos com valores neutros pra não quebrar a tela ao carregar um save
+// antigo.
 function migrateCharacter(char) {
   if (!char) return char;
   return {
     ...char,
+    name: char.name ?? 'Aventureiro',
+    kills: char.kills ?? 0,
+    deaths: char.deaths ?? 0,
+    totalGoldEarned: char.totalGoldEarned ?? char.gold ?? 0,
+    totalXpEarned: char.totalXpEarned ?? char.xp ?? 0,
     levelBatches: char.levelBatches ?? [],
+    talentPoints: char.talentPoints ?? {},
     equipment: char.equipment ?? emptyEquipment(),
     currentMana: char.currentMana ?? 0,
     inventory: char.inventory ?? [],
@@ -95,11 +112,11 @@ function init() {
 function reducer(state, action) {
   switch (action.type) {
     case 'CREATE_CHARACTER': {
-      const character = createCharacter(action.className);
+      const character = createCharacter(action.className, action.name);
       return {
         character,
         monster: pickMonster(character.zoneId),
-        log: pushLog([], `Personagem ${action.className} criado! Boa sorte na aventura.`),
+        log: pushLog([], `Personagem ${character.name} (${action.className}) criado! Boa sorte na aventura.`),
         autoCombat: false,
       };
     }
@@ -122,14 +139,19 @@ function reducer(state, action) {
       let log = pushLog(state.log, `Você causou ${playerDamage.toFixed(1)} de dano em ${currentMonster.name}.`);
 
       if (monsterHealth <= 0) {
-        const { gold: goldDrop, items: itemDrops } = rollLoot(currentMonster);
-        log = pushLog(log, `${currentMonster.name} derrotado! +${currentMonster.xp} XP.`);
+        const boosted = getDailyBoostedMonster().name === currentMonster.name;
+        const boostMult = boosted ? BOOSTED_MULTIPLIER : 1;
+        const { gold: rawGold, items: itemDrops } = rollLoot(currentMonster);
+        const goldDrop = Math.round(rawGold * boostMult);
+        const xpGain = Math.round(currentMonster.xp * boostMult);
+
+        log = pushLog(log, `${currentMonster.name} derrotado! +${xpGain} XP.${boosted ? ' (boosted do dia!)' : ''}`);
         if (goldDrop > 0) log = pushLog(log, `+${goldDrop} gold.`);
         for (const item of itemDrops) {
           log = pushLog(log, `Você encontrou: ${item.name} x${item.quantity}.`);
         }
 
-        let xp = char.xp + currentMonster.xp;
+        let xp = char.xp + xpGain;
         let level = char.level;
         let levelBatches = char.levelBatches;
         let needed = xpForNextLevel(level);
@@ -147,6 +169,9 @@ function reducer(state, action) {
           level,
           levelBatches,
           gold: char.gold + goldDrop,
+          kills: char.kills + 1,
+          totalGoldEarned: char.totalGoldEarned + goldDrop,
+          totalXpEarned: char.totalXpEarned + xpGain,
           inventory: mergeLoot(char.inventory, itemDrops),
         };
         const newStats = computeFinalStats(updatedChar);
@@ -161,14 +186,18 @@ function reducer(state, action) {
       const newHealth = Math.max(0, char.currentHealth - monsterDamage);
 
       let autoCombat = state.autoCombat;
-      if (newHealth <= 0 && autoCombat) {
-        autoCombat = false;
-        log = pushLog(log, 'Você foi derrotado! Combate automático interrompido.');
+      let deaths = char.deaths;
+      if (newHealth <= 0) {
+        deaths += 1;
+        if (autoCombat) {
+          autoCombat = false;
+          log = pushLog(log, 'Você foi derrotado! Combate automático interrompido.');
+        }
       }
 
       return {
         ...state,
-        character: { ...char, currentHealth: newHealth },
+        character: { ...char, currentHealth: newHealth, deaths },
         monster: { ...currentMonster, currentHealth: monsterHealth },
         log,
         autoCombat,
@@ -232,6 +261,39 @@ function reducer(state, action) {
       return { ...state, character: { ...char, currentHealth, currentMana, inventory }, log };
     }
 
+    case 'SELL_ITEM': {
+      const char = state.character;
+      if (!char) return state;
+      const item = char.inventory.find((i) => i.id === action.itemId);
+      if (!item || item.quantity <= 0) return state;
+
+      const sellQty = action.all ? item.quantity : Math.min(1, item.quantity);
+      const total = (item.sellPrice ?? 0) * sellQty;
+      const inventory = char.inventory
+        .map((i) => (i.id === action.itemId ? { ...i, quantity: i.quantity - sellQty } : i))
+        .filter((i) => i.quantity > 0);
+
+      return {
+        ...state,
+        character: { ...char, gold: char.gold + total, totalGoldEarned: char.totalGoldEarned + total, inventory },
+        log: pushLog(state.log, `Você vendeu ${sellQty}x ${item.name} por ${total} gold.`),
+      };
+    }
+
+    case 'DISCARD_ITEM': {
+      const char = state.character;
+      if (!char) return state;
+      const item = char.inventory.find((i) => i.id === action.itemId);
+      if (!item) return state;
+
+      const inventory = char.inventory.filter((i) => i.id !== action.itemId);
+      return {
+        ...state,
+        character: { ...char, inventory },
+        log: pushLog(state.log, `Você descartou ${item.name}.`),
+      };
+    }
+
     case 'EQUIP_ITEM': {
       const char = state.character;
       if (!char) return state;
@@ -287,6 +349,29 @@ function reducer(state, action) {
       return { ...state, character: { ...char, levelBatches: allocatePoint(char.levelBatches, action.stat) } };
     }
 
+    case 'RESET_ATTRIBUTES': {
+      const char = state.character;
+      if (!char || char.gold < RESPEC_COST || char.levelBatches.length === 0) return state;
+      const levelBatches = char.levelBatches.map(() => ({ remaining: POINTS_PER_LEVEL, spent: {} }));
+      return {
+        ...state,
+        character: { ...char, gold: char.gold - RESPEC_COST, levelBatches },
+        log: pushLog(state.log, `Atributos resetados por ${RESPEC_COST} gold.`),
+      };
+    }
+
+    case 'INVEST_TALENT': {
+      const char = state.character;
+      if (!char) return state;
+      const available = talentPointsForLevel(char.level) - spentTalentPoints(char.talentPoints);
+      if (available <= 0 || !canInvestTalent(char.talentPoints, action.talentId)) return state;
+      const talentPoints = {
+        ...char.talentPoints,
+        [action.talentId]: (char.talentPoints[action.talentId] ?? 0) + 1,
+      };
+      return { ...state, character: { ...char, talentPoints } };
+    }
+
     case 'CHANGE_ZONE': {
       if (!state.character) return state;
       return {
@@ -339,16 +424,25 @@ export function useGameState() {
   );
   const character = state.character ? { ...state.character, stats } : null;
 
-  const createNewCharacter = useCallback((className) => dispatch({ type: 'CREATE_CHARACTER', className }), []);
+  const weight = useMemo(
+    () => (state.character ? state.character.inventory.reduce((sum, i) => sum + (i.weight ?? 1) * i.quantity, 0) : 0),
+    [state.character],
+  );
+
+  const createNewCharacter = useCallback((className, name) => dispatch({ type: 'CREATE_CHARACTER', className, name }), []);
   const resetCharacter = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
     dispatch({ type: 'RESET' });
   }, []);
   const setAutoCombat = useCallback((valueOrFn) => dispatch({ type: 'SET_AUTO_COMBAT', valueOrFn }), []);
   const consumeItem = useCallback((itemId) => dispatch({ type: 'CONSUME_ITEM', itemId }), []);
+  const sellItem = useCallback((itemId, all) => dispatch({ type: 'SELL_ITEM', itemId, all }), []);
+  const discardItem = useCallback((itemId) => dispatch({ type: 'DISCARD_ITEM', itemId }), []);
   const equipItem = useCallback((itemId) => dispatch({ type: 'EQUIP_ITEM', itemId }), []);
   const unequipItem = useCallback((slot) => dispatch({ type: 'UNEQUIP_ITEM', slot }), []);
   const allocateStat = useCallback((stat) => dispatch({ type: 'ALLOCATE_STAT', stat }), []);
+  const resetAttributes = useCallback(() => dispatch({ type: 'RESET_ATTRIBUTES' }), []);
+  const investTalent = useCallback((talentId) => dispatch({ type: 'INVEST_TALENT', talentId }), []);
   const changeZone = useCallback((zoneId) => dispatch({ type: 'CHANGE_ZONE', zoneId }), []);
 
   return {
@@ -360,10 +454,19 @@ export function useGameState() {
     createNewCharacter,
     resetCharacter,
     consumeItem,
+    sellItem,
+    discardItem,
     equipItem,
     unequipItem,
     allocateStat,
+    resetAttributes,
+    respecCost: RESPEC_COST,
+    investTalent,
+    talentPointsAvailable: state.character
+      ? talentPointsForLevel(state.character.level) - spentTalentPoints(state.character.talentPoints)
+      : 0,
     unspentPoints: state.character ? unspentPoints(state.character.levelBatches) : 0,
+    weight,
     changeZone,
     zones: ZONES,
   };
