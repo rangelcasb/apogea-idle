@@ -1,4 +1,4 @@
-import { ALLOCATABLE_STATS, canAllocatePoint, CLASSES, EQUIP_SLOTS } from '../data/gameData';
+import { ALLOCATABLE_STATS, canAllocatePoint, CLASSES, EQUIP_SLOTS, HAND_CAPACITY, RARITY_COLORS } from '../data/gameData';
 
 const STAT_META = {
   health: { label: 'Health', note: '+5 HP/ponto' },
@@ -20,8 +20,7 @@ function EquipStats({ stats }) {
 }
 
 export default function Personagem({ character, unspentPoints, allocateStat, resetAttributes, respecCost, unequipItem }) {
-  const equippedCount = Object.values(character.equipment).filter(Boolean).length;
-  const totalSlots = Object.keys(EQUIP_SLOTS).length;
+  const handSize = (character.equipment.weapon?.equipSize ?? 0) + (character.equipment.offhand?.equipSize ?? 0);
   const attackSpeed = character.stats.attackSpeed || 1;
   const interval = 2 / attackSpeed;
   const dps = character.stats.damage / interval;
@@ -145,7 +144,7 @@ export default function Personagem({ character, unspentPoints, allocateStat, res
       <div className="flex flex-col gap-4">
         <div className="bg-wood-light border border-wood-lighter rounded-lg p-4">
           <h3 className="text-gold font-semibold tracking-wide mb-3">
-            ◆ EQUIPAMENTO — MÃOS: {equippedCount}/{totalSlots}
+            ◆ EQUIPAMENTO — MÃOS: {handSize}/{HAND_CAPACITY}
           </h3>
           <div className="flex flex-col gap-2">
             {Object.entries(EQUIP_SLOTS).map(([slot, label]) => {
@@ -159,7 +158,7 @@ export default function Personagem({ character, unspentPoints, allocateStat, res
                     <p className="text-[10px] text-neutral-500">{label}</p>
                     {item ? (
                       <>
-                        <p className="text-sm text-neutral-100">{item.name}</p>
+                        <p className={`text-sm ${RARITY_COLORS[item.rarity] ?? 'text-neutral-100'}`}>{item.name}</p>
                         <EquipStats stats={item.stats} />
                       </>
                     ) : (

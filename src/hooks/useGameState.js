@@ -4,6 +4,7 @@ import {
   STARTER_ITEMS,
   ITEM_TYPES,
   EQUIP_SLOTS,
+  HAND_CAPACITY,
   POINTS_PER_LEVEL,
   BOOSTED_MULTIPLIER,
   xpForNextLevel,
@@ -302,6 +303,19 @@ function reducer(state, action) {
 
       const slot = item.slot;
       const previouslyEquipped = char.equipment[slot];
+
+      // Tamanho das mãos: arma + mão secundária não podem somar mais que 10 (equipSize
+      // real de cada item, "MÃOS: X/10" na tela do personagem).
+      if (slot === 'weapon' || slot === 'offhand') {
+        const otherSlot = slot === 'weapon' ? 'offhand' : 'weapon';
+        const otherSize = char.equipment[otherSlot]?.equipSize ?? 0;
+        if ((item.equipSize ?? 0) + otherSize > HAND_CAPACITY) {
+          return {
+            ...state,
+            log: pushLog(state.log, `${item.name} não cabe nas mãos (tamanho ${item.equipSize ?? 0} + ${otherSize} > ${HAND_CAPACITY}).`),
+          };
+        }
+      }
 
       let inventory = char.inventory
         .map((i) => (i.id === action.itemId ? { ...i, quantity: i.quantity - 1 } : i))

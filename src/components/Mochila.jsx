@@ -1,4 +1,4 @@
-import { ITEM_TYPES } from '../data/gameData';
+import { ITEM_TYPES, RARITY_COLORS, RARITY_LABELS } from '../data/gameData';
 
 const TYPE_LABELS = {
   [ITEM_TYPES.WEAPON]: 'Weapons',
@@ -32,10 +32,15 @@ export default function Mochila({ character, weight, consumeItem, equipItem, sel
               {character.inventory.map((item) => (
                 <tr key={item.id} className="border-b border-wood-lighter last:border-b-0">
                   <td className="py-2">
-                    <p className="text-neutral-100">{item.name}</p>
+                    <p className={RARITY_COLORS[item.rarity] ?? 'text-neutral-100'}>
+                      {item.name}
+                      {item.rarity && item.rarity !== 'common' && (
+                        <span className="text-[10px] ml-1">({RARITY_LABELS[item.rarity]})</span>
+                      )}
+                    </p>
                     {item.stats && (
                       <p className="text-[10px] text-gold">
-                        {Object.entries(item.stats).map(([k, v]) => `${k} +${v}`).join(' · ')}
+                        {Object.entries(item.stats).map(([k, v]) => `${k} ${v > 0 ? '+' : ''}${v}`).join(' · ')}
                       </p>
                     )}
                   </td>
@@ -44,7 +49,7 @@ export default function Mochila({ character, weight, consumeItem, equipItem, sel
                   <td className="text-right text-gold">{item.sellPrice ?? 0}g</td>
                   <td>
                     <div className="flex gap-1.5 justify-end flex-wrap">
-                      {item.type === ITEM_TYPES.CONSUMABLE && (
+                      {item.type === ITEM_TYPES.CONSUMABLE && item.stats && (
                         <button
                           onClick={() => consumeItem(item.id)}
                           className="text-xs font-medium bg-gold text-wood px-2 py-1 rounded cursor-pointer hover:bg-yellow-500"

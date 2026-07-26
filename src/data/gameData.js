@@ -1,4 +1,5 @@
 import { applyTalentEffects } from './talents.js';
+import { REAL_ITEMS } from './items.js';
 
 // Classes reais do Apogea: Knight, Mage, Rogue. Multiplicadores da tabela "7.1
 // Comparação de Crescimento" enviada pelo usuário (Health/Defense/Magic/Mana/Attack
@@ -13,7 +14,10 @@ const BASE_SQUIRE_STATS = {
   ability: 12,
   hpRegen: 2,
   mpRegen: 2,
-  capacity: 40,
+  // Recalibrado pra bater com a tela real enviada: personagem com 0 pontos em Capacity
+  // + um Green Bag equipado (+6 real) tinha 225 de capacidade final -> base real 219.
+  // Os pesos de item também são reais agora (itemdata.js), então precisavam da mesma escala.
+  capacity: 219,
   attackSpeed: 1.0,
   armor: 10,
   damage: 10,
@@ -152,7 +156,8 @@ export const ITEM_TYPES = {
 
 // 10 slots de equipamento reais, exatamente como na tela "EQUIPAMENTO — MÃOS: 10/10"
 // que o usuário enviou (Arma, Mão Secundária, Cabeça, Peitoral, Pernas, Botas, Munição,
-// Pescoço, Anel, Mochila — sem slot dedicado de luvas; "Gloves" vira item de Material).
+// Pescoço, Anel, Mochila). Luvas ("Gloves") são reais mas ocupam o slot "weapon" no
+// jogo original (tipo "hand" nos dados), então entram como arma alternativa aqui.
 export const EQUIP_SLOTS = {
   weapon: 'Arma',
   offhand: 'Mão Secundária',
@@ -164,6 +169,25 @@ export const EQUIP_SLOTS = {
   neck: 'Pescoço',
   ring: 'Anel',
   backpack: 'Mochila',
+};
+
+// Tamanho máximo combinado (arma + mão secundária) — real, é o "MÃOS: X/10" da tela.
+export const HAND_CAPACITY = 10;
+
+// Cores por raridade de instância (common/uncommon/rare/epic/legendary), pra UI.
+export const RARITY_LABELS = {
+  common: 'Comum',
+  uncommon: 'Incomum',
+  rare: 'Raro',
+  epic: 'Épico',
+  legendary: 'Lendário',
+};
+export const RARITY_COLORS = {
+  common: 'text-neutral-300',
+  uncommon: 'text-green-400',
+  rare: 'text-blue-400',
+  epic: 'text-purple-400',
+  legendary: 'text-gold',
 };
 
 // Chance de cada item de uma tabela de loot realmente cair quando o monstro morre,
@@ -1265,229 +1289,86 @@ export function slugify(name) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 }
 
-// Categoria real de cada item, extraída do Items Browser (apogea-tools.lubien.dev/items,
-// 210 itens). O browser expõe a categoria (ex: "Large Sword", "Light Chest", "Potions")
-// mas NÃO expõe os valores de stat de cada item — isso é sempre estimado (ver
-// estimateEquipStats/estimateConsumableStats abaixo).
-const REAL_ITEM_CATEGORIES_LIST = [
-  ['Ale Mug', 'Drinks'], ['Ancient Sword', 'Large Sword'], ['Apple', 'Food'], ['Apple Pie', 'Special Food'],
-  ['Arrow', 'Arrows'], ['Bachall', 'Staff'], ['Bagnoff', 'Container'], ['Battle Axe', 'Axe'],
-  ['Battle Cloak', 'Light Chest'], ['Big Empty Pot', 'Potions'], ['Big Mana Potion', 'Potions'],
-  ['Black Bag', 'Container'], ['Black Wool', 'Cloth Products'], ['Blessed Amulet', 'Necklace'],
-  ['Blue Backpack', 'Container'], ['Blue Gill', 'Raw Food'], ['Blue Spellbook: Heal', 'Book'],
-  ['Blueberries', 'Food'], ['Boletus Piece', 'Swamp Products'], ['Bone Bow', 'Bow'], ['Bone Knife', 'Knife'],
-  ['Brass Legs', 'Heavy Legs'], ['Brass Shield', 'Small Shield'], ['Bread Loaf', 'Raw Food'],
-  ['Bread Piece', 'Edible Food'], ['Brigandine Legs', 'Light Legs'], ['Brigandine Vest', 'Light Chest'],
-  ['Broadsword', 'Large Sword'], ['Brown Backpack', 'Container'], ['Buckler', 'Shield'],
-  ['Bug Wings', 'Swamp Products'], ['Burlap Hat', 'Light Helmet'], ['Burlap Skirt', 'Light Legs'],
-  ['Burlap Wool', 'Monster Products'], ['Cattail Flower', 'Flowers'], ['Chain Mail', 'Heavy Chest'],
-  ['Cheese Slice', 'Edible Food'], ['Cheese Wheel', 'Raw Food'], ['Cloth Pants', 'Light Legs'],
-  ['Cloth Vest', 'Light Armor'], ['Colocasia Seed', 'Flowers'], ['Cooked Game Meat', 'Cooked Food'],
-  ['Cooked Lamb', 'Cooked Food'], ['Cooked Snapper', 'Cooked Food'], ['Cooked White Mushroom', 'Cooked Food'],
-  ['Crooked Vest', 'Light Chest'], ['Crossbow', 'Bow'], ['Crowbar', 'Tools'], ['Crystal Amulet', 'Necklace'],
-  ['Crystal Ring', 'Ring'], ['Crystal Shard', 'North Products'], ['Crystal Staff', 'Staff'], ['Cutlass', 'Sword'],
-  ['Dark Armor', 'Heavy Armor'], ['Dark Hood', 'Light Helmet'], ['Dark Legs', 'Light Legs'],
-  ['Dark Robe', 'Light Chest'], ['Diamond Ring', 'Ring'], ['Dragonfruit', 'Special Food'],
-  ['Druid Cape', 'Light Chest'], ['Druid Hat', 'Light Helmet'], ['Eggplant', 'Edible Food'],
-  ['Elvish Amanita', 'Special Food'], ['Empty Pot', 'Potions'], ['Epee', 'Sword'], ['Fish Steak', 'Edible Food'],
-  ['Forsaken Cross', 'Holy Products'], ['Fur', 'North Products'], ['Gambeson', 'Light Armor'],
-  ['Game Meat', 'Raw Food'], ['Garlic', 'Raw Food'], ['Garnet Ring', 'Ring'], ['Golden Ring', 'Ring'],
-  ['Golden Torc', 'Currency'], ['Gray Backpack', 'Backpacks'], ['Great Axe', 'Large Axe'],
-  ['Greatsword', 'Large Sword'], ['Green Backpack', 'Container'], ['Green Bag', 'Container'],
-  ['Green Orb', 'Orb'], ['Grilled Cheese', 'Special Food'], ['Health Potion', 'Potions'],
-  ['Hero Flower', 'Flowers'], ['Hook Claw', 'Monster Products'], ['Iron Ingot', 'Metal Products'],
-  ['Iron Pan', 'Cooking Items'], ['Ironsword', 'Sword'], ['Kettle Helmet', 'Heavy Helmet'],
-  ['Kings Nose', 'Flowers'], ['Knife', 'Knife'], ['Lamb Meat', 'Raw Food'], ['Lantern', 'Light Sources'],
-  ['Leaf Blade', 'Sword'], ['Leather Bascinet', 'Light Helmet'], ['Leather Boots', 'Light Boots'],
-  ['Leather Cloak', 'Light Chest'], ['Leather Coif', 'Light Helmet'], ['Leather Collar', 'Light Neck'],
-  ['Leather Cuisse', 'Light Legs'], ['Leather Gloves', 'Gloves'], ['Lineage Shield', 'Small Shield'],
-  ['Longbow', 'Bow'], ['Longsword', 'Large Sword'], ['Magician Shoes', 'Light Boots'], ['Mana Potion', 'Potions'],
-  ['Meaty Stew', 'Special Food'], ["Merchant's Bag", 'Container'], ['Merchants Bag', 'Container'],
-  ['Moon Ingot', 'Forge Products'], ['Nightshade', 'Flowers'], ['Nightshade Kilt', 'Light Legs'],
-  ['Nightshade Robe', 'Light Chest'], ['Old Axe', 'Large Axe'], ['Old Backpack', 'Container'],
-  ['Old Gloves', 'Gloves'], ['Old Ring', 'Plains Products'], ['Onion', 'Raw Food'], ['Onion Rings', 'Cooked Food'],
-  ['Onyx Armor', 'Heavy Chest'], ['Onyx Boots', 'Heavy Boots'], ['Onyx Dagger', 'Dagger'],
-  ['Onyx Helmet', 'Heavy Helmet'], ['Onyx Legs', 'Heavy Legs'], ['Onyx Ring', 'Ring'],
-  ['Onyx Shield', 'Small Shield'], ['Orange', 'Edible Food'], ['Orb', 'Orb'], ['Pestilence Sword', 'Large Sword'],
-  ['Plagued Scale', 'Swamp Products'], ['Plated Boots', 'Heavy Boots'], ['Plated Cuirass', 'Heavy Chest'],
-  ['Plated Helmet', 'Heavy Helmet'], ['Plated Legs', 'Heavy Legs'], ['Plated Shield', 'Small Shield'],
-  ['Plea Toe', 'Monster Products'], ['Pumpkin', 'Food'], ['Quoki Headgear', 'Light Mask'],
-  ['Quoki Shoes', 'Light Boots'], ['Ragged Cloth', 'Cloth Products'], ['Rat Tail', 'Monster Products'],
-  ['Rawhide', 'North Products'], ['Red Breast', 'Raw Food'], ['Red Orb', 'Orb'], ['Rice', 'Raw Food'],
-  ['Rice Dish', 'Special Food'], ['Rock Core', 'Desert Products'], ['Rope', 'Tools'], ['Rose', 'Flowers'],
-  ['Royal Armor', 'Heavy Chest'], ['Royal Dagger', 'Dagger'], ['Royal Helmet', 'Heavy Helmet'],
-  ['Royal Legs', 'Heavy Legs'], ['Ruby Amulet', 'Necklace'], ['Rusty Sword', 'Sword'],
-  ['Sailor Boots', 'Light Boots'], ['Sandworm', 'Special Food'], ['Sandworm Meal', 'Special Food'],
-  ['Scale Armor', 'Heavy Chest'], ['Scale Kilt', 'Heavy Legs'], ['Scarf', 'Light Neck'],
-  ['Serpent Sword', 'Sword'], ['Shovel', 'Tools'], ['Silver Amulet', 'Necklace'], ['Silver Dagger', 'Dagger'],
-  ['Silver Mask', 'Light Mask'], ['Silver Ring', 'Ring'], ['Simple Bag', 'Container'],
-  ['Simple Garment', 'Light Armor'], ['Skull Ring', 'Ring'], ['Slime Essence', 'Swamp Products'],
-  ['Small Bones', 'MiscellaneousItems'], ['Small Skull', 'Grave Products'], ['Snake Orb', 'Orb'],
-  ['Snapper', 'Raw Food'], ['Spangenhelm', 'Heavy Helmet'], ['Spicy Stew', 'Special Food'],
-  ['Spring Stew', 'Special Food'], ['Square Bag', 'Container'], ['Steel Bracelet', 'Ring'],
-  ['Steel Ingot', 'Forge Products'], ['Steelsword', 'Sword'], ['Stone Wand', 'Staff'],
-  ['Strawberries', 'Special Food'], ['Studded Shield', 'Large Shield'], ['Swamp Cod', 'Raw Food'],
-  ['Talisman Pouch', 'Container'], ['Tin Ingot', 'Metal Products'], ['Tofu Block', 'Edible Food'],
-  ['Tomatoes', 'Edible Food'], ['Torch', 'Light Sources'], ['Tower Shield', 'Large Shield'],
-  ['Unholy Staff', 'Staff'], ['Vanguard Shield', 'Small Shield'], ['Vecan Axe', 'Large Axe'],
-  ['Velvet Pouch', 'Container'], ['Web Cap Eye', 'Desert Products'], ['Wheat', 'Raw Food'],
-  ['White Mushroom', 'Edible Food'], ['Winged Boots', 'Light Boots'], ['Wizard Hat', 'Light Helmet'],
-  ['Wizard Robe', 'Light Chest'], ['Wood Twigs', 'Plains Products'], ['Wooden Bow', 'Bow'],
-  ['Wooden Bowl', 'Cooking Items'], ['Wooden Cup', 'Drinks'], ['Wooden Mug', 'Drinks'],
-  ['Wooden Staff', 'Staff'], ['Wool', 'Cloth Products'], ['Worn Paper', 'Book Products'],
-  ['Yellow Beauty', 'Flower Products'], ['Zircon Ring', 'Ring'],
-];
+const REAL_ITEMS_BY_NAME = Object.fromEntries(REAL_ITEMS.map((it) => [it.name, it]));
 
-const REAL_ITEM_CATEGORIES = Object.fromEntries(
-  REAL_ITEM_CATEGORIES_LIST.map(([name, category]) => [slugify(name), category]),
-);
+// Raridade de INSTÂNCIA do item (common/uncommon/rare/epic/legendary — diferente da
+// raridade de DROP do monstro, que já define a CHANCE do item cair). Cada raridade de
+// instância tem stats reais diferentes (ver items.js). As probabilidades abaixo são
+// nossas — o jogo real não publica a chance de cada tier de qualidade.
+const QUALITY_WEIGHTS = { common: 60, uncommon: 25, rare: 10, epic: 4, legendary: 1 };
 
-// Categoria real -> slot de equipamento / tipo de item. Cobre todas as categorias
-// observadas no Items Browser.
-const CATEGORY_INFO = {
-  'Large Sword': { slot: 'weapon', type: ITEM_TYPES.WEAPON },
-  Sword: { slot: 'weapon', type: ITEM_TYPES.WEAPON },
-  Knife: { slot: 'weapon', type: ITEM_TYPES.WEAPON },
-  Dagger: { slot: 'weapon', type: ITEM_TYPES.WEAPON },
-  Bow: { slot: 'weapon', type: ITEM_TYPES.WEAPON },
-  Staff: { slot: 'weapon', type: ITEM_TYPES.WEAPON },
-  Axe: { slot: 'weapon', type: ITEM_TYPES.WEAPON },
-  'Large Axe': { slot: 'weapon', type: ITEM_TYPES.WEAPON },
-  Shield: { slot: 'offhand', type: ITEM_TYPES.ARMOR },
-  'Small Shield': { slot: 'offhand', type: ITEM_TYPES.ARMOR },
-  'Large Shield': { slot: 'offhand', type: ITEM_TYPES.ARMOR },
-  Orb: { slot: 'offhand', type: ITEM_TYPES.ARMOR },
-  'Light Helmet': { slot: 'head', type: ITEM_TYPES.ARMOR },
-  'Heavy Helmet': { slot: 'head', type: ITEM_TYPES.ARMOR },
-  'Light Mask': { slot: 'head', type: ITEM_TYPES.ARMOR },
-  'Light Chest': { slot: 'chest', type: ITEM_TYPES.ARMOR },
-  'Heavy Chest': { slot: 'chest', type: ITEM_TYPES.ARMOR },
-  'Light Armor': { slot: 'chest', type: ITEM_TYPES.ARMOR },
-  'Heavy Armor': { slot: 'chest', type: ITEM_TYPES.ARMOR },
-  'Light Legs': { slot: 'legs', type: ITEM_TYPES.ARMOR },
-  'Heavy Legs': { slot: 'legs', type: ITEM_TYPES.ARMOR },
-  'Light Boots': { slot: 'boots', type: ITEM_TYPES.ARMOR },
-  'Heavy Boots': { slot: 'boots', type: ITEM_TYPES.ARMOR },
-  Gloves: { slot: null, type: ITEM_TYPES.MATERIAL },
-  Necklace: { slot: 'neck', type: ITEM_TYPES.ARMOR },
-  'Light Neck': { slot: 'neck', type: ITEM_TYPES.ARMOR },
-  Ring: { slot: 'ring', type: ITEM_TYPES.ARMOR },
-  Container: { slot: 'backpack', type: ITEM_TYPES.ARMOR },
-  Backpacks: { slot: 'backpack', type: ITEM_TYPES.ARMOR },
-  Arrows: { slot: 'ammo', type: ITEM_TYPES.ARMOR },
-  Drinks: { slot: null, type: ITEM_TYPES.CONSUMABLE },
-  Food: { slot: null, type: ITEM_TYPES.CONSUMABLE },
-  'Special Food': { slot: null, type: ITEM_TYPES.CONSUMABLE },
-  Potions: { slot: null, type: ITEM_TYPES.CONSUMABLE },
-  'Raw Food': { slot: null, type: ITEM_TYPES.CONSUMABLE },
-  'Edible Food': { slot: null, type: ITEM_TYPES.CONSUMABLE },
-  'Cooked Food': { slot: null, type: ITEM_TYPES.CONSUMABLE },
+function rollQualityVariant(variants) {
+  const available = variants.filter((v) => QUALITY_WEIGHTS[v.rarity] != null);
+  const pool = available.length ? available : variants;
+  const total = pool.reduce((sum, v) => sum + (QUALITY_WEIGHTS[v.rarity] ?? 1), 0);
+  let roll = Math.random() * total;
+  for (const v of pool) {
+    roll -= QUALITY_WEIGHTS[v.rarity] ?? 1;
+    if (roll <= 0) return v;
+  }
+  return pool[0];
+}
+
+function typeFromSlot(slot, hasConsumable) {
+  if (slot === 'weapon') return ITEM_TYPES.WEAPON;
+  if (slot) return ITEM_TYPES.ARMOR;
+  return hasConsumable ? ITEM_TYPES.CONSUMABLE : ITEM_TYPES.MATERIAL;
+}
+
+// Nomes de item nas tabelas de loot dos monstros (extraídas das páginas de bestiário)
+// às vezes usam grafia levemente diferente da base real de itens (extraída do
+// itemdata.js). Resolve os casos mais comuns antes de desistir e cair no genérico.
+const ITEM_NAME_ALIASES = {
+  "Merchant's Bag": 'Merchants Bag',
+  'Web Cap Eye': 'Webcap Eye',
+  'Brass Armor': 'Brass Plate',
+  'Regen Ring': 'Regeneration Ring',
+  'Blue Healing Book': 'Blue Spellbook: Heal',
 };
+const SPELLBOOK_COLOR_RE = /^(Red|Blue|Green|Evil|Yellow) Book (.+)$/;
 
-// Palavras-chave usadas quando um item não está na lista real (ex: itens de loot com
-// nome levemente diferente do Items Browser). Fallback só, não é a fonte principal.
-const WEAPON_WORDS = ['sword', 'axe', 'dagger', 'bow', 'staff', 'knife', 'wand', 'cutlass', 'epee', 'bachall'];
-const ARMOR_WORDS = ['armor', 'legs', 'helmet', 'boots', 'shield', 'cloak', 'vest', 'robe', 'coif', 'bascinet', 'gambeson', 'kilt', 'cuisse', 'mask', 'hood', 'pants', 'mail', 'cuirass', 'bracelet'];
-const CONSUMABLE_WORDS = ['potion', 'pie', 'stew', 'bread', 'meat', 'fish', 'cheese', 'apple', 'berries', 'orange', 'dish', 'rice', 'tomatoes', 'wheat', 'eggplant', 'pumpkin', 'mushroom', 'cod', 'gill', 'snapper', 'lamb'];
-
-function guessItemInfo(name) {
-  const n = name.toLowerCase();
-  if (WEAPON_WORDS.some((w) => n.includes(w))) return { slot: 'weapon', type: ITEM_TYPES.WEAPON };
-  if (ARMOR_WORDS.some((w) => n.includes(w))) return { slot: null, type: ITEM_TYPES.ARMOR };
-  if (CONSUMABLE_WORDS.some((w) => n.includes(w))) return { slot: null, type: ITEM_TYPES.CONSUMABLE };
-  return { slot: null, type: ITEM_TYPES.MATERIAL };
-}
-
-// Tiers estimados por palavra-chave no nome, usados só pra escalar o bônus estimado
-// de equipamentos (o jogo real não expõe esses números publicamente).
-const TIER_KEYWORDS = [
-  { words: ['diamond', 'royal', 'pestilence', 'serpent', 'onyx', 'dark', 'wizard', 'crystal', 'great axe', 'greatsword'], tier: 5 },
-  { words: ['plated', 'scale', 'steel', 'brigandine', 'chain'], tier: 4 },
-  { words: ['brass', 'silver', 'studded', 'gambeson', 'sailor'], tier: 3 },
-  { words: ['leather', 'iron', 'ironsword', 'burlap'], tier: 2 },
-];
-
-function estimateTier(name) {
-  const n = name.toLowerCase();
-  for (const group of TIER_KEYWORDS) {
-    if (group.words.some((w) => n.includes(w))) return group.tier;
+function resolveRealItemName(name) {
+  if (REAL_ITEMS_BY_NAME[name]) return name;
+  if (ITEM_NAME_ALIASES[name] && REAL_ITEMS_BY_NAME[ITEM_NAME_ALIASES[name]]) return ITEM_NAME_ALIASES[name];
+  const m = SPELLBOOK_COLOR_RE.exec(name);
+  if (m) {
+    const asSpellbook = `${m[1]} Spellbook: ${m[2].replace(/\s+/g, '')}`;
+    if (REAL_ITEMS_BY_NAME[asSpellbook]) return asSpellbook;
   }
-  return 1;
+  return name;
 }
 
-// Bônus estimado de equipamento por slot/tier — não é dado real, é uma progressão
-// razoável só pra dar efeito de jogo aos itens até termos números oficiais.
-function estimateEquipStats(name, slot) {
-  const tier = estimateTier(name);
-  switch (slot) {
-    case 'weapon':
-      return { damage: 3 * tier };
-    case 'offhand':
-      return { armor: tier };
-    case 'head':
-    case 'chest':
-    case 'legs':
-    case 'boots':
-      return { armor: Math.max(1, Math.round(tier * 0.8)) };
-    case 'neck':
-    case 'ring':
-      return { magic: Math.ceil(tier / 2) };
-    case 'backpack':
-      return { capacity: 10 * tier };
-    case 'ammo':
-      return { damage: 1 };
-    default:
-      return {};
-  }
-}
-
-// Efeito estimado de consumíveis (o site fonte não expõe valores de cura/mana).
-function estimateConsumableStats(name) {
-  const n = name.toLowerCase();
-  if (n.includes('big mana')) return { mana: 40 };
-  if (n.includes('mana')) return { mana: 20 };
-  if (n.includes('health potion')) return { health: 30 };
-  return { health: 12 };
-}
-
-// Peso (oz) e preço de venda estimados — o site fonte não expõe nem um nem outro.
-function estimateWeight(type, tier) {
-  if (type === ITEM_TYPES.CONSUMABLE || type === ITEM_TYPES.MATERIAL) return 1;
-  return Math.max(2, tier * 3);
-}
-
-function estimateSellPrice(type, tier) {
-  if (type === ITEM_TYPES.CONSUMABLE) return Math.max(1, tier * 2);
-  if (type === ITEM_TYPES.MATERIAL) return Math.max(1, tier);
-  return Math.max(1, tier * 8);
-}
-
-// Monta a definição completa de um item de loot: categoria real (se conhecida),
-// slot de equipamento, tipo e stats/peso/preço estimados.
+// Monta a definição completa de um item de loot a partir dos dados REAIS (items.js):
+// sorteia a raridade de instância (common é a mais comum) e devolve slot, tipo, peso,
+// stats de combate ou efeito de consumível — tudo real, exceto sellPrice e as
+// probabilidades de raridade de instância (QUALITY_WEIGHTS), que são nossas.
 export function getItemDefinition(name) {
-  const category = REAL_ITEM_CATEGORIES[slugify(name)];
-  const info = category ? CATEGORY_INFO[category] : guessItemInfo(name);
-  const type = info?.type ?? ITEM_TYPES.MATERIAL;
-  const slot = info?.slot ?? null;
-  const tier = estimateTier(name);
+  const real = REAL_ITEMS_BY_NAME[resolveRealItemName(name)];
+  if (!real) {
+    // Item de loot sem correspondência na base real (nome levemente diferente) —
+    // vira material genérico pra não quebrar o jogo.
+    return { type: ITEM_TYPES.MATERIAL, slot: null, category: null, weight: 5, sellPrice: 1, rarity: 'common' };
+  }
 
-  let stats;
-  if (type === ITEM_TYPES.CONSUMABLE) stats = estimateConsumableStats(name);
-  else if (slot) stats = estimateEquipStats(name, slot);
+  const variant = rollQualityVariant(real.variants);
+  const type = typeFromSlot(real.slot, !!variant.consumable);
 
   return {
     type,
-    slot,
-    category: category ?? null,
-    weight: estimateWeight(type, tier),
-    sellPrice: estimateSellPrice(type, tier),
-    ...(stats ? { stats } : {}),
+    slot: real.slot,
+    category: real.category,
+    weight: variant.weight,
+    sellPrice: variant.sellPrice,
+    rarity: variant.rarity,
+    ...(variant.equipSize ? { equipSize: variant.equipSize } : {}),
+    ...(variant.stats ? { stats: variant.stats } : {}),
+    ...(variant.consumable ? { stats: variant.consumable } : {}),
   };
 }
 
 // Sorteia o loot de um monstro derrotado. Cada item da tabela é sorteado de forma
-// independente contra a chance da sua raridade (DROP_CHANCE). "Gold" vira ouro
-// direto, os demais itens vão para o inventário.
+// independente contra a chance da sua raridade DE DROP (DROP_CHANCE). "Gold" vira ouro
+// direto; os demais itens ganham também uma raridade DE INSTÂNCIA real (ver acima).
 export function rollLoot(monster) {
   let gold = 0;
   const items = [];
@@ -1500,7 +1381,7 @@ export function rollLoot(monster) {
     }
     const def = getItemDefinition(drop.name);
     items.push({
-      id: slugify(drop.name),
+      id: slugify(drop.name) + '-' + def.rarity,
       name: drop.name,
       quantity: drop.quantity,
       ...def,
@@ -1509,25 +1390,17 @@ export function rollLoot(monster) {
   return { gold, items };
 }
 
+
+
+function starterItem(name, quantity) {
+  const def = getItemDefinition(name);
+  return { id: `${slugify(name)}-${def.rarity}`, name, quantity, ...def };
+}
+
 export const STARTER_ITEMS = [
-  {
-    id: 'bone-knife',
-    name: 'Bone Knife',
-    quantity: 1,
-    ...getItemDefinition('Bone Knife'),
-  },
-  {
-    id: 'big-mana-potion',
-    name: 'Big Mana Potion',
-    quantity: 2,
-    ...getItemDefinition('Big Mana Potion'),
-  },
-  {
-    id: 'bread-loaf',
-    name: 'Bread Loaf',
-    quantity: 3,
-    ...getItemDefinition('Bread Loaf'),
-  },
+  starterItem('Knife', 1),
+  starterItem('Health Potion', 3),
+  starterItem('Mana Potion', 2),
 ];
 
 export function xpForNextLevel(level) {
