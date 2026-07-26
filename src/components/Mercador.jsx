@@ -1,9 +1,16 @@
-import { useState } from 'react';
-import { MERCHANTS } from '../data/gameData';
+import { useState, useMemo } from 'react';
+import { MERCHANTS, getShopItemDefinition, formatItemStats } from '../data/gameData';
 
 export default function Mercador({ character, buyItem, sellToMerchant }) {
   const [selectedName, setSelectedName] = useState(MERCHANTS[0].name);
   const merchant = MERCHANTS.find((m) => m.name === selectedName);
+
+  // Pré-visualiza os atributos de cada item à venda/compra (raridade "common" — a
+  // loja vende um item fixo, sem sortear raridade como um drop de monstro).
+  const statsPreview = useMemo(() => {
+    const names = new Set([...merchant.sells.map((o) => o.name), ...merchant.buys.map((o) => o.name)]);
+    return Object.fromEntries([...names].map((name) => [name, getShopItemDefinition(name).stats ?? null]));
+  }, [merchant]);
 
   return (
     <div className="flex-1 flex flex-col lg:flex-row gap-4">
@@ -38,10 +45,15 @@ export default function Mercador({ character, buyItem, sellToMerchant }) {
                 {merchant.sells.map((offer) => (
                   <div
                     key={offer.name}
-                    className="flex items-center justify-between bg-wood border border-wood-lighter rounded px-2.5 py-1.5"
+                    className="flex items-center justify-between bg-wood border border-wood-lighter rounded px-2.5 py-1.5 gap-2"
                   >
-                    <span className="text-xs text-neutral-200">{offer.name}</span>
-                    <div className="flex items-center gap-2">
+                    <div className="min-w-0">
+                      <p className="text-xs text-neutral-200">{offer.name}</p>
+                      {statsPreview[offer.name] && (
+                        <p className="text-[10px] text-gold truncate">{formatItemStats(statsPreview[offer.name])}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
                       <span className="text-xs text-gold">{offer.price}g</span>
                       <button
                         onClick={() => buyItem(merchant.name, offer.name)}
@@ -66,15 +78,19 @@ export default function Mercador({ character, buyItem, sellToMerchant }) {
               <div className="flex flex-col gap-1.5">
                 {merchant.buys.map((offer) => {
                   const owned = character.inventory.find((i) => i.name === offer.name);
+                  const stats = owned?.stats ?? statsPreview[offer.name];
                   return (
                     <div
                       key={offer.name}
-                      className="flex items-center justify-between bg-wood border border-wood-lighter rounded px-2.5 py-1.5"
+                      className="flex items-center justify-between bg-wood border border-wood-lighter rounded px-2.5 py-1.5 gap-2"
                     >
-                      <span className="text-xs text-neutral-200">
-                        {offer.name} {owned && <span className="text-neutral-500">×{owned.quantity}</span>}
-                      </span>
-                      <div className="flex items-center gap-2">
+                      <div className="min-w-0">
+                        <p className="text-xs text-neutral-200">
+                          {offer.name} {owned && <span className="text-neutral-500">×{owned.quantity}</span>}
+                        </p>
+                        {stats && <p className="text-[10px] text-gold truncate">{formatItemStats(stats)}</p>}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
                         <span className="text-xs text-gold">{offer.price}g</span>
                         <button
                           onClick={() => sellToMerchant(merchant.name, owned.id)}

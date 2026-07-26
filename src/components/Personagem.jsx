@@ -1,4 +1,4 @@
-import { ALLOCATABLE_STATS, canAllocatePoint, CLASSES, EQUIP_SLOTS, HAND_CAPACITY, RARITY_COLORS } from '../data/gameData';
+import { ALLOCATABLE_STATS, canAllocatePoint, CLASSES, EQUIP_SLOTS, HAND_CAPACITY, RARITY_COLORS, formatItemStats } from '../data/gameData';
 
 const STAT_META = {
   health: { label: 'Health', note: '+5 HP/ponto' },
@@ -11,12 +11,9 @@ const STAT_META = {
 };
 
 function EquipStats({ stats }) {
-  if (!stats) return null;
-  return (
-    <p className="text-xs text-gold">
-      {Object.entries(stats).map(([k, v]) => `${k} +${v}`).join(' · ')}
-    </p>
-  );
+  const text = formatItemStats(stats);
+  if (!text) return null;
+  return <p className="text-xs text-gold">{text}</p>;
 }
 
 export default function Personagem({ character, unspentPoints, allocateStat, resetAttributes, respecCost, unequipItem }) {

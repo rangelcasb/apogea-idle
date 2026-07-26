@@ -40,3 +40,32 @@ export const RARITY_COLORS = {
   epic: 'text-purple-400',
   legendary: 'text-gold',
 };
+
+// Nomes em português pra cada chave de stat que um item pode dar — usado em toda
+// tela que mostra item.stats (Mochila, Personagem, Mercador), pra não exibir chaves
+// em inglês cru como "attackSpeed".
+export const STAT_LABELS = {
+  damage: 'Dano',
+  armor: 'Armadura',
+  defense: 'Defesa',
+  health: 'Vida',
+  mana: 'Mana',
+  ability: 'Ability',
+  magic: 'Magic',
+  attackSpeed: 'Vel. Ataque',
+  capacity: 'Capacidade',
+  hpRegen: 'HP Regen',
+  mpRegen: 'MP Regen',
+};
+
+// Formata o objeto de stats de um item em texto legível: "Dano +5 · Vel. Ataque +0.09".
+export function formatItemStats(stats) {
+  if (!stats) return null;
+  return Object.entries(stats)
+    .map(([key, value]) => {
+      const label = STAT_LABELS[key] ?? key;
+      const rounded = Math.round(value * 100) / 100;
+      return `${label} ${rounded > 0 ? '+' : ''}${rounded}`;
+    })
+    .join(' · ');
+}

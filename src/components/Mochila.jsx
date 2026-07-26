@@ -1,4 +1,4 @@
-import { ITEM_TYPES, RARITY_COLORS, RARITY_LABELS, FOOD_CATEGORIES } from '../data/gameData';
+import { ITEM_TYPES, RARITY_COLORS, RARITY_LABELS, FOOD_CATEGORIES, formatItemStats } from '../data/gameData';
 
 const TYPE_LABELS = {
   [ITEM_TYPES.WEAPON]: 'Weapons',
@@ -39,9 +39,7 @@ export default function Mochila({ character, weight, consumeItem, equipItem, sel
                       )}
                     </p>
                     {item.stats && (
-                      <p className="text-[10px] text-gold">
-                        {Object.entries(item.stats).map(([k, v]) => `${k} ${v > 0 ? '+' : ''}${v}`).join(' · ')}
-                      </p>
+                      <p className="text-[10px] text-gold">{formatItemStats(item.stats)}</p>
                     )}
                   </td>
                   <td className="text-right text-neutral-300">{item.quantity}</td>
