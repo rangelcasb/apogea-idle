@@ -38,6 +38,11 @@ export default function Sidebar({ character, autoCombat, weight, zoneName }) {
         <p className="text-xs text-neutral-400">
           {autoCombat ? `⚔️ Caçando em ${zoneName ?? '...'}` : '🏠 Descansando na cidade'}
         </p>
+        {character.satiety?.remainingMs > 0 && (
+          <p className="text-xs text-green-500 mt-1">
+            🍖 Saciado ({character.satiety.foodName}) por mais {Math.ceil(character.satiety.remainingMs / 60000)}min
+          </p>
+        )}
       </div>
 
       <div className="bg-wood-light border border-wood-lighter rounded-lg p-4">

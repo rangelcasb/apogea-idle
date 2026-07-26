@@ -1,4 +1,4 @@
-import { ITEM_TYPES, RARITY_COLORS, RARITY_LABELS } from '../data/gameData';
+import { ITEM_TYPES, RARITY_COLORS, RARITY_LABELS, FOOD_CATEGORIES } from '../data/gameData';
 
 const TYPE_LABELS = {
   [ITEM_TYPES.WEAPON]: 'Weapons',
@@ -49,12 +49,12 @@ export default function Mochila({ character, weight, consumeItem, equipItem, sel
                   <td className="text-right text-gold">{item.sellPrice ?? 0}g</td>
                   <td>
                     <div className="flex gap-1.5 justify-end flex-wrap">
-                      {item.type === ITEM_TYPES.CONSUMABLE && item.stats && (
+                      {item.type === ITEM_TYPES.CONSUMABLE && (item.stats || FOOD_CATEGORIES.has(item.category)) && (
                         <button
                           onClick={() => consumeItem(item.id)}
                           className="text-xs font-medium bg-gold text-wood px-2 py-1 rounded cursor-pointer hover:bg-yellow-500"
                         >
-                          USAR
+                          {item.stats ? 'USAR' : 'COMER'}
                         </button>
                       )}
                       {item.slot && (

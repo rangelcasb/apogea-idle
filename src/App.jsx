@@ -5,6 +5,8 @@ import Cacada from './components/Cacada';
 import Personagem from './components/Personagem';
 import Mochila from './components/Mochila';
 import Talentos from './components/Talentos';
+import Quests from './components/Quests';
+import Mercador from './components/Mercador';
 import Sidebar from './components/Sidebar';
 
 const TABS = [
@@ -12,8 +14,8 @@ const TABS = [
   { id: 'personagem', label: '🧍 Personagem', implemented: true },
   { id: 'mochila', label: '🎒 Mochila', implemented: true },
   { id: 'talentos', label: '🌳 Talentos', implemented: true },
-  { id: 'quests', label: '📜 Quests', implemented: false },
-  { id: 'mercador', label: '💱 Mercador', implemented: false },
+  { id: 'quests', label: '📜 Quests', implemented: true },
+  { id: 'mercador', label: '💱 Mercador', implemented: true },
   { id: 'banco', label: '🏦 Banco', implemented: false },
   { id: 'house', label: '🏠 House', implemented: false },
   { id: 'bestiario', label: '📖 Bestiário', implemented: false },
@@ -50,6 +52,9 @@ export default function App() {
     unspentPoints,
     weight,
     changeZone,
+    claimQuest,
+    buyItem,
+    sellToMerchant,
     zones,
   } = useGameState();
 
@@ -125,6 +130,12 @@ export default function App() {
         )}
         {activeTab === 'talentos' && (
           <Talentos character={character} talentPointsAvailable={talentPointsAvailable} investTalent={investTalent} />
+        )}
+        {activeTab === 'quests' && (
+          <Quests character={character} zones={zones} claimQuest={claimQuest} />
+        )}
+        {activeTab === 'mercador' && (
+          <Mercador character={character} buyItem={buyItem} sellToMerchant={sellToMerchant} />
         )}
         {!TABS.find((t) => t.id === activeTab)?.implemented && (
           <ComingSoon label={TABS.find((t) => t.id === activeTab)?.label} />
