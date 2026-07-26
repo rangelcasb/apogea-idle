@@ -2,7 +2,8 @@ import { initializeApp } from 'firebase/app';
 import {
   getAuth,
   GoogleAuthProvider,
-  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut,
   onAuthStateChanged,
 } from 'firebase/auth';
@@ -31,8 +32,15 @@ export const db = getFirestore(app);
 // Login com Google — a MESMA conta em qualquer dispositivo dá o mesmo UID, então
 // o personagem sincroniza sozinho sem precisar de código nenhum (diferente do login
 // anônimo, que gera um UID novo e desconectado em cada navegador/dispositivo).
+// Usa redirect em vez de popup: popup depende de comunicação entre janelas que
+// hosts como Vercel costumam bloquear por segurança (COOP), fazendo o popup fechar
+// sozinho como se o usuário tivesse cancelado.
 export function loginWithGoogle() {
-  return signInWithPopup(auth, new GoogleAuthProvider());
+  return signInWithRedirect(auth, new GoogleAuthProvider());
+}
+
+export function checkRedirectResult() {
+  return getRedirectResult(auth);
 }
 
 export function logout() {

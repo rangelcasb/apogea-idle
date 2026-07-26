@@ -27,7 +27,14 @@ import {
   VOCATION_COST,
 } from '../data/gameData';
 import { talentPointsForLevel, spentTalentPoints, canInvestTalent } from '../data/talents';
-import { onAuthChange, loginWithGoogle, logout, saveGameState, loadGameState } from '../services/firebase';
+import {
+  onAuthChange,
+  loginWithGoogle,
+  logout,
+  saveGameState,
+  loadGameState,
+  checkRedirectResult,
+} from '../services/firebase';
 
 const SYNC_DEBOUNCE_MS = 1500;
 
@@ -644,6 +651,9 @@ export function useGameState() {
   // Login com Google dá o MESMO UID em qualquer dispositivo — é essa a chave usada
   // no Firestore, então não precisa de código nenhum pra continuar no celular.
   useEffect(() => {
+    // Necessário pra capturar erro de configuração (ex: domínio não autorizado no
+    // Firebase) quando o usuário volta do redirect do login do Google.
+    checkRedirectResult().catch((err) => console.error('Falha no login com Google:', err));
     const unsubscribe = onAuthChange((firebaseUser) => {
       setUser(firebaseUser);
       setAuthLoading(false);
