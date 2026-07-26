@@ -1,5 +1,18 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { CLASSES, ZONES, STARTER_ITEMS, xpForNextLevel } from '../data/gameData';
+import { CLASSES, ZONES, STARTER_ITEMS, xpForNextLevel, rollLoot } from '../data/gameData';
+
+function mergeLoot(inventory, droppedItems) {
+  const next = [...inventory];
+  for (const drop of droppedItems) {
+    const idx = next.findIndex((i) => i.id === drop.id);
+    if (idx >= 0) {
+      next[idx] = { ...next[idx], quantity: next[idx].quantity + drop.quantity };
+    } else {
+      next.push({ ...drop });
+    }
+  }
+  return next;
+}
 
 const TURN_MS = 2000;
 const STORAGE_KEY = 'apogea-idle-character';
@@ -83,7 +96,12 @@ export function useGameState() {
     addLog(`Você causou ${playerDamage.toFixed(1)} de dano em ${currentMonster.name}.`);
 
     if (monsterHealth <= 0) {
-      addLog(`${currentMonster.name} derrotado! +${currentMonster.xp} XP, +${currentMonster.gold} gold.`);
+      const { gold: goldDrop, items: itemDrops } = rollLoot(currentMonster);
+      addLog(`${currentMonster.name} derrotado! +${currentMonster.xp} XP.`);
+      if (goldDrop > 0) addLog(`+${goldDrop} gold.`);
+      for (const item of itemDrops) {
+        addLog(`Você encontrou: ${item.name} x${item.quantity}.`);
+      }
 
       let xp = char.xp + currentMonster.xp;
       let level = char.level;
@@ -109,7 +127,8 @@ export function useGameState() {
         xp,
         level,
         stats,
-        gold: char.gold + currentMonster.gold,
+        gold: char.gold + goldDrop,
+        inventory: mergeLoot(char.inventory, itemDrops),
         currentHealth: Math.min(stats.health, char.currentHealth),
       });
       setMonster(pickMonster(char.zoneId));
