@@ -3,7 +3,6 @@ import { useGameState } from './hooks/useGameState';
 import CharacterCreation from './components/CharacterCreation';
 import Cacada from './components/Cacada';
 import Personagem from './components/Personagem';
-import Mochila from './components/Mochila';
 import Talentos from './components/Talentos';
 import Quests from './components/Quests';
 import Mercador from './components/Mercador';
@@ -12,7 +11,6 @@ import Sidebar from './components/Sidebar';
 const TABS = [
   { id: 'cacada', label: '🗡 Caçada', implemented: true },
   { id: 'personagem', label: '🧍 Personagem', implemented: true },
-  { id: 'mochila', label: '🎒 Mochila', implemented: true },
   { id: 'talentos', label: '🌳 Talentos', implemented: true },
   { id: 'quests', label: '📜 Quests', implemented: true },
   { id: 'mercador', label: '💱 Mercador', implemented: true },
@@ -116,11 +114,6 @@ export default function App() {
             resetAttributes={resetAttributes}
             respecCost={respecCost}
             unequipItem={unequipItem}
-          />
-        )}
-        {activeTab === 'mochila' && (
-          <Mochila
-            character={character}
             weight={weight}
             consumeItem={consumeItem}
             equipItem={equipItem}

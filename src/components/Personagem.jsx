@@ -1,4 +1,5 @@
 import { ALLOCATABLE_STATS, canAllocatePoint, CLASSES, EQUIP_SLOTS, HAND_CAPACITY, RARITY_COLORS, formatItemStats } from '../data/gameData';
+import Mochila from './Mochila';
 
 const STAT_META = {
   health: { label: 'Health', note: '+5 HP/ponto' },
@@ -16,7 +17,19 @@ function EquipStats({ stats }) {
   return <p className="text-xs text-gold">{text}</p>;
 }
 
-export default function Personagem({ character, unspentPoints, allocateStat, resetAttributes, respecCost, unequipItem }) {
+export default function Personagem({
+  character,
+  unspentPoints,
+  allocateStat,
+  resetAttributes,
+  respecCost,
+  unequipItem,
+  weight,
+  consumeItem,
+  equipItem,
+  sellItem,
+  discardItem,
+}) {
   const handSize = (character.equipment.weapon?.equipSize ?? 0) + (character.equipment.offhand?.equipSize ?? 0);
   const attackSpeed = character.stats.attackSpeed || 10;
   const interval = 2 / (attackSpeed / 10); // fórmula real: 2s / (AttackSpeed/10)
@@ -25,7 +38,7 @@ export default function Personagem({ character, unspentPoints, allocateStat, res
   const otherClasses = Object.values(CLASSES).filter((c) => c.name !== character.class);
 
   return (
-    <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+    <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
       {/* Coluna Atributos + Combate */}
       <div className="flex flex-col gap-4">
         <div className="bg-wood-light border border-wood-lighter rounded-lg p-4">
@@ -177,7 +190,6 @@ export default function Personagem({ character, unspentPoints, allocateStat, res
               );
             })}
           </div>
-          <p className="text-[11px] text-neutral-500 mt-3">Equipe itens pela Mochila.</p>
         </div>
 
         <div className="bg-wood-light border border-wood-lighter rounded-lg p-4">
@@ -198,6 +210,16 @@ export default function Personagem({ character, unspentPoints, allocateStat, res
           </div>
         </div>
       </div>
+
+      {/* Coluna Mochila */}
+      <Mochila
+        character={character}
+        weight={weight}
+        consumeItem={consumeItem}
+        equipItem={equipItem}
+        sellItem={sellItem}
+        discardItem={discardItem}
+      />
     </div>
   );
 }

@@ -434,7 +434,9 @@ function reducer(state, action) {
       const item = char.inventory.find((i) => i.id === action.itemId);
       if (!item || !item.slot) return state;
 
-      const slot = item.slot;
+      // Armas podem ir na mão principal OU secundária (dual-wield real do jogo) — só
+      // itens de slot "weapon" aceitam esse destino alternativo; os demais slots são fixos.
+      const slot = item.slot === 'weapon' && action.targetSlot === 'offhand' ? 'offhand' : item.slot;
       const previouslyEquipped = char.equipment[slot];
 
       // Tamanho das mãos: arma + mão secundária não podem somar mais que 10 (equipSize
@@ -615,7 +617,7 @@ export function useGameState() {
   const consumeItem = useCallback((itemId) => dispatch({ type: 'CONSUME_ITEM', itemId }), []);
   const sellItem = useCallback((itemId, all) => dispatch({ type: 'SELL_ITEM', itemId, all }), []);
   const discardItem = useCallback((itemId) => dispatch({ type: 'DISCARD_ITEM', itemId }), []);
-  const equipItem = useCallback((itemId) => dispatch({ type: 'EQUIP_ITEM', itemId }), []);
+  const equipItem = useCallback((itemId, targetSlot) => dispatch({ type: 'EQUIP_ITEM', itemId, targetSlot }), []);
   const unequipItem = useCallback((slot) => dispatch({ type: 'UNEQUIP_ITEM', slot }), []);
   const allocateStat = useCallback((stat) => dispatch({ type: 'ALLOCATE_STAT', stat }), []);
   const resetAttributes = useCallback(() => dispatch({ type: 'RESET_ATTRIBUTES' }), []);

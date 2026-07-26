@@ -55,7 +55,22 @@ export default function Mochila({ character, weight, consumeItem, equipItem, sel
                           {item.stats ? 'USAR' : 'COMER'}
                         </button>
                       )}
-                      {item.slot && (
+                      {item.slot === 'weapon' ? (
+                        <>
+                          <button
+                            onClick={() => equipItem(item.id, 'weapon')}
+                            className="text-xs font-medium bg-green-700 text-white px-2 py-1 rounded cursor-pointer hover:bg-green-600"
+                          >
+                            MÃO PRINCIPAL
+                          </button>
+                          <button
+                            onClick={() => equipItem(item.id, 'offhand')}
+                            className="text-xs font-medium bg-green-700 text-white px-2 py-1 rounded cursor-pointer hover:bg-green-600"
+                          >
+                            MÃO SECUNDÁRIA
+                          </button>
+                        </>
+                      ) : item.slot && (
                         <button
                           onClick={() => equipItem(item.id)}
                           className="text-xs font-medium bg-green-700 text-white px-2 py-1 rounded cursor-pointer hover:bg-green-600"
