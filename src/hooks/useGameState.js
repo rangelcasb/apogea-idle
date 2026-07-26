@@ -1,4 +1,4 @@
-import { useReducer, useEffect, useMemo, useCallback } from 'react';
+import { useReducer, useEffect, useMemo, useCallback, useState } from 'react';
 import {
   ZONES,
   STARTER_ITEMS,
@@ -27,6 +27,9 @@ import {
   VOCATION_COST,
 } from '../data/gameData';
 import { talentPointsForLevel, spentTalentPoints, canInvestTalent } from '../data/talents';
+import { loginAnonymously, saveGameState, loadGameState, generateSyncCode } from '../services/firebase';
+
+const SYNC_DEBOUNCE_MS = 1500;
 
 const TURN_MS = 2000;
 // Fórmula real: "Regeneration triggers every 10 seconds, restoring half of your HP
@@ -110,6 +113,8 @@ function createCharacter(name) {
     zoneId: ZONES[0].id,
     satiety: { remainingMs: 0, bonus: null, foodName: null },
     claimedQuests: [],
+    syncCode: generateSyncCode(),
+    updatedAt: Date.now(),
   };
   const stats = computeFinalStats(raw);
   raw.currentHealth = stats.health;
@@ -137,6 +142,8 @@ function migrateCharacter(char) {
     satiety: char.satiety ?? { remainingMs: 0, bonus: null, foodName: null },
     claimedQuests: char.claimedQuests ?? [],
     inventory: char.inventory ?? [],
+    syncCode: char.syncCode ?? generateSyncCode(),
+    updatedAt: char.updatedAt ?? 0,
   };
 }
 
@@ -195,6 +202,16 @@ function reducer(state, action) {
           state.log,
           `Você pagou ${VOCATION_COST} gold e se tornou ${action.vocation}! Essa escolha é definitiva.`,
         ),
+      };
+    }
+
+    case 'LOAD_REMOTE_CHARACTER': {
+      const character = migrateCharacter(action.character);
+      return {
+        character,
+        monster: pickMonster(character.zoneId),
+        log: pushLog([], `Personagem sincronizado! Bem-vindo de volta, ${character.name}.`),
+        autoCombat: false,
       };
     }
 
@@ -602,14 +619,75 @@ function reducer(state, action) {
   }
 }
 
+// Toda vez que o reducer troca o personagem por um objeto novo, marca "updatedAt"
+// agora. É isso que permite decidir, ao carregar em outro dispositivo, se o save
+// local ou o da nuvem é o mais recente (sem isso, dar refresh no MESMO dispositivo
+// podia sobrescrever com uma versão da nuvem levemente atrasada).
+function reducerWithTimestamp(state, action) {
+  const next = reducer(state, action);
+  if (next.character && next.character !== state.character) {
+    return { ...next, character: { ...next.character, updatedAt: Date.now() } };
+  }
+  return next;
+}
+
 export function useGameState() {
-  const [state, dispatch] = useReducer(reducer, undefined, init);
+  const [state, dispatch] = useReducer(reducerWithTimestamp, undefined, init);
+  const [syncStatus, setSyncStatus] = useState('idle'); // idle | syncing | synced | error | not-found
 
   useEffect(() => {
     if (state.character) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state.character));
     }
   }, [state.character]);
+
+  // Ao abrir o jogo: entra anônimo no Firebase (só pra passar pela regra de acesso)
+  // e, se já existir um personagem local com syncCode, busca a versão da nuvem —
+  // se ela for mais recente (você jogou por outro dispositivo depois), usa ela.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      await loginAnonymously().catch(() => {});
+      const code = state.character?.syncCode;
+      if (!code) return;
+      const remote = await loadGameState(code).catch(() => null);
+      if (cancelled || !remote) return;
+      if ((remote.updatedAt ?? 0) > (state.character?.updatedAt ?? 0)) {
+        dispatch({ type: 'LOAD_REMOTE_CHARACTER', character: remote });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Salva na nuvem (debounced) toda vez que o personagem muda — é isso que faz o
+  // outro dispositivo conseguir "puxar" o progresso mais recente depois.
+  useEffect(() => {
+    if (!state.character?.syncCode) return;
+    setSyncStatus('syncing');
+    const timer = setTimeout(() => {
+      saveGameState(state.character.syncCode, state.character)
+        .then(() => setSyncStatus('synced'))
+        .catch(() => setSyncStatus('error'));
+    }, SYNC_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [state.character]);
+
+  const loadBySyncCode = useCallback(async (code) => {
+    const normalized = code.trim().toUpperCase();
+    if (!normalized) return false;
+    await loginAnonymously().catch(() => {});
+    const remote = await loadGameState(normalized).catch(() => null);
+    if (!remote) {
+      setSyncStatus('not-found');
+      return false;
+    }
+    dispatch({ type: 'LOAD_REMOTE_CHARACTER', character: remote });
+    setSyncStatus('synced');
+    return true;
+  }, []);
 
   const hasCharacter = !!state.character;
   const isDead = hasCharacter && state.character.currentHealth <= 0;
@@ -697,6 +775,9 @@ export function useGameState() {
     claimQuest,
     buyItem,
     sellToMerchant,
+    syncCode: state.character?.syncCode ?? null,
+    syncStatus,
+    loadBySyncCode,
     zones: ZONES,
   };
 }

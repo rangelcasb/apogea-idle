@@ -49,3 +49,11 @@ export function subscribeGameState(userId, callback) {
     if (snap.exists()) callback(snap.data());
   });
 }
+
+// Código curto que o jogador digita em outro dispositivo pra carregar o MESMO
+// personagem. Não usamos o UID anônimo do Firebase como chave porque cada
+// navegador/dispositivo gera um UID anônimo diferente — o código é o que
+// realmente permite continuar no celular o que foi jogado no PC (e vice-versa).
+export function generateSyncCode() {
+  return Math.random().toString(36).slice(2, 8).toUpperCase();
+}

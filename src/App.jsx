@@ -55,13 +55,16 @@ export default function App() {
     claimQuest,
     buyItem,
     sellToMerchant,
+    syncCode,
+    syncStatus,
+    loadBySyncCode,
     zones,
   } = useGameState();
 
   const [activeTab, setActiveTab] = useState('cacada');
 
   if (!character) {
-    return <CharacterCreation onCreate={createNewCharacter} />;
+    return <CharacterCreation onCreate={createNewCharacter} loadBySyncCode={loadBySyncCode} />;
   }
 
   const currentZone = zones.find((z) => z.id === character.zoneId);
@@ -138,7 +141,14 @@ export default function App() {
           <ComingSoon label={TABS.find((t) => t.id === activeTab)?.label} />
         )}
 
-        <Sidebar character={character} autoCombat={autoCombat} weight={weight} zoneName={currentZone?.name} />
+        <Sidebar
+          character={character}
+          autoCombat={autoCombat}
+          weight={weight}
+          zoneName={currentZone?.name}
+          syncCode={syncCode}
+          syncStatus={syncStatus}
+        />
       </main>
     </div>
   );
