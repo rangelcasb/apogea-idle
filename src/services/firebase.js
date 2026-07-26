@@ -1,7 +1,9 @@
 import { initializeApp } from 'firebase/app';
 import {
   getAuth,
-  signInAnonymously,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signOut,
   onAuthStateChanged,
 } from 'firebase/auth';
 import {
@@ -9,7 +11,6 @@ import {
   doc,
   setDoc,
   getDoc,
-  onSnapshot,
 } from 'firebase/firestore';
 
 // Preencha com as credenciais do seu projeto Firebase (Console > Configurações do projeto).
@@ -27,8 +28,15 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-export function loginAnonymously() {
-  return signInAnonymously(auth);
+// Login com Google — a MESMA conta em qualquer dispositivo dá o mesmo UID, então
+// o personagem sincroniza sozinho sem precisar de código nenhum (diferente do login
+// anônimo, que gera um UID novo e desconectado em cada navegador/dispositivo).
+export function loginWithGoogle() {
+  return signInWithPopup(auth, new GoogleAuthProvider());
+}
+
+export function logout() {
+  return signOut(auth);
 }
 
 export function onAuthChange(callback) {
@@ -42,18 +50,4 @@ export async function saveGameState(userId, state) {
 export async function loadGameState(userId) {
   const snap = await getDoc(doc(db, 'characters', userId));
   return snap.exists() ? snap.data() : null;
-}
-
-export function subscribeGameState(userId, callback) {
-  return onSnapshot(doc(db, 'characters', userId), (snap) => {
-    if (snap.exists()) callback(snap.data());
-  });
-}
-
-// Código curto que o jogador digita em outro dispositivo pra carregar o MESMO
-// personagem. Não usamos o UID anônimo do Firebase como chave porque cada
-// navegador/dispositivo gera um UID anônimo diferente — o código é o que
-// realmente permite continuar no celular o que foi jogado no PC (e vice-versa).
-export function generateSyncCode() {
-  return Math.random().toString(36).slice(2, 8).toUpperCase();
 }

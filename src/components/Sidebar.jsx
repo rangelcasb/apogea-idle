@@ -5,10 +5,9 @@ const SYNC_STATUS_LABEL = {
   syncing: 'Sincronizando...',
   synced: 'Sincronizado ✓',
   error: 'Erro ao sincronizar',
-  'not-found': '',
 };
 
-export default function Sidebar({ character, autoCombat, weight, zoneName, syncCode, syncStatus }) {
+export default function Sidebar({ character, autoCombat, weight, zoneName, syncStatus, user, onLogout }) {
   const needed = xpForNextLevel(character.level);
   const xpPct = Math.min(100, (character.xp / needed) * 100);
   const hpPct = Math.max(0, (character.currentHealth / character.stats.health) * 100);
@@ -54,24 +53,20 @@ export default function Sidebar({ character, autoCombat, weight, zoneName, syncC
       </div>
 
       <div className="bg-wood-light border border-wood-lighter rounded-lg p-4">
-        <h3 className="text-gold font-semibold tracking-wide mb-2">◆ SINCRONIZAÇÃO</h3>
-        <p className="text-[11px] text-neutral-500 mb-2">
-          Use esse código pra continuar no celular (ou qualquer outro navegador).
+        <h3 className="text-gold font-semibold tracking-wide mb-2">◆ CONTA</h3>
+        <p className="text-sm text-neutral-300 truncate">{user?.email ?? '—'}</p>
+        <p className="text-[11px] text-neutral-500 mt-1">
+          Logado com Google — seu progresso sincroniza sozinho em qualquer dispositivo.
         </p>
-        <div className="flex items-center gap-2">
-          <span className="flex-1 text-center text-lg font-bold text-gold tracking-widest bg-wood rounded py-1.5">
-            {syncCode ?? '------'}
-          </span>
-          <button
-            onClick={() => syncCode && navigator.clipboard.writeText(syncCode)}
-            className="text-xs font-medium bg-wood-lighter px-2.5 py-2 rounded cursor-pointer hover:text-gold"
-          >
-            Copiar
-          </button>
-        </div>
         {syncStatus && SYNC_STATUS_LABEL[syncStatus] && (
           <p className="text-[10px] text-neutral-500 mt-1">{SYNC_STATUS_LABEL[syncStatus]}</p>
         )}
+        <button
+          onClick={onLogout}
+          className="text-xs text-neutral-400 hover:text-blood cursor-pointer mt-2"
+        >
+          Sair da conta
+        </button>
       </div>
 
       <div className="bg-wood-light border border-wood-lighter rounded-lg p-4">

@@ -1,18 +1,7 @@
 import { useState } from 'react';
 
-export default function CharacterCreation({ onCreate, loadBySyncCode }) {
+export default function CharacterCreation({ onCreate }) {
   const [name, setName] = useState('');
-  const [syncInput, setSyncInput] = useState('');
-  const [syncError, setSyncError] = useState(false);
-  const [loading, setLoading] = useState(false);
-
-  const handleSync = async () => {
-    setSyncError(false);
-    setLoading(true);
-    const ok = await loadBySyncCode(syncInput);
-    setLoading(false);
-    if (!ok) setSyncError(true);
-  };
 
   return (
     <div className="flex flex-col items-center gap-8 py-16 px-4">
@@ -42,29 +31,6 @@ export default function CharacterCreation({ onCreate, loadBySyncCode }) {
         Todo mundo começa como Squire, sem vocação. Depois de juntar 100 gold, escolha
         entre Knight, Rogue ou Mage na aba Personagem — essa escolha é definitiva.
       </p>
-
-      <div className="w-full max-w-xs border-t border-wood-lighter pt-6 flex flex-col items-center gap-2">
-        <p className="text-xs text-neutral-500">Já tem um personagem em outro dispositivo?</p>
-        <input
-          type="text"
-          value={syncInput}
-          onChange={(e) => setSyncInput(e.target.value)}
-          placeholder="Código de sincronização"
-          maxLength={6}
-          className="w-full bg-wood-light border border-wood-lighter rounded px-3 py-2 text-center
-                     text-neutral-100 uppercase tracking-widest placeholder:text-neutral-500 placeholder:tracking-normal
-                     focus:outline-none focus:border-gold"
-        />
-        <button
-          onClick={handleSync}
-          disabled={!syncInput.trim() || loading}
-          className="text-sm font-medium bg-wood-light border border-wood-lighter px-4 py-1.5 rounded
-                     disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer hover:border-gold"
-        >
-          {loading ? 'Buscando...' : 'Continuar com esse personagem'}
-        </button>
-        {syncError && <p className="text-xs text-blood">Código não encontrado.</p>}
-      </div>
     </div>
   );
 }

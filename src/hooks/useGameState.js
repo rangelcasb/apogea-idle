@@ -27,7 +27,7 @@ import {
   VOCATION_COST,
 } from '../data/gameData';
 import { talentPointsForLevel, spentTalentPoints, canInvestTalent } from '../data/talents';
-import { loginAnonymously, saveGameState, loadGameState, generateSyncCode } from '../services/firebase';
+import { onAuthChange, loginWithGoogle, logout, saveGameState, loadGameState } from '../services/firebase';
 
 const SYNC_DEBOUNCE_MS = 1500;
 
@@ -113,7 +113,6 @@ function createCharacter(name) {
     zoneId: ZONES[0].id,
     satiety: { remainingMs: 0, bonus: null, foodName: null },
     claimedQuests: [],
-    syncCode: generateSyncCode(),
     updatedAt: Date.now(),
   };
   const stats = computeFinalStats(raw);
@@ -142,7 +141,6 @@ function migrateCharacter(char) {
     satiety: char.satiety ?? { remainingMs: 0, bonus: null, foodName: null },
     claimedQuests: char.claimedQuests ?? [],
     inventory: char.inventory ?? [],
-    syncCode: char.syncCode ?? generateSyncCode(),
     updatedAt: char.updatedAt ?? 0,
   };
 }
@@ -633,7 +631,9 @@ function reducerWithTimestamp(state, action) {
 
 export function useGameState() {
   const [state, dispatch] = useReducer(reducerWithTimestamp, undefined, init);
-  const [syncStatus, setSyncStatus] = useState('idle'); // idle | syncing | synced | error | not-found
+  const [syncStatus, setSyncStatus] = useState('idle'); // idle | syncing | synced | error
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
     if (state.character) {
@@ -641,16 +641,23 @@ export function useGameState() {
     }
   }, [state.character]);
 
-  // Ao abrir o jogo: entra anônimo no Firebase (só pra passar pela regra de acesso)
-  // e, se já existir um personagem local com syncCode, busca a versão da nuvem —
-  // se ela for mais recente (você jogou por outro dispositivo depois), usa ela.
+  // Login com Google dá o MESMO UID em qualquer dispositivo — é essa a chave usada
+  // no Firestore, então não precisa de código nenhum pra continuar no celular.
   useEffect(() => {
+    const unsubscribe = onAuthChange((firebaseUser) => {
+      setUser(firebaseUser);
+      setAuthLoading(false);
+    });
+    return unsubscribe;
+  }, []);
+
+  // Ao logar: busca o personagem salvo na nuvem sob esse UID. Se for mais recente
+  // que o local (jogou por outro dispositivo depois), usa a versão da nuvem.
+  useEffect(() => {
+    if (!user) return;
     let cancelled = false;
     (async () => {
-      await loginAnonymously().catch(() => {});
-      const code = state.character?.syncCode;
-      if (!code) return;
-      const remote = await loadGameState(code).catch(() => null);
+      const remote = await loadGameState(user.uid).catch(() => null);
       if (cancelled || !remote) return;
       if ((remote.updatedAt ?? 0) > (state.character?.updatedAt ?? 0)) {
         dispatch({ type: 'LOAD_REMOTE_CHARACTER', character: remote });
@@ -660,34 +667,23 @@ export function useGameState() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [user]);
 
-  // Salva na nuvem (debounced) toda vez que o personagem muda — é isso que faz o
-  // outro dispositivo conseguir "puxar" o progresso mais recente depois.
+  // Salva na nuvem (debounced) toda vez que o personagem muda, sob o UID da conta
+  // Google logada — é isso que faz o outro dispositivo puxar o progresso depois.
   useEffect(() => {
-    if (!state.character?.syncCode) return;
+    if (!user || !state.character) return;
     setSyncStatus('syncing');
     const timer = setTimeout(() => {
-      saveGameState(state.character.syncCode, state.character)
+      saveGameState(user.uid, state.character)
         .then(() => setSyncStatus('synced'))
         .catch(() => setSyncStatus('error'));
     }, SYNC_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [state.character]);
+  }, [user, state.character]);
 
-  const loadBySyncCode = useCallback(async (code) => {
-    const normalized = code.trim().toUpperCase();
-    if (!normalized) return false;
-    await loginAnonymously().catch(() => {});
-    const remote = await loadGameState(normalized).catch(() => null);
-    if (!remote) {
-      setSyncStatus('not-found');
-      return false;
-    }
-    dispatch({ type: 'LOAD_REMOTE_CHARACTER', character: remote });
-    setSyncStatus('synced');
-    return true;
-  }, []);
+  const login = useCallback(() => loginWithGoogle().catch(() => {}), []);
+  const signOutUser = useCallback(() => logout().catch(() => {}), []);
 
   const hasCharacter = !!state.character;
   const isDead = hasCharacter && state.character.currentHealth <= 0;
@@ -775,9 +771,11 @@ export function useGameState() {
     claimQuest,
     buyItem,
     sellToMerchant,
-    syncCode: state.character?.syncCode ?? null,
     syncStatus,
-    loadBySyncCode,
+    user,
+    authLoading,
+    login,
+    logout: signOutUser,
     zones: ZONES,
   };
 }
