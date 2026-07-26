@@ -1,5 +1,7 @@
-import { ALLOCATABLE_STATS, canAllocatePoint, CLASSES, EQUIP_SLOTS, HAND_CAPACITY, RARITY_COLORS, formatItemStats } from '../data/gameData';
+import { ALLOCATABLE_STATS, canAllocatePoint, CLASSES, EQUIP_SLOTS, HAND_CAPACITY, RARITY_COLORS, formatItemStats, computeDamageRoll } from '../data/gameData';
 import Mochila from './Mochila';
+
+const VOCATIONS = ['Knight', 'Rogue', 'Mage'];
 
 const STAT_META = {
   health: { label: 'Health', note: '+5 HP/ponto' },
@@ -29,13 +31,16 @@ export default function Personagem({
   equipItem,
   sellItem,
   discardItem,
+  chooseVocation,
+  vocationCost,
 }) {
+  const isSquire = character.class === 'Squire';
   const handSize = (character.equipment.weapon?.equipSize ?? 0) + (character.equipment.offhand?.equipSize ?? 0);
   const attackSpeed = character.stats.attackSpeed || 10;
   const interval = 2 / (attackSpeed / 10); // fórmula real: 2s / (AttackSpeed/10)
-  const abilityDamage = character.stats.damage * (1 + character.stats.ability / 100);
-  const dps = abilityDamage / interval;
-  const otherClasses = Object.values(CLASSES).filter((c) => c.name !== character.class);
+  const { min: minDamage, max: maxDamage, avg: avgDamage } = computeDamageRoll(character.stats);
+  const dps = avgDamage / interval;
+  const otherClasses = VOCATIONS.filter((name) => name !== character.class).map((name) => CLASSES[name]);
 
   return (
     <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
@@ -117,7 +122,7 @@ export default function Personagem({
           <div className="grid grid-cols-3 gap-3 text-center text-xs">
             <div>
               <p className="text-neutral-500">Dano por golpe</p>
-              <p className="text-neutral-100 font-medium">{abilityDamage.toFixed(1)}</p>
+              <p className="text-neutral-100 font-medium">{minDamage.toFixed(1)}-{maxDamage.toFixed(1)}</p>
             </div>
             <div>
               <p className="text-neutral-500">Intervalo</p>
@@ -193,21 +198,55 @@ export default function Personagem({
         </div>
 
         <div className="bg-wood-light border border-wood-lighter rounded-lg p-4">
-          <h3 className="text-gold font-semibold tracking-wide mb-2">◆ VOCAÇÃO — {character.class.toUpperCase()}</h3>
-          <p className="text-xs text-neutral-500 mb-3">
-            🔒 Vocação definitiva — você seguiu o caminho de {character.class} e não pode mais trocar.
-          </p>
-          <div className="flex flex-col gap-2">
-            {otherClasses.map((cls) => (
-              <div key={cls.name} className="flex items-center justify-between bg-wood border border-wood-lighter rounded px-3 py-2 opacity-60">
-                <div>
-                  <p className="text-sm text-neutral-200">{cls.name}</p>
-                  <p className="text-[10px] text-neutral-500">{cls.description}</p>
-                </div>
-                <span>🔒</span>
+          {isSquire ? (
+            <>
+              <h3 className="text-gold font-semibold tracking-wide mb-2">◆ VOCAÇÃO — ESCOLHA A SUA</h3>
+              <p className="text-xs text-neutral-500 mb-3">
+                Você é Squire, sem vocação (todos os multiplicadores neutros). Pague{' '}
+                {vocationCost}g pra escolher — é definitivo, não dá pra trocar depois.
+              </p>
+              <div className="flex flex-col gap-2">
+                {VOCATIONS.map((name) => {
+                  const cls = CLASSES[name];
+                  const canAfford = character.gold >= vocationCost;
+                  return (
+                    <div key={name} className="flex items-center justify-between bg-wood border border-wood-lighter rounded px-3 py-2">
+                      <div>
+                        <p className="text-sm text-neutral-200">{cls.name}</p>
+                        <p className="text-[10px] text-neutral-500">{cls.description}</p>
+                      </div>
+                      <button
+                        onClick={() => chooseVocation(name)}
+                        disabled={!canAfford}
+                        className="text-xs font-medium bg-gold text-wood px-3 py-1.5 rounded shrink-0 ml-2
+                                   disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer hover:bg-yellow-500"
+                      >
+                        ESCOLHER ({vocationCost}G)
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
-            ))}
-          </div>
+            </>
+          ) : (
+            <>
+              <h3 className="text-gold font-semibold tracking-wide mb-2">◆ VOCAÇÃO — {character.class.toUpperCase()}</h3>
+              <p className="text-xs text-neutral-500 mb-3">
+                🔒 Vocação definitiva — você seguiu o caminho de {character.class} e não pode mais trocar.
+              </p>
+              <div className="flex flex-col gap-2">
+                {otherClasses.map((cls) => (
+                  <div key={cls.name} className="flex items-center justify-between bg-wood border border-wood-lighter rounded px-3 py-2 opacity-60">
+                    <div>
+                      <p className="text-sm text-neutral-200">{cls.name}</p>
+                      <p className="text-[10px] text-neutral-500">{cls.description}</p>
+                    </div>
+                    <span>🔒</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </div>
 

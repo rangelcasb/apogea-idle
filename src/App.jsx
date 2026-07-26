@@ -36,6 +36,8 @@ export default function App() {
     autoCombat,
     setAutoCombat,
     createNewCharacter,
+    chooseVocation,
+    vocationCost,
     resetCharacter,
     consumeItem,
     sellItem,
@@ -119,6 +121,8 @@ export default function App() {
             equipItem={equipItem}
             sellItem={sellItem}
             discardItem={discardItem}
+            chooseVocation={chooseVocation}
+            vocationCost={vocationCost}
           />
         )}
         {activeTab === 'talentos' && (

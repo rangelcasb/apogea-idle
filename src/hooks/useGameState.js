@@ -23,6 +23,8 @@ import {
   getShopItemDefinition,
   slugify,
   MERCHANTS_BY_NAME,
+  computeDamageRoll,
+  VOCATION_COST,
 } from '../data/gameData';
 import { talentPointsForLevel, spentTalentPoints, canInvestTalent } from '../data/talents';
 
@@ -84,10 +86,13 @@ function emptyEquipment() {
   return Object.fromEntries(Object.keys(EQUIP_SLOTS).map((slot) => [slot, null]));
 }
 
-function createCharacter(className, name) {
+// Todo personagem começa como Squire — sem vocação, todos os multiplicadores
+// neutros. Só depois de pagar VOCATION_COST em gold é que escolhe Knight/Rogue/Mage
+// (escolha permanente, real do jogo).
+function createCharacter(name) {
   const raw = {
     name: name?.trim() || 'Aventureiro',
-    class: className,
+    class: 'Squire',
     level: 1,
     xp: 0,
     gold: 0,
@@ -164,12 +169,32 @@ function init() {
 function reducer(state, action) {
   switch (action.type) {
     case 'CREATE_CHARACTER': {
-      const character = createCharacter(action.className, action.name);
+      const character = createCharacter(action.name);
       return {
         character,
         monster: pickMonster(character.zoneId),
-        log: pushLog([], `Personagem ${character.name} (${action.className}) criado! Boa sorte na aventura.`),
+        log: pushLog([], `${character.name} chegou como Squire! Junte ${VOCATION_COST} gold pra escolher uma vocação.`),
         autoCombat: false,
+      };
+    }
+
+    case 'CHOOSE_VOCATION': {
+      const char = state.character;
+      if (!char || char.class !== 'Squire' || char.gold < VOCATION_COST) return state;
+      if (!['Knight', 'Rogue', 'Mage'].includes(action.vocation)) return state;
+
+      const updatedChar = { ...char, class: action.vocation, gold: char.gold - VOCATION_COST };
+      const s = computeFinalStats(updatedChar);
+      updatedChar.currentHealth = Math.min(s.health, updatedChar.currentHealth);
+      updatedChar.currentMana = Math.min(s.mana, updatedChar.currentMana);
+
+      return {
+        ...state,
+        character: updatedChar,
+        log: pushLog(
+          state.log,
+          `Você pagou ${VOCATION_COST} gold e se tornou ${action.vocation}! Essa escolha é definitiva.`,
+        ),
       };
     }
 
@@ -186,13 +211,10 @@ function reducer(state, action) {
       if (!char || !currentMonster || char.currentHealth <= 0) return state;
 
       const charStats = computeFinalStats(char);
-      // Fórmula real "Auto Attack Damage": ((WeaponDamage × (1 + Ability/100)) −
-      // TargetDefense) / (1 + TargetArmor/100). Monstros só têm Armor (sem Defense
-      // separado nos dados que temos), então TargetDefense=0 pro lado do jogador.
-      const playerDamage = Math.max(
-        1,
-        (charStats.damage * (1 + charStats.ability / 100)) / (1 + currentMonster.armor / 100),
-      );
+      // Dano-base real (min-max, ver computeDamageRoll) mitigado pela Armor do alvo:
+      // (DanoMédio − TargetDefense) / (1 + TargetArmor/100). Monstros só têm Armor
+      // (sem Defense separado nos dados que temos), então TargetDefense=0 aqui.
+      const playerDamage = Math.max(1, computeDamageRoll(charStats).avg / (1 + currentMonster.armor / 100));
       const monsterHealth = Math.max(0, currentMonster.currentHealth - playerDamage);
       let log = pushLog(state.log, `Você causou ${playerDamage.toFixed(1)} de dano em ${currentMonster.name}.`);
 
@@ -608,7 +630,8 @@ export function useGameState() {
     [state.character],
   );
 
-  const createNewCharacter = useCallback((className, name) => dispatch({ type: 'CREATE_CHARACTER', className, name }), []);
+  const createNewCharacter = useCallback((name) => dispatch({ type: 'CREATE_CHARACTER', name }), []);
+  const chooseVocation = useCallback((vocation) => dispatch({ type: 'CHOOSE_VOCATION', vocation }), []);
   const resetCharacter = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
     dispatch({ type: 'RESET' });
@@ -637,6 +660,8 @@ export function useGameState() {
     autoCombat: state.autoCombat,
     setAutoCombat,
     createNewCharacter,
+    chooseVocation,
+    vocationCost: VOCATION_COST,
     resetCharacter,
     consumeItem,
     sellItem,

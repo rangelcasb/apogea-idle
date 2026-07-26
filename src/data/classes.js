@@ -1,25 +1,24 @@
 import { applyTalentEffects } from './talents.js';
 import { applySatietyBonus } from './satiety.js';
 
+// Base REAL do Squire nível 1, extraída do código-fonte da calculadora da comunidade
+// (paszqa/quickapogean, calc.html: const baseStats = {Health:[150,5], Mana:[15,5],
+// Magic:[0,1], Damage:[5,1], Ability:[0,1], "Attack Speed":[10,1], "HP Regen":[2,1],
+// "MP Regen":[1,1], Armor:[0,1], Defense:[0,1], Capacity:[225,25]}). O primeiro número
+// é o valor no nível 1 (sem pontos); o segundo é POINT_RATES (ganho por ponto investido),
+// que já bate exatamente com o que tínhamos estimado antes por outra via.
 const BASE_SQUIRE_STATS = {
-  health: 100,
-  mana: 60,
-  magic: 10,
-  ability: 12,
+  health: 150,
+  mana: 15,
+  magic: 0,
+  ability: 0,
   hpRegen: 2,
-  mpRegen: 2,
-  // Recalibrado pra bater com a tela real enviada: personagem com 0 pontos em Capacity
-  // + um Green Bag equipado (+6 real) tinha 225 de capacidade final -> base real 219.
-  // Os pesos de item também são reais agora (itemdata.js), então precisavam da mesma escala.
-  capacity: 219,
-  // Escala real confirmada pela fórmula "Intervalo = 2s / (AttackSpeed/10)": em 10,
-  // o intervalo é o padrão de 2s. Itens somam bônus diretos nessa mesma escala.
+  mpRegen: 1,
+  capacity: 225,
   attackSpeed: 10,
-  armor: 10,
-  // Defense é um stat real separado de Armor (fórmulas diferentes) — só vem de
-  // equipamento nessa versão simplificada, sem base nem ponto/classe aplicados.
+  armor: 0,
   defense: 0,
-  damage: 10,
+  damage: 5,
 };
 
 function applyMultipliers(mult) {
@@ -37,23 +36,36 @@ function defineClass(name, description, mult) {
   return { name, description, multipliers: mult, baseStats: applyMultipliers(mult) };
 }
 
+// Multiplicadores REAIS e completos, também extraídos do calc.html (const
+// classMultipliers). São ligeiramente diferentes da tabela que você tinha passado
+// antes (essa fonte tem Ability e Capacity, que faltavam, e corrige alguns valores:
+// Knight Mana/Magic/MP Regen são 50% aqui, não 100%; Mage Attack Speed é 100%, não
+// 75%; Rogue Health é 100%, não 120%). Fica valendo essa por vir do código da
+// calculadora, mais completo.
 export const CLASSES = {
+  Squire: defineClass(
+    'Squire',
+    'Aprendiz sem vocação — todos os multiplicadores neutros (100%). Escolha uma profissão pagando 100 gold.',
+    { health: 1, mana: 1, magic: 1, ability: 1, hpRegen: 1, mpRegen: 1, capacity: 1, attackSpeed: 1, armor: 1, defense: 1 },
+  ),
   Knight: defineClass(
     'Knight',
-    '+2 Health, +1.5 Armor/Defense/Capacity — o tanque.',
-    { health: 2.0, armor: 1.5, magic: 1.0, mana: 1.0, attackSpeed: 1.0, hpRegen: 1.25, mpRegen: 1.0 },
-  ),
-  Mage: defineClass(
-    'Mage',
-    '+2 Mana/Magic/MP Regen — poder arcano (frágil!).',
-    { health: 0.75, armor: 0.75, magic: 2.0, mana: 2.0, attackSpeed: 0.75, hpRegen: 1.0, mpRegen: 2.0 },
+    '+100% Health, +50% Armor/Defense/Capacity, +25% Ability/HP Regen — o tanque (-50% Mana/Magic/MP Regen).',
+    { health: 2, mana: 0.5, magic: 0.5, ability: 1.25, hpRegen: 1.25, mpRegen: 0.5, capacity: 1.5, attackSpeed: 1, armor: 1.5, defense: 1.5 },
   ),
   Rogue: defineClass(
     'Rogue',
-    'Ágil e letal: 120% Health, 150% Magic, 125% Mana, 125% Attack Speed.',
-    { health: 1.2, armor: 1.0, magic: 1.5, mana: 1.25, attackSpeed: 1.25, hpRegen: 1.0, mpRegen: 1.0, ability: 1.5 },
+    '+50% Ability/Magic, +25% Mana/Attack Speed — ágil e versátil, sem penalidades.',
+    { health: 1, mana: 1.25, magic: 1.5, ability: 1.5, hpRegen: 1, mpRegen: 1, capacity: 1, attackSpeed: 1.25, armor: 1, defense: 1 },
+  ),
+  Mage: defineClass(
+    'Mage',
+    '+100% Mana/Magic/MP Regen — poder arcano (-25% Health/Ability/Armor/Defense/HP Regen/Capacity).',
+    { health: 0.75, mana: 2, magic: 2, ability: 0.75, hpRegen: 0.75, mpRegen: 2, capacity: 0.75, attackSpeed: 1, armor: 0.75, defense: 0.75 },
   ),
 };
+
+export const VOCATION_COST = 100;
 
 // Sistema de pontos de atributo por level — confirmado pela tela do Character Planner
 // que o usuário enviou: total de pontos acumulados = (nível-1)*3 (bateu exatamente com
@@ -145,6 +157,18 @@ export function computeFinalStats(character) {
   }
   const talented = applyTalentEffects(stats, character.talentPoints);
   return applySatietyBonus(talented, character.satiety);
+}
+
+// Fórmula real de dano por golpe (também do calc.html): não é um número fixo, é um
+// intervalo min-max. max = Damage × (1 + Ability×1.25/100); min = max/5; o "dano
+// médio" usado pro DPS é a média dos dois (equivale a 60% do máximo). É por isso que
+// a tela real mostra um range tipo "30.6-152.8" em vez de um valor só.
+export function computeDamageRoll(stats) {
+  const abilityFactor = 1 + (stats.ability * 1.25) / 100;
+  const max = Math.round(stats.damage * abilityFactor * 100) / 100;
+  const min = Math.round((max / 5) * 100) / 100;
+  const avg = Math.round(((min + max) / 2) * 100) / 100;
+  return { min, max, avg };
 }
 
 // Fórmula real de XP, confirmada pelo usuário contra a tabela oficial (bate exato:
