@@ -24,29 +24,144 @@ function applyMultipliers(mult) {
   return stats;
 }
 
+// "Multiplicadores de classe aplicam sobre os pontos" — regra confirmada visualmente
+// pelo usuário (tela do Character Planner de apogean.eu). Guardamos os multiplicadores
+// separados do baseStats pra poder aplicá-los tanto na base quanto nos pontos alocados.
+function defineClass(name, description, mult) {
+  return { name, description, multipliers: mult, baseStats: applyMultipliers(mult) };
+}
+
 export const CLASSES = {
-  Knight: {
-    name: 'Knight',
-    description: 'Extremamente resistente: 200% de Vida, 150% de Defesa, 125% de HP Regen e a maior capacidade de carga.',
-    baseStats: applyMultipliers({ health: 2.0, armor: 1.5, hpRegen: 1.25, capacity: 1.5 }),
-  },
-  Mage: {
-    name: 'Mage',
-    description: 'Conjurador: 200% de Magic, Mana e MP Regen.',
-    baseStats: applyMultipliers({ magic: 2.0, mana: 2.0, mpRegen: 2.0 }),
-  },
-  Rogue: {
-    name: 'Rogue',
-    description: 'Ágil e letal: 150% de Skill e Magic, 125% de Mana e a maior velocidade de ataque (125%).',
-    baseStats: applyMultipliers({ ability: 1.5, magic: 1.5, mana: 1.25, attackSpeed: 1.25 }),
-  },
+  Knight: defineClass(
+    'Knight',
+    'Extremamente resistente: 200% de Vida, 150% de Defesa, 125% de HP Regen e a maior capacidade de carga.',
+    { health: 2.0, armor: 1.5, hpRegen: 1.25, capacity: 1.5 },
+  ),
+  Mage: defineClass(
+    'Mage',
+    'Conjurador: 200% de Magic, Mana e MP Regen.',
+    { magic: 2.0, mana: 2.0, mpRegen: 2.0 },
+  ),
+  Rogue: defineClass(
+    'Rogue',
+    'Ágil e letal: 150% de Skill e Magic, 125% de Mana e a maior velocidade de ataque (125%).',
+    { ability: 1.5, magic: 1.5, mana: 1.25, attackSpeed: 1.25 },
+  ),
 };
+
+// Sistema de pontos de atributo por level — confirmado pela tela do Character Planner
+// que o usuário enviou: total de pontos acumulados = (nível-1)*3 (bateu exatamente com
+// o personagem "Hustan" nível 25 da imagem: 1+48+8+15 = 72 = (25-1)*3). No máximo 2
+// pontos de cada "lote" de nível podem ir para o mesmo atributo — o resto tem que ir
+// para outro atributo.
+export const POINTS_PER_LEVEL = 3;
+export const MAX_POINTS_PER_STAT_PER_LEVEL = 2;
+export const ALLOCATABLE_STATS = ['health', 'mana', 'magic', 'ability', 'hpRegen', 'mpRegen', 'capacity'];
+
+// Ganho por ponto investido, conforme os rótulos "+X/ponto" visíveis na tela enviada
+// (Health "+5 HP/ponto", Ability "+1 dano min/máx/ponto", Capacity "+25 oz/ponto"...).
+// Mana, Magic, HP/MP Regen não estavam totalmente legíveis na imagem — usamos valores
+// simétricos/razoáveis para eles.
+export const POINT_RATES = {
+  health: 5,
+  mana: 5,
+  magic: 1,
+  ability: 1,
+  hpRegen: 1,
+  mpRegen: 1,
+  capacity: 25,
+};
+
+// Calcula os stats finais (base da classe + bônus dos pontos alocados, com o
+// multiplicador de classe aplicado também sobre os pontos) para os 7 atributos
+// alocáveis. Armor/Damage/AttackSpeed não são alocáveis por pontos — vêm da classe
+// e do equipamento.
+export function computeAllocatedStats(className, pointsSpent) {
+  const classDef = CLASSES[className];
+  const stats = { ...classDef.baseStats };
+  for (const stat of ALLOCATABLE_STATS) {
+    const points = pointsSpent?.[stat] ?? 0;
+    const mult = classDef.multipliers[stat] ?? 1;
+    stats[stat] = Math.round((stats[stat] + points * POINT_RATES[stat] * mult) * 100) / 100;
+  }
+  return stats;
+}
+
+// Soma os pontos já gastos em todos os "lotes" de nível (cada level-up gera um lote
+// de 3 pontos com o limite de 2-por-atributo aplicado individualmente a ele).
+export function sumSpentPoints(levelBatches) {
+  const totals = {};
+  for (const stat of ALLOCATABLE_STATS) totals[stat] = 0;
+  for (const batch of levelBatches ?? []) {
+    for (const [stat, n] of Object.entries(batch.spent ?? {})) {
+      totals[stat] = (totals[stat] ?? 0) + n;
+    }
+  }
+  return totals;
+}
+
+export function unspentPoints(levelBatches) {
+  return (levelBatches ?? []).reduce((sum, b) => sum + b.remaining, 0);
+}
+
+export function canAllocatePoint(levelBatches, stat) {
+  return (levelBatches ?? []).some(
+    (b) => b.remaining > 0 && (b.spent[stat] ?? 0) < MAX_POINTS_PER_STAT_PER_LEVEL,
+  );
+}
+
+// Aloca 1 ponto no atributo indicado, respeitando o limite de 2 pontos por atributo
+// dentro do mesmo lote de nível. Retorna um novo array de lotes (imutável).
+export function allocatePoint(levelBatches, stat) {
+  const next = (levelBatches ?? []).map((b) => ({ remaining: b.remaining, spent: { ...b.spent } }));
+  const idx = next.findIndex(
+    (b) => b.remaining > 0 && (b.spent[stat] ?? 0) < MAX_POINTS_PER_STAT_PER_LEVEL,
+  );
+  if (idx === -1) return levelBatches;
+  next[idx].spent[stat] = (next[idx].spent[stat] ?? 0) + 1;
+  next[idx].remaining -= 1;
+  return next;
+}
+
+// Stats finais de combate: base da classe + pontos alocados (health, mana, magic,
+// ability, hpRegen, mpRegen, capacity) + bônus somado de todo equipamento vestido
+// (armor, damage, attackSpeed e outros vêm só da classe + equipamento, sem pontos).
+export function computeFinalStats(character) {
+  const spent = sumSpentPoints(character.levelBatches);
+  const stats = computeAllocatedStats(character.class, spent);
+  const equippedItems = Object.values(character.equipment ?? {}).filter(Boolean);
+  for (const item of equippedItems) {
+    if (!item.stats) continue;
+    for (const [key, val] of Object.entries(item.stats)) {
+      stats[key] = Math.round(((stats[key] ?? 0) + val) * 100) / 100;
+    }
+  }
+  return stats;
+}
 
 export const ITEM_TYPES = {
   WEAPON: 'weapon',
   ARMOR: 'armor',
   CONSUMABLE: 'consumable',
   MATERIAL: 'material',
+};
+
+// Slots de equipamento reais do jogo, conforme a tela do Character Planner enviada
+// pelo usuário (Arma, Mão Secundária, Cabeça, Peitoral, Pernas, Botas, Munição,
+// Pescoço, Anel, Mochila). Adicionamos "hands" (Mãos) porque a categoria real "Gloves"
+// existe no Items Browser, mesmo não aparecendo nessa tela específica.
+export const EQUIP_SLOTS = {
+  weapon: 'Arma',
+  offhand: 'Mão Secundária',
+  head: 'Cabeça',
+  chest: 'Peitoral',
+  legs: 'Pernas',
+  boots: 'Botas',
+  hands: 'Mãos',
+  neck: 'Pescoço',
+  ring: 'Anel',
+  backpack: 'Mochila',
+  ammo: 'Munição',
 };
 
 // Chance de cada item de uma tabela de loot realmente cair quando o monstro morre,
@@ -1011,21 +1126,188 @@ function buildZones() {
 
 export const ZONES = buildZones();
 
-// Classificação de item por palavras-chave no nome (o site fonte não expõe a
-// categoria de cada item de loot). "Gold" é tratado à parte, como moeda.
+export function slugify(name) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+}
+
+// Categoria real de cada item, extraída do Items Browser (apogea-tools.lubien.dev/items,
+// 210 itens). O browser expõe a categoria (ex: "Large Sword", "Light Chest", "Potions")
+// mas NÃO expõe os valores de stat de cada item — isso é sempre estimado (ver
+// estimateEquipStats/estimateConsumableStats abaixo).
+const REAL_ITEM_CATEGORIES_LIST = [
+  ['Ale Mug', 'Drinks'], ['Ancient Sword', 'Large Sword'], ['Apple', 'Food'], ['Apple Pie', 'Special Food'],
+  ['Arrow', 'Arrows'], ['Bachall', 'Staff'], ['Bagnoff', 'Container'], ['Battle Axe', 'Axe'],
+  ['Battle Cloak', 'Light Chest'], ['Big Empty Pot', 'Potions'], ['Big Mana Potion', 'Potions'],
+  ['Black Bag', 'Container'], ['Black Wool', 'Cloth Products'], ['Blessed Amulet', 'Necklace'],
+  ['Blue Backpack', 'Container'], ['Blue Gill', 'Raw Food'], ['Blue Spellbook: Heal', 'Book'],
+  ['Blueberries', 'Food'], ['Boletus Piece', 'Swamp Products'], ['Bone Bow', 'Bow'], ['Bone Knife', 'Knife'],
+  ['Brass Legs', 'Heavy Legs'], ['Brass Shield', 'Small Shield'], ['Bread Loaf', 'Raw Food'],
+  ['Bread Piece', 'Edible Food'], ['Brigandine Legs', 'Light Legs'], ['Brigandine Vest', 'Light Chest'],
+  ['Broadsword', 'Large Sword'], ['Brown Backpack', 'Container'], ['Buckler', 'Shield'],
+  ['Bug Wings', 'Swamp Products'], ['Burlap Hat', 'Light Helmet'], ['Burlap Skirt', 'Light Legs'],
+  ['Burlap Wool', 'Monster Products'], ['Cattail Flower', 'Flowers'], ['Chain Mail', 'Heavy Chest'],
+  ['Cheese Slice', 'Edible Food'], ['Cheese Wheel', 'Raw Food'], ['Cloth Pants', 'Light Legs'],
+  ['Cloth Vest', 'Light Armor'], ['Colocasia Seed', 'Flowers'], ['Cooked Game Meat', 'Cooked Food'],
+  ['Cooked Lamb', 'Cooked Food'], ['Cooked Snapper', 'Cooked Food'], ['Cooked White Mushroom', 'Cooked Food'],
+  ['Crooked Vest', 'Light Chest'], ['Crossbow', 'Bow'], ['Crowbar', 'Tools'], ['Crystal Amulet', 'Necklace'],
+  ['Crystal Ring', 'Ring'], ['Crystal Shard', 'North Products'], ['Crystal Staff', 'Staff'], ['Cutlass', 'Sword'],
+  ['Dark Armor', 'Heavy Armor'], ['Dark Hood', 'Light Helmet'], ['Dark Legs', 'Light Legs'],
+  ['Dark Robe', 'Light Chest'], ['Diamond Ring', 'Ring'], ['Dragonfruit', 'Special Food'],
+  ['Druid Cape', 'Light Chest'], ['Druid Hat', 'Light Helmet'], ['Eggplant', 'Edible Food'],
+  ['Elvish Amanita', 'Special Food'], ['Empty Pot', 'Potions'], ['Epee', 'Sword'], ['Fish Steak', 'Edible Food'],
+  ['Forsaken Cross', 'Holy Products'], ['Fur', 'North Products'], ['Gambeson', 'Light Armor'],
+  ['Game Meat', 'Raw Food'], ['Garlic', 'Raw Food'], ['Garnet Ring', 'Ring'], ['Golden Ring', 'Ring'],
+  ['Golden Torc', 'Currency'], ['Gray Backpack', 'Backpacks'], ['Great Axe', 'Large Axe'],
+  ['Greatsword', 'Large Sword'], ['Green Backpack', 'Container'], ['Green Bag', 'Container'],
+  ['Green Orb', 'Orb'], ['Grilled Cheese', 'Special Food'], ['Health Potion', 'Potions'],
+  ['Hero Flower', 'Flowers'], ['Hook Claw', 'Monster Products'], ['Iron Ingot', 'Metal Products'],
+  ['Iron Pan', 'Cooking Items'], ['Ironsword', 'Sword'], ['Kettle Helmet', 'Heavy Helmet'],
+  ['Kings Nose', 'Flowers'], ['Knife', 'Knife'], ['Lamb Meat', 'Raw Food'], ['Lantern', 'Light Sources'],
+  ['Leaf Blade', 'Sword'], ['Leather Bascinet', 'Light Helmet'], ['Leather Boots', 'Light Boots'],
+  ['Leather Cloak', 'Light Chest'], ['Leather Coif', 'Light Helmet'], ['Leather Collar', 'Light Neck'],
+  ['Leather Cuisse', 'Light Legs'], ['Leather Gloves', 'Gloves'], ['Lineage Shield', 'Small Shield'],
+  ['Longbow', 'Bow'], ['Longsword', 'Large Sword'], ['Magician Shoes', 'Light Boots'], ['Mana Potion', 'Potions'],
+  ['Meaty Stew', 'Special Food'], ["Merchant's Bag", 'Container'], ['Merchants Bag', 'Container'],
+  ['Moon Ingot', 'Forge Products'], ['Nightshade', 'Flowers'], ['Nightshade Kilt', 'Light Legs'],
+  ['Nightshade Robe', 'Light Chest'], ['Old Axe', 'Large Axe'], ['Old Backpack', 'Container'],
+  ['Old Gloves', 'Gloves'], ['Old Ring', 'Plains Products'], ['Onion', 'Raw Food'], ['Onion Rings', 'Cooked Food'],
+  ['Onyx Armor', 'Heavy Chest'], ['Onyx Boots', 'Heavy Boots'], ['Onyx Dagger', 'Dagger'],
+  ['Onyx Helmet', 'Heavy Helmet'], ['Onyx Legs', 'Heavy Legs'], ['Onyx Ring', 'Ring'],
+  ['Onyx Shield', 'Small Shield'], ['Orange', 'Edible Food'], ['Orb', 'Orb'], ['Pestilence Sword', 'Large Sword'],
+  ['Plagued Scale', 'Swamp Products'], ['Plated Boots', 'Heavy Boots'], ['Plated Cuirass', 'Heavy Chest'],
+  ['Plated Helmet', 'Heavy Helmet'], ['Plated Legs', 'Heavy Legs'], ['Plated Shield', 'Small Shield'],
+  ['Plea Toe', 'Monster Products'], ['Pumpkin', 'Food'], ['Quoki Headgear', 'Light Mask'],
+  ['Quoki Shoes', 'Light Boots'], ['Ragged Cloth', 'Cloth Products'], ['Rat Tail', 'Monster Products'],
+  ['Rawhide', 'North Products'], ['Red Breast', 'Raw Food'], ['Red Orb', 'Orb'], ['Rice', 'Raw Food'],
+  ['Rice Dish', 'Special Food'], ['Rock Core', 'Desert Products'], ['Rope', 'Tools'], ['Rose', 'Flowers'],
+  ['Royal Armor', 'Heavy Chest'], ['Royal Dagger', 'Dagger'], ['Royal Helmet', 'Heavy Helmet'],
+  ['Royal Legs', 'Heavy Legs'], ['Ruby Amulet', 'Necklace'], ['Rusty Sword', 'Sword'],
+  ['Sailor Boots', 'Light Boots'], ['Sandworm', 'Special Food'], ['Sandworm Meal', 'Special Food'],
+  ['Scale Armor', 'Heavy Chest'], ['Scale Kilt', 'Heavy Legs'], ['Scarf', 'Light Neck'],
+  ['Serpent Sword', 'Sword'], ['Shovel', 'Tools'], ['Silver Amulet', 'Necklace'], ['Silver Dagger', 'Dagger'],
+  ['Silver Mask', 'Light Mask'], ['Silver Ring', 'Ring'], ['Simple Bag', 'Container'],
+  ['Simple Garment', 'Light Armor'], ['Skull Ring', 'Ring'], ['Slime Essence', 'Swamp Products'],
+  ['Small Bones', 'MiscellaneousItems'], ['Small Skull', 'Grave Products'], ['Snake Orb', 'Orb'],
+  ['Snapper', 'Raw Food'], ['Spangenhelm', 'Heavy Helmet'], ['Spicy Stew', 'Special Food'],
+  ['Spring Stew', 'Special Food'], ['Square Bag', 'Container'], ['Steel Bracelet', 'Ring'],
+  ['Steel Ingot', 'Forge Products'], ['Steelsword', 'Sword'], ['Stone Wand', 'Staff'],
+  ['Strawberries', 'Special Food'], ['Studded Shield', 'Large Shield'], ['Swamp Cod', 'Raw Food'],
+  ['Talisman Pouch', 'Container'], ['Tin Ingot', 'Metal Products'], ['Tofu Block', 'Edible Food'],
+  ['Tomatoes', 'Edible Food'], ['Torch', 'Light Sources'], ['Tower Shield', 'Large Shield'],
+  ['Unholy Staff', 'Staff'], ['Vanguard Shield', 'Small Shield'], ['Vecan Axe', 'Large Axe'],
+  ['Velvet Pouch', 'Container'], ['Web Cap Eye', 'Desert Products'], ['Wheat', 'Raw Food'],
+  ['White Mushroom', 'Edible Food'], ['Winged Boots', 'Light Boots'], ['Wizard Hat', 'Light Helmet'],
+  ['Wizard Robe', 'Light Chest'], ['Wood Twigs', 'Plains Products'], ['Wooden Bow', 'Bow'],
+  ['Wooden Bowl', 'Cooking Items'], ['Wooden Cup', 'Drinks'], ['Wooden Mug', 'Drinks'],
+  ['Wooden Staff', 'Staff'], ['Wool', 'Cloth Products'], ['Worn Paper', 'Book Products'],
+  ['Yellow Beauty', 'Flower Products'], ['Zircon Ring', 'Ring'],
+];
+
+const REAL_ITEM_CATEGORIES = Object.fromEntries(
+  REAL_ITEM_CATEGORIES_LIST.map(([name, category]) => [slugify(name), category]),
+);
+
+// Categoria real -> slot de equipamento / tipo de item. Cobre todas as categorias
+// observadas no Items Browser.
+const CATEGORY_INFO = {
+  'Large Sword': { slot: 'weapon', type: ITEM_TYPES.WEAPON },
+  Sword: { slot: 'weapon', type: ITEM_TYPES.WEAPON },
+  Knife: { slot: 'weapon', type: ITEM_TYPES.WEAPON },
+  Dagger: { slot: 'weapon', type: ITEM_TYPES.WEAPON },
+  Bow: { slot: 'weapon', type: ITEM_TYPES.WEAPON },
+  Staff: { slot: 'weapon', type: ITEM_TYPES.WEAPON },
+  Axe: { slot: 'weapon', type: ITEM_TYPES.WEAPON },
+  'Large Axe': { slot: 'weapon', type: ITEM_TYPES.WEAPON },
+  Shield: { slot: 'offhand', type: ITEM_TYPES.ARMOR },
+  'Small Shield': { slot: 'offhand', type: ITEM_TYPES.ARMOR },
+  'Large Shield': { slot: 'offhand', type: ITEM_TYPES.ARMOR },
+  Orb: { slot: 'offhand', type: ITEM_TYPES.ARMOR },
+  'Light Helmet': { slot: 'head', type: ITEM_TYPES.ARMOR },
+  'Heavy Helmet': { slot: 'head', type: ITEM_TYPES.ARMOR },
+  'Light Mask': { slot: 'head', type: ITEM_TYPES.ARMOR },
+  'Light Chest': { slot: 'chest', type: ITEM_TYPES.ARMOR },
+  'Heavy Chest': { slot: 'chest', type: ITEM_TYPES.ARMOR },
+  'Light Armor': { slot: 'chest', type: ITEM_TYPES.ARMOR },
+  'Heavy Armor': { slot: 'chest', type: ITEM_TYPES.ARMOR },
+  'Light Legs': { slot: 'legs', type: ITEM_TYPES.ARMOR },
+  'Heavy Legs': { slot: 'legs', type: ITEM_TYPES.ARMOR },
+  'Light Boots': { slot: 'boots', type: ITEM_TYPES.ARMOR },
+  'Heavy Boots': { slot: 'boots', type: ITEM_TYPES.ARMOR },
+  Gloves: { slot: 'hands', type: ITEM_TYPES.ARMOR },
+  Necklace: { slot: 'neck', type: ITEM_TYPES.ARMOR },
+  'Light Neck': { slot: 'neck', type: ITEM_TYPES.ARMOR },
+  Ring: { slot: 'ring', type: ITEM_TYPES.ARMOR },
+  Container: { slot: 'backpack', type: ITEM_TYPES.ARMOR },
+  Backpacks: { slot: 'backpack', type: ITEM_TYPES.ARMOR },
+  Arrows: { slot: 'ammo', type: ITEM_TYPES.ARMOR },
+  Drinks: { slot: null, type: ITEM_TYPES.CONSUMABLE },
+  Food: { slot: null, type: ITEM_TYPES.CONSUMABLE },
+  'Special Food': { slot: null, type: ITEM_TYPES.CONSUMABLE },
+  Potions: { slot: null, type: ITEM_TYPES.CONSUMABLE },
+  'Raw Food': { slot: null, type: ITEM_TYPES.CONSUMABLE },
+  'Edible Food': { slot: null, type: ITEM_TYPES.CONSUMABLE },
+  'Cooked Food': { slot: null, type: ITEM_TYPES.CONSUMABLE },
+};
+
+// Palavras-chave usadas quando um item não está na lista real (ex: itens de loot com
+// nome levemente diferente do Items Browser). Fallback só, não é a fonte principal.
 const WEAPON_WORDS = ['sword', 'axe', 'dagger', 'bow', 'staff', 'knife', 'wand', 'cutlass', 'epee', 'bachall'];
 const ARMOR_WORDS = ['armor', 'legs', 'helmet', 'boots', 'shield', 'cloak', 'vest', 'robe', 'coif', 'bascinet', 'gambeson', 'kilt', 'cuisse', 'mask', 'hood', 'pants', 'mail', 'cuirass', 'bracelet'];
 const CONSUMABLE_WORDS = ['potion', 'pie', 'stew', 'bread', 'meat', 'fish', 'cheese', 'apple', 'berries', 'orange', 'dish', 'rice', 'tomatoes', 'wheat', 'eggplant', 'pumpkin', 'mushroom', 'cod', 'gill', 'snapper', 'lamb'];
 
-export function classifyItem(name) {
+function guessItemInfo(name) {
   const n = name.toLowerCase();
-  if (WEAPON_WORDS.some((w) => n.includes(w))) return ITEM_TYPES.WEAPON;
-  if (ARMOR_WORDS.some((w) => n.includes(w))) return ITEM_TYPES.ARMOR;
-  if (CONSUMABLE_WORDS.some((w) => n.includes(w))) return ITEM_TYPES.CONSUMABLE;
-  return ITEM_TYPES.MATERIAL;
+  if (WEAPON_WORDS.some((w) => n.includes(w))) return { slot: 'weapon', type: ITEM_TYPES.WEAPON };
+  if (ARMOR_WORDS.some((w) => n.includes(w))) return { slot: null, type: ITEM_TYPES.ARMOR };
+  if (CONSUMABLE_WORDS.some((w) => n.includes(w))) return { slot: null, type: ITEM_TYPES.CONSUMABLE };
+  return { slot: null, type: ITEM_TYPES.MATERIAL };
 }
 
-// Efeito estimado de consumíveis dropados (o site fonte não expõe valores de cura/mana).
+// Tiers estimados por palavra-chave no nome, usados só pra escalar o bônus estimado
+// de equipamentos (o jogo real não expõe esses números publicamente).
+const TIER_KEYWORDS = [
+  { words: ['diamond', 'royal', 'pestilence', 'serpent', 'onyx', 'dark', 'wizard', 'crystal', 'great axe', 'greatsword'], tier: 5 },
+  { words: ['plated', 'scale', 'steel', 'brigandine', 'chain'], tier: 4 },
+  { words: ['brass', 'silver', 'studded', 'gambeson', 'sailor'], tier: 3 },
+  { words: ['leather', 'iron', 'ironsword', 'burlap'], tier: 2 },
+];
+
+function estimateTier(name) {
+  const n = name.toLowerCase();
+  for (const group of TIER_KEYWORDS) {
+    if (group.words.some((w) => n.includes(w))) return group.tier;
+  }
+  return 1;
+}
+
+// Bônus estimado de equipamento por slot/tier — não é dado real, é uma progressão
+// razoável só pra dar efeito de jogo aos itens até termos números oficiais.
+function estimateEquipStats(name, slot) {
+  const tier = estimateTier(name);
+  switch (slot) {
+    case 'weapon':
+      return { damage: 3 * tier };
+    case 'offhand':
+      return { armor: tier };
+    case 'head':
+    case 'chest':
+    case 'legs':
+    case 'boots':
+    case 'hands':
+      return { armor: Math.max(1, Math.round(tier * 0.8)) };
+    case 'neck':
+    case 'ring':
+      return { magic: Math.ceil(tier / 2) };
+    case 'backpack':
+      return { capacity: 10 * tier };
+    case 'ammo':
+      return { damage: 1 };
+    default:
+      return {};
+  }
+}
+
+// Efeito estimado de consumíveis (o site fonte não expõe valores de cura/mana).
 function estimateConsumableStats(name) {
   const n = name.toLowerCase();
   if (n.includes('big mana')) return { mana: 40 };
@@ -1034,8 +1316,19 @@ function estimateConsumableStats(name) {
   return { health: 12 };
 }
 
-export function slugify(name) {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+// Monta a definição completa de um item de loot: categoria real (se conhecida),
+// slot de equipamento, tipo e stats estimados.
+export function getItemDefinition(name) {
+  const category = REAL_ITEM_CATEGORIES[slugify(name)];
+  const info = category ? CATEGORY_INFO[category] : guessItemInfo(name);
+  const type = info?.type ?? ITEM_TYPES.MATERIAL;
+  const slot = info?.slot ?? null;
+
+  let stats;
+  if (type === ITEM_TYPES.CONSUMABLE) stats = estimateConsumableStats(name);
+  else if (slot) stats = estimateEquipStats(name, slot);
+
+  return { type, slot, category: category ?? null, ...(stats ? { stats } : {}) };
 }
 
 // Sorteia o loot de um monstro derrotado. Cada item da tabela é sorteado de forma
@@ -1051,44 +1344,35 @@ export function rollLoot(monster) {
       gold += drop.quantity;
       continue;
     }
-    const type = classifyItem(drop.name);
-    const item = {
+    const def = getItemDefinition(drop.name);
+    items.push({
       id: slugify(drop.name),
       name: drop.name,
-      type,
       quantity: drop.quantity,
-      ...(type === ITEM_TYPES.CONSUMABLE ? { stats: estimateConsumableStats(drop.name) } : {}),
-    };
-    items.push(item);
+      ...def,
+    });
   }
   return { gold, items };
 }
 
-// Nomes e categorias reais do Items Browser (apogea-tools.lubien.dev/items, 210 itens
-// no total). O browser não expõe os valores de stat de cada item, então os números
-// de dano/armadura/vida abaixo são estimativas nossas para itens iniciais coerentes
-// com a categoria real do item.
 export const STARTER_ITEMS = [
   {
     id: 'bone-knife',
     name: 'Bone Knife',
-    type: ITEM_TYPES.WEAPON,
-    stats: { damage: 4 },
     quantity: 1,
+    ...getItemDefinition('Bone Knife'),
   },
   {
     id: 'big-mana-potion',
     name: 'Big Mana Potion',
-    type: ITEM_TYPES.CONSUMABLE,
-    stats: { mana: 40 },
     quantity: 2,
+    ...getItemDefinition('Big Mana Potion'),
   },
   {
     id: 'bread-loaf',
     name: 'Bread Loaf',
-    type: ITEM_TYPES.CONSUMABLE,
-    stats: { health: 20 },
     quantity: 3,
+    ...getItemDefinition('Bread Loaf'),
   },
 ];
 

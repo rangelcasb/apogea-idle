@@ -21,6 +21,10 @@ export default function App() {
     createNewCharacter,
     resetCharacter,
     consumeItem,
+    equipItem,
+    unequipItem,
+    allocateStat,
+    unspentPoints,
     changeZone,
     zones,
   } = useGameState();
@@ -70,9 +74,16 @@ export default function App() {
             changeZone={changeZone}
           />
         )}
-        {activeTab === 'stats' && <Stats character={character} />}
+        {activeTab === 'stats' && (
+          <Stats character={character} unspentPoints={unspentPoints} allocateStat={allocateStat} />
+        )}
         {activeTab === 'inventory' && (
-          <Inventory character={character} consumeItem={consumeItem} />
+          <Inventory
+            character={character}
+            consumeItem={consumeItem}
+            equipItem={equipItem}
+            unequipItem={unequipItem}
+          />
         )}
       </main>
     </div>
