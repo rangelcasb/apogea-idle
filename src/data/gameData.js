@@ -18,8 +18,13 @@ const BASE_SQUIRE_STATS = {
   // + um Green Bag equipado (+6 real) tinha 225 de capacidade final -> base real 219.
   // Os pesos de item também são reais agora (itemdata.js), então precisavam da mesma escala.
   capacity: 219,
-  attackSpeed: 1.0,
+  // Escala real confirmada pela fórmula "Intervalo = 2s / (AttackSpeed/10)": em 10,
+  // o intervalo é o padrão de 2s. Itens somam bônus diretos nessa mesma escala.
+  attackSpeed: 10,
   armor: 10,
+  // Defense é um stat real separado de Armor (fórmulas diferentes) — só vem de
+  // equipamento nessa versão simplificada, sem base nem ponto/classe aplicados.
+  defense: 0,
   damage: 10,
 };
 
@@ -1403,6 +1408,15 @@ export const STARTER_ITEMS = [
   starterItem('Mana Potion', 2),
 ];
 
+// Fórmula real de XP, confirmada pelo usuário contra a tabela oficial (bate exato:
+// nível 24 -> 69.618 pra próximo nível, nível 100 -> 121.054.601 acumulado, etc).
+// XP acumulado pra alcançar o nível N = 50×(N-1)²×(2+(N-1)²/40), N>=2.
+function totalXpForLevel(level) {
+  if (level <= 1) return 0;
+  const L = level - 1;
+  return 50 * L * L * (2 + (L * L) / 40);
+}
+
 export function xpForNextLevel(level) {
-  return Math.floor(50 * Math.pow(1.2, level - 1));
+  return Math.round(totalXpForLevel(level + 1) - totalXpForLevel(level));
 }

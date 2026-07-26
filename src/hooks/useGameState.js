@@ -18,7 +18,9 @@ import {
 import { talentPointsForLevel, spentTalentPoints, canInvestTalent } from '../data/talents';
 
 const TURN_MS = 2000;
-const REGEN_TICK_MS = 2000;
+// Fórmula real: "Regeneration triggers every 10 seconds, restoring half of your HP
+// Regen and MP Regen stats each time."
+const REGEN_TICK_MS = 10000;
 const STORAGE_KEY = 'apogea-idle-character';
 const RESPEC_COST = 200;
 
@@ -135,7 +137,13 @@ function reducer(state, action) {
       if (!char || !currentMonster || char.currentHealth <= 0) return state;
 
       const charStats = computeFinalStats(char);
-      const playerDamage = Math.max(1, charStats.damage - currentMonster.armor / 2);
+      // Fórmula real "Auto Attack Damage": ((WeaponDamage × (1 + Ability/100)) −
+      // TargetDefense) / (1 + TargetArmor/100). Monstros só têm Armor (sem Defense
+      // separado nos dados que temos), então TargetDefense=0 pro lado do jogador.
+      const playerDamage = Math.max(
+        1,
+        (charStats.damage * (1 + charStats.ability / 100)) / (1 + currentMonster.armor / 100),
+      );
       const monsterHealth = Math.max(0, currentMonster.currentHealth - playerDamage);
       let log = pushLog(state.log, `Você causou ${playerDamage.toFixed(1)} de dano em ${currentMonster.name}.`);
 
@@ -182,7 +190,12 @@ function reducer(state, action) {
         return { ...state, character: updatedChar, monster: pickMonster(char.zoneId), log };
       }
 
-      const monsterDamage = Math.max(1, currentMonster.damage - charStats.armor / 2);
+      // Mesma fórmula real, do lado do monstro: monstro não tem Ability, personagem
+      // mitiga com Defense (flat) e Armor (percentual com diminishing returns).
+      const monsterDamage = Math.max(
+        1,
+        (currentMonster.damage - charStats.defense) / (1 + charStats.armor / 100),
+      );
       log = pushLog(log, `${currentMonster.name} causou ${monsterDamage.toFixed(1)} de dano em você.`);
       const newHealth = Math.max(0, char.currentHealth - monsterDamage);
 
@@ -209,10 +222,9 @@ function reducer(state, action) {
       const char = state.character;
       if (!char || char.currentHealth <= 0) return state;
       const s = computeFinalStats(char);
-      const tickFactor = REGEN_TICK_MS / 10000;
-
-      let currentHealth = Math.min(s.health, char.currentHealth + s.hpRegen * tickFactor);
-      const currentMana = Math.min(s.mana, char.currentMana + s.mpRegen * tickFactor);
+      // Fórmula real: a cada 10s, restaura METADE do stat de HP/MP Regen.
+      let currentHealth = Math.min(s.health, char.currentHealth + s.hpRegen * 0.5);
+      const currentMana = Math.min(s.mana, char.currentMana + s.mpRegen * 0.5);
       let inventory = char.inventory;
       let log = state.log;
 
@@ -421,7 +433,8 @@ export function useGameState() {
   // corrida entre monstro e personagem.
   useEffect(() => {
     if (!state.autoCombat || !hasCharacter || isDead) return;
-    const interval = TURN_MS / (attackSpeed || 1);
+    // Fórmula real: Intervalo = 2s / (AttackSpeed / 10).
+    const interval = TURN_MS / ((attackSpeed || 10) / 10);
     const id = setInterval(() => dispatch({ type: 'TICK' }), interval);
     return () => clearInterval(id);
   }, [state.autoCombat, attackSpeed, isDead, hasCharacter]);

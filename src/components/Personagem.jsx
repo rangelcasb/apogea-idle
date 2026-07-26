@@ -21,9 +21,10 @@ function EquipStats({ stats }) {
 
 export default function Personagem({ character, unspentPoints, allocateStat, resetAttributes, respecCost, unequipItem }) {
   const handSize = (character.equipment.weapon?.equipSize ?? 0) + (character.equipment.offhand?.equipSize ?? 0);
-  const attackSpeed = character.stats.attackSpeed || 1;
-  const interval = 2 / attackSpeed;
-  const dps = character.stats.damage / interval;
+  const attackSpeed = character.stats.attackSpeed || 10;
+  const interval = 2 / (attackSpeed / 10); // fórmula real: 2s / (AttackSpeed/10)
+  const abilityDamage = character.stats.damage * (1 + character.stats.ability / 100);
+  const dps = abilityDamage / interval;
   const otherClasses = Object.values(CLASSES).filter((c) => c.name !== character.class);
 
   return (
@@ -106,7 +107,7 @@ export default function Personagem({ character, unspentPoints, allocateStat, res
           <div className="grid grid-cols-3 gap-3 text-center text-xs">
             <div>
               <p className="text-neutral-500">Dano por golpe</p>
-              <p className="text-neutral-100 font-medium">{character.stats.damage.toFixed(1)}</p>
+              <p className="text-neutral-100 font-medium">{abilityDamage.toFixed(1)}</p>
             </div>
             <div>
               <p className="text-neutral-500">Intervalo</p>
@@ -118,7 +119,9 @@ export default function Personagem({ character, unspentPoints, allocateStat, res
             </div>
             <div>
               <p className="text-neutral-500">Armor / Defense</p>
-              <p className="text-neutral-100 font-medium">{character.stats.armor.toFixed(1)}</p>
+              <p className="text-neutral-100 font-medium">
+                {character.stats.armor.toFixed(1)} / {character.stats.defense.toFixed(1)}
+              </p>
             </div>
             <div>
               <p className="text-neutral-500">Damage (stat)</p>
@@ -126,7 +129,7 @@ export default function Personagem({ character, unspentPoints, allocateStat, res
             </div>
             <div>
               <p className="text-neutral-500">Attack Speed</p>
-              <p className="text-neutral-100 font-medium">{attackSpeed.toFixed(2)}</p>
+              <p className="text-neutral-100 font-medium">{attackSpeed.toFixed(1)}</p>
             </div>
             <div>
               <p className="text-neutral-500">HP Regen / 10s</p>
