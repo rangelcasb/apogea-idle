@@ -155,6 +155,31 @@ export default function Personagem({
               <p className="text-blue-400 font-medium">+{character.stats.mpRegen.toFixed(1)}</p>
             </div>
           </div>
+
+          {(character.stats.lifestealPercent > 0 || character.stats.critChance > 0 || character.stats.armorPenPercent > 0) && (
+            <div className="grid grid-cols-3 gap-3 text-center text-xs mt-3 pt-3 border-t border-wood-lighter">
+              {character.stats.lifestealPercent > 0 && (
+                <div>
+                  <p className="text-neutral-500">Lifesteal</p>
+                  <p className="text-blood font-medium">{character.stats.lifestealPercent.toFixed(1)}%</p>
+                </div>
+              )}
+              {character.stats.critChance > 0 && (
+                <div>
+                  <p className="text-neutral-500">Chance Crítico</p>
+                  <p className="text-purple-400 font-medium">
+                    {(character.stats.critChance * 100).toFixed(1)}% ×{character.stats.critMultiplier}
+                  </p>
+                </div>
+              )}
+              {character.stats.armorPenPercent > 0 && (
+                <div>
+                  <p className="text-neutral-500">Penetração Armor</p>
+                  <p className="text-neutral-100 font-medium">{character.stats.armorPenPercent.toFixed(1)}%</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

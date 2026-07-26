@@ -211,12 +211,27 @@ function reducer(state, action) {
       if (!char || !currentMonster || char.currentHealth <= 0) return state;
 
       const charStats = computeFinalStats(char);
-      // Dano-base real (min-max, ver computeDamageRoll) mitigado pela Armor do alvo:
-      // (DanoMédio − TargetDefense) / (1 + TargetArmor/100). Monstros só têm Armor
-      // (sem Defense separado nos dados que temos), então TargetDefense=0 aqui.
-      const playerDamage = Math.max(1, computeDamageRoll(charStats).avg / (1 + currentMonster.armor / 100));
+
+      // Talentos de arma/armadura equipada (lifesteal de adaga, penetração de armor,
+      // crítico...) só entram se o requisito ainda estiver ativo agora mesmo — troque
+      // a arma e o talento correspondente liga/desliga na hora (ver talents.js).
+      const isCrit = Math.random() < (charStats.critChance ?? 0);
+      let baseDamage = computeDamageRoll(charStats).avg;
+      if (isCrit) baseDamage *= charStats.critMultiplier ?? 1;
+
+      const effectiveArmor = Math.max(0, currentMonster.armor * (1 - (charStats.armorPenPercent ?? 0) / 100));
+      const playerDamage = Math.max(1, baseDamage / (1 + effectiveArmor / 100));
       const monsterHealth = Math.max(0, currentMonster.currentHealth - playerDamage);
-      let log = pushLog(state.log, `Você causou ${playerDamage.toFixed(1)} de dano em ${currentMonster.name}.`);
+
+      const lifestealHeal = playerDamage * ((charStats.lifestealPercent ?? 0) / 100);
+
+      let log = pushLog(
+        state.log,
+        `Você causou ${playerDamage.toFixed(1)} de dano em ${currentMonster.name}.${isCrit ? ' (crítico!)' : ''}`,
+      );
+      if (lifestealHeal > 0) {
+        log = pushLog(log, `Lifesteal: +${lifestealHeal.toFixed(1)} de vida.`);
+      }
 
       if (monsterHealth <= 0) {
         const boosted = getDailyBoostedMonster().name === currentMonster.name;
@@ -257,7 +272,7 @@ function reducer(state, action) {
           inventory: mergedInventory,
         };
         const newStats = computeFinalStats(updatedChar);
-        updatedChar.currentHealth = Math.min(newStats.health, char.currentHealth);
+        updatedChar.currentHealth = Math.min(newStats.health, char.currentHealth + lifestealHeal);
         updatedChar.currentMana = Math.min(newStats.mana, char.currentMana);
 
         return { ...state, character: updatedChar, monster: pickMonster(char.zoneId), log };
@@ -270,7 +285,8 @@ function reducer(state, action) {
         (currentMonster.damage - charStats.defense) / (1 + charStats.armor / 100),
       );
       log = pushLog(log, `${currentMonster.name} causou ${monsterDamage.toFixed(1)} de dano em você.`);
-      const newHealth = Math.max(0, char.currentHealth - monsterDamage);
+      const healthAfterLifesteal = Math.min(charStats.health, char.currentHealth + lifestealHeal);
+      const newHealth = Math.max(0, healthAfterLifesteal - monsterDamage);
 
       let autoCombat = state.autoCombat;
       let deaths = char.deaths;

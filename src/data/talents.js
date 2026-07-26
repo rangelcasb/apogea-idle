@@ -3,10 +3,11 @@
 // Fonte também confirma: 1 ponto de talento a cada 2 níveis.
 //
 // IMPORTANTE: este jogo idle não simula o sistema de magias ativas do Apogea real (Fire,
-// Energy, Heal, Blade, Arrow spells etc.), que é do que a maioria desses talentos depende.
-// Por isso, cada talento aqui tem um EFEITO SIMPLIFICADO nosso (um bônus pequeno num stat
-// existente, escolhido por palavra-chave da descrição real) só pra ele fazer algo no jogo —
-// isso NÃO é o efeito real do talento, é uma aproximação para essa versão simplificada.
+// Energy, Heal, Blade, Arrow spells etc.). Pra talentos que dependem só disso (redução de
+// cooldown de magia, escudo mágico, etc.) o efeito aqui é um bônus pequeno aproximado —
+// NÃO é o efeito real. Mas pra talentos que dependem de ARMA/ARMADURA equipada (lifeleech
+// de adaga, dano de espada, defesa de escudo...), implementamos a mecânica de verdade E o
+// requisito de equipamento: o talento só faz efeito se você tiver o item certo equipado.
 
 export const POINTS_PER_TALENT_LEVELS = 2; // 1 ponto a cada 2 níveis
 
@@ -20,6 +21,67 @@ export const TALENT_BRANCHES = {
   heavyarmor: 'Armadura Pesada',
   sword: 'Espada',
   orb: 'Orbe',
+};
+
+// Requisito de equipamento por ramo — checado nos slots "weapon"/"offhand" (armas) ou
+// nos 4 slots de armadura (cabeça/peitoral/pernas/botas). "core" (raiz) não exige nada.
+const BRANCH_REQUIREMENTS = {
+  staff: { slots: ['weapon', 'offhand'], categories: ['staff'] },
+  dagger: { slots: ['weapon', 'offhand'], categories: ['dagger'] },
+  bow: { slots: ['weapon', 'offhand'], categories: ['bow'] },
+  sword: { slots: ['weapon', 'offhand'], categories: ['sword', 'largesword'] },
+  shield: { slots: ['offhand'], categories: ['shield', 'lightshield', 'heavyshield', 'largeshield'] },
+  orb: { slots: ['offhand'], categories: ['orb'] },
+  lightarmor: { slots: ['head', 'chest', 'legs', 'boots'], categoryPrefix: 'light' },
+  heavyarmor: { slots: ['head', 'chest', 'legs', 'boots'], categoryPrefix: 'heavy' },
+};
+
+export function branchRequirementLabel(branch) {
+  const req = BRANCH_REQUIREMENTS[branch];
+  if (!req) return null;
+  const where = req.slots.includes('offhand') && req.slots.includes('weapon')
+    ? 'mão principal ou secundária'
+    : req.slots.includes('offhand')
+      ? 'mão secundária'
+      : 'peça de armadura';
+  const what = req.categoryPrefix ? `${req.categoryPrefix === 'light' ? 'leve' : 'pesada'}` : req.categories.join('/');
+  return `Requer ${what} equipada na ${where}`;
+}
+
+// Checa se o personagem cumpre o requisito de equipamento do ramo do talento. Sem
+// requisito (ramo "core") sempre passa.
+export function meetsTalentRequirement(equipment, branch) {
+  const req = BRANCH_REQUIREMENTS[branch];
+  if (!req) return true;
+  return req.slots.some((slot) => {
+    const item = equipment?.[slot];
+    if (!item?.category) return false;
+    if (req.categories) return req.categories.includes(item.category);
+    if (req.categoryPrefix) return item.category.startsWith(req.categoryPrefix);
+    return false;
+  });
+}
+
+function parseRankValue(str) {
+  if (!str) return NaN;
+  const n = parseFloat(String(str).replace('%', ''));
+  return Number.isNaN(n) ? NaN : n;
+}
+
+// Mecânicas REAIS implementadas de verdade (não é o bônus genérico) — cada uma lê o
+// valor do rank atual (não é linear por ponto, é o valor real daquele rank específico).
+// Os demais talentos (a maioria, presos a magias que não existem aqui) caem no
+// bônus genérico simplificado de sempre.
+const MECHANICS = {
+  10: 'lifesteal', // Stabbing Preference — Daggers provide Lifeleech
+  56: 'lifesteal', // Pondering It — Orbs provide Spellvamp
+  11: 'armorPen', // Thorough Puncture — ignore some of target's armor
+  12: 'critChance', // Shearing Stroke — chance of dealing 1.5x damage
+  47: 'damagePercent', // Blade Training — Swords have more Damage
+  48: 'damagePercent', // Wrecking It — Gain extra Item Damage
+  32: 'armorPercent', // Block Efficacy — Shields have more defense
+  39: 'armorPercent', // Well Protected — Heavy Armor has more Armor
+  16: 'attackSpeedFlat', // Bow Guidance — Bows have extra Attackspeed (ranks já são flat)
 };
 
 function guessEffect(description) {
@@ -111,7 +173,9 @@ const RAW_TALENTS = [
 export const TALENTS = RAW_TALENTS.map((t) => ({
   ...t,
   maxPoints: Math.max(1, t.ranks.length),
+  mechanic: MECHANICS[t.id] ?? null,
   effect: t.parent === null ? null : guessEffect(t.description),
+  requirementLabel: branchRequirementLabel(t.branch),
 }));
 
 export const TALENTS_BY_ID = Object.fromEntries(TALENTS.map((t) => [t.id, t]));
@@ -136,14 +200,74 @@ export function canInvestTalent(talentPoints, talentId) {
   return (talentPoints?.[talent.parent] ?? 0) > 0;
 }
 
-// Aplica o efeito simplificado de cada talento investido sobre os stats já calculados.
-export function applyTalentEffects(stats, talentPoints) {
-  const next = { ...stats };
+// Agrega os efeitos de TODOS os talentos investidos E cujo requisito de equipamento
+// esteja satisfeito AGORA (troca de arma liga/desliga o talento na hora). Mecânicas
+// reais (lifesteal, armorPen, crit, %dano, %armadura) vão em campos próprios; o resto
+// cai no bônus genérico simplificado de sempre.
+export function computeTalentModifiers(talentPoints, equipment) {
+  const mods = {
+    statBonuses: {},
+    lifestealPercent: 0,
+    armorPenPercent: 0,
+    critChance: 0,
+    critMultiplier: 1.5,
+    damagePercent: 0,
+    armorPercent: 0,
+  };
+
   for (const [idStr, points] of Object.entries(talentPoints ?? {})) {
     const talent = TALENTS_BY_ID[idStr];
-    if (!talent?.effect || !points) continue;
-    const { stat, perRank } = talent.effect;
-    next[stat] = Math.round(((next[stat] ?? 0) + points * perRank) * 100) / 100;
+    if (!talent || !points) continue;
+    if (!meetsTalentRequirement(equipment, talent.branch)) continue;
+
+    const rankValue = parseRankValue(talent.ranks[Math.min(points, talent.maxPoints) - 1]);
+
+    switch (talent.mechanic) {
+      case 'lifesteal':
+        if (!Number.isNaN(rankValue)) mods.lifestealPercent += rankValue;
+        break;
+      case 'armorPen':
+        if (!Number.isNaN(rankValue)) mods.armorPenPercent += rankValue;
+        break;
+      case 'critChance':
+        if (!Number.isNaN(rankValue)) mods.critChance += rankValue / 100;
+        break;
+      case 'damagePercent':
+        if (!Number.isNaN(rankValue)) mods.damagePercent += rankValue;
+        break;
+      case 'armorPercent':
+        if (!Number.isNaN(rankValue)) mods.armorPercent += rankValue;
+        break;
+      case 'attackSpeedFlat':
+        if (!Number.isNaN(rankValue)) mods.statBonuses.attackSpeed = (mods.statBonuses.attackSpeed ?? 0) + rankValue;
+        break;
+      default: {
+        if (!talent.effect) break;
+        const { stat, perRank } = talent.effect;
+        mods.statBonuses[stat] = (mods.statBonuses[stat] ?? 0) + points * perRank;
+      }
+    }
   }
+
+  return mods;
+}
+
+// Aplica os modificadores de talento (já filtrados por requisito de equipamento) sobre
+// os stats. Lifesteal/armorPen/critChance/critMultiplier ficam anexados no objeto de
+// stats pro combate usar; damagePercent/armorPercent multiplicam damage/armor.
+export function applyTalentEffects(stats, character) {
+  const mods = computeTalentModifiers(character?.talentPoints, character?.equipment);
+  const next = { ...stats };
+
+  for (const [key, val] of Object.entries(mods.statBonuses)) {
+    next[key] = Math.round(((next[key] ?? 0) + val) * 100) / 100;
+  }
+  if (mods.damagePercent) next.damage = Math.round(next.damage * (1 + mods.damagePercent / 100) * 100) / 100;
+  if (mods.armorPercent) next.armor = Math.round(next.armor * (1 + mods.armorPercent / 100) * 100) / 100;
+
+  next.lifestealPercent = mods.lifestealPercent;
+  next.armorPenPercent = mods.armorPenPercent;
+  next.critChance = mods.critChance;
+  next.critMultiplier = mods.critMultiplier;
   return next;
 }

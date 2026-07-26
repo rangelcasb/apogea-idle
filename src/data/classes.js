@@ -155,7 +155,7 @@ export function computeFinalStats(character) {
       stats[key] = Math.round(((stats[key] ?? 0) + val) * 100) / 100;
     }
   }
-  const talented = applyTalentEffects(stats, character.talentPoints);
+  const talented = applyTalentEffects(stats, character);
   return applySatietyBonus(talented, character.satiety);
 }
 
