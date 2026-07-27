@@ -58,6 +58,7 @@ export default function App() {
     syncStatus,
     user,
     authLoading,
+    authError,
     login,
     logout,
     zones,
@@ -87,6 +88,11 @@ export default function App() {
         >
           Entrar com Google
         </button>
+        {authError && (
+          <p className="text-xs text-blood max-w-sm bg-wood-light border border-wood-lighter rounded px-3 py-2">
+            Erro no login: {authError}
+          </p>
+        )}
       </div>
     );
   }

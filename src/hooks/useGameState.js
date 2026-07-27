@@ -641,6 +641,7 @@ export function useGameState() {
   const [syncStatus, setSyncStatus] = useState('idle'); // idle | syncing | synced | error
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [authError, setAuthError] = useState(null);
 
   useEffect(() => {
     if (state.character) {
@@ -652,8 +653,12 @@ export function useGameState() {
   // no Firestore, então não precisa de código nenhum pra continuar no celular.
   useEffect(() => {
     // Necessário pra capturar erro de configuração (ex: domínio não autorizado no
-    // Firebase) quando o usuário volta do redirect do login do Google.
-    checkRedirectResult().catch((err) => console.error('Falha no login com Google:', err));
+    // Firebase, ou cookies de terceiros bloqueados) quando o usuário volta do
+    // redirect do login do Google — mostramos isso na tela em vez de só no console.
+    checkRedirectResult().catch((err) => {
+      console.error('Falha no login com Google:', err);
+      setAuthError(err?.code || err?.message || 'Erro desconhecido no login.');
+    });
     const unsubscribe = onAuthChange((firebaseUser) => {
       setUser(firebaseUser);
       setAuthLoading(false);
@@ -692,7 +697,10 @@ export function useGameState() {
     return () => clearTimeout(timer);
   }, [user, state.character]);
 
-  const login = useCallback(() => loginWithGoogle().catch(() => {}), []);
+  const login = useCallback(() => {
+    setAuthError(null);
+    return loginWithGoogle().catch((err) => setAuthError(err?.code || err?.message || 'Erro desconhecido no login.'));
+  }, []);
   const signOutUser = useCallback(() => logout().catch(() => {}), []);
 
   const hasCharacter = !!state.character;
@@ -784,6 +792,7 @@ export function useGameState() {
     syncStatus,
     user,
     authLoading,
+    authError,
     login,
     logout: signOutUser,
     zones: ZONES,
