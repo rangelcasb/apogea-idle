@@ -307,16 +307,18 @@ function reducer(state, action) {
       );
       log = pushLog(log, `${currentMonster.name} causou ${monsterDamage.toFixed(1)} de dano em você.`);
       const healthAfterLifesteal = Math.min(charStats.health, char.currentHealth + lifestealHeal);
-      const newHealth = Math.max(0, healthAfterLifesteal - monsterDamage);
+      const damagedHealth = Math.max(0, healthAfterLifesteal - monsterDamage);
 
       let autoCombat = state.autoCombat;
       let deaths = char.deaths;
-      if (newHealth <= 0) {
+      let newHealth = damagedHealth;
+      if (damagedHealth <= 0) {
         deaths += 1;
-        if (autoCombat) {
-          autoCombat = false;
-          log = pushLog(log, 'Você foi derrotado! Combate automático interrompido.');
-        }
+        autoCombat = false;
+        // Ao morrer, a vida volta cheia (respawn instantâneo) — sem isso o personagem
+        // ficava travado com 0 de vida pra sempre, já que o regen não age em vida 0.
+        newHealth = charStats.health;
+        log = pushLog(log, 'Você foi derrotado! Reviveu com a vida cheia. Combate automático interrompido.');
       }
 
       return {
@@ -638,6 +640,7 @@ function reducerWithTimestamp(state, action) {
 export function useGameState() {
   const [state, dispatch] = useReducer(reducerWithTimestamp, undefined, init);
   const [syncStatus, setSyncStatus] = useState('idle'); // idle | syncing | synced | error
+  const [syncError, setSyncError] = useState(null);
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [authError, setAuthError] = useState(null);
@@ -683,8 +686,15 @@ export function useGameState() {
     setSyncStatus('syncing');
     const timer = setTimeout(() => {
       saveGameState(user.uid, state.character)
-        .then(() => setSyncStatus('synced'))
-        .catch(() => setSyncStatus('error'));
+        .then(() => {
+          setSyncStatus('synced');
+          setSyncError(null);
+        })
+        .catch((err) => {
+          console.error('Falha ao sincronizar personagem:', err);
+          setSyncStatus('error');
+          setSyncError(err?.code || err?.message || 'Erro desconhecido.');
+        });
     }, SYNC_DEBOUNCE_MS);
     return () => clearTimeout(timer);
   }, [user, state.character]);
@@ -782,6 +792,7 @@ export function useGameState() {
     buyItem,
     sellToMerchant,
     syncStatus,
+    syncError,
     user,
     authLoading,
     authError,

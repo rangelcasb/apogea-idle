@@ -50,7 +50,11 @@ export function onAuthChange(callback) {
 }
 
 export async function saveGameState(userId, state) {
-  await setDoc(doc(db, 'characters', userId), state, { merge: true });
+  // O Firestore recusa salvar qualquer campo com valor "undefined" (lança erro em vez
+  // de simplesmente ignorar o campo). O round-trip por JSON remove esses campos antes
+  // de mandar, do mesmo jeito que localStorage.setItem(JSON.stringify(...)) já fazia.
+  const clean = JSON.parse(JSON.stringify(state));
+  await setDoc(doc(db, 'characters', userId), clean, { merge: true });
 }
 
 export async function loadGameState(userId) {

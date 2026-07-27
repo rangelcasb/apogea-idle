@@ -7,7 +7,7 @@ const SYNC_STATUS_LABEL = {
   error: 'Erro ao sincronizar',
 };
 
-export default function Sidebar({ character, autoCombat, weight, zoneName, syncStatus, user, onLogout }) {
+export default function Sidebar({ character, autoCombat, weight, zoneName, syncStatus, syncError, user, onLogout }) {
   const needed = xpForNextLevel(character.level);
   const xpPct = Math.min(100, (character.xp / needed) * 100);
   const hpPct = Math.max(0, (character.currentHealth / character.stats.health) * 100);
@@ -59,7 +59,12 @@ export default function Sidebar({ character, autoCombat, weight, zoneName, syncS
           Logado com Google — seu progresso sincroniza sozinho em qualquer dispositivo.
         </p>
         {syncStatus && SYNC_STATUS_LABEL[syncStatus] && (
-          <p className="text-[10px] text-neutral-500 mt-1">{SYNC_STATUS_LABEL[syncStatus]}</p>
+          <p className={`text-[10px] mt-1 ${syncStatus === 'error' ? 'text-blood' : 'text-neutral-500'}`}>
+            {SYNC_STATUS_LABEL[syncStatus]}
+          </p>
+        )}
+        {syncStatus === 'error' && syncError && (
+          <p className="text-[10px] text-blood/80 mt-0.5 break-words">{syncError}</p>
         )}
         <button
           onClick={onLogout}

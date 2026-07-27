@@ -56,6 +56,7 @@ export default function App() {
     buyItem,
     sellToMerchant,
     syncStatus,
+    syncError,
     user,
     authLoading,
     authError,
@@ -189,6 +190,7 @@ export default function App() {
           weight={weight}
           zoneName={currentZone?.name}
           syncStatus={syncStatus}
+          syncError={syncError}
           user={user}
           onLogout={logout}
         />
