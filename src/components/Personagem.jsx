@@ -44,9 +44,9 @@ export default function Personagem({
   const dps = avgDamage / interval;
 
   return (
-    <div className="flex-1 grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-5 gap-4 items-start">
-      {/* Coluna Atributos + Combate */}
-      <div className="flex flex-col gap-4 2xl:col-span-2">
+    <div className="flex-1 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-start">
+      {/* Coluna Atributos + Combate + Vocação */}
+      <div className="flex flex-col gap-4">
         <div className="bg-wood-light border border-wood-lighter rounded-lg p-4">
           <h3 className="text-gold font-semibold tracking-wide mb-3">◆ ATRIBUTOS</h3>
 
@@ -182,6 +182,46 @@ export default function Personagem({
             </div>
           )}
         </div>
+
+        <div className="bg-wood-light border border-wood-lighter rounded-lg p-4">
+          {isSquire ? (
+            <>
+              <h3 className="text-gold font-semibold tracking-wide mb-2">◆ VOCAÇÃO — ESCOLHA A SUA</h3>
+              <p className="text-xs text-neutral-500 mb-3">
+                Você é Squire, sem vocação (todos os multiplicadores neutros). Pague{' '}
+                {vocationCost}g pra escolher — é definitivo, não dá pra trocar depois.
+              </p>
+              <div className="flex flex-col gap-2">
+                {VOCATIONS.map((name) => {
+                  const cls = CLASSES[name];
+                  const canAfford = character.gold >= vocationCost;
+                  return (
+                    <div key={name} className="flex items-center justify-between bg-wood border border-wood-lighter rounded px-3 py-2">
+                      <div>
+                        <p className="text-sm text-neutral-200">{cls.name}</p>
+                        <p className="text-[10px] text-neutral-500">{cls.description}</p>
+                      </div>
+                      <button
+                        onClick={() => chooseVocation(name)}
+                        disabled={!canAfford}
+                        className="text-xs font-medium bg-gold text-wood px-3 py-1.5 rounded shrink-0 ml-2
+                                   disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer hover:bg-yellow-500"
+                      >
+                        ESCOLHER ({vocationCost}G)
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <>
+              <h3 className="text-gold font-semibold tracking-wide mb-1">◆ VOCAÇÃO</h3>
+              <p className="text-sm text-neutral-100">{character.class}</p>
+              <p className="text-[10px] text-neutral-500">🔒 Definitiva</p>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Coluna Equipamento */}
@@ -227,56 +267,17 @@ export default function Personagem({
         </div>
       </div>
 
-      {/* Coluna Mochila */}
-      <Mochila
-        character={character}
-        weight={weight}
-        consumeItem={consumeItem}
-        equipItem={equipItem}
-        sellItem={sellItem}
-        discardItem={discardItem}
-        autoCombat={autoCombat}
-      />
-
-      {/* Coluna Vocação (5ª coluna) — se retrai a um resumo curto depois de escolhida */}
-      <div className="bg-wood-light border border-wood-lighter rounded-lg p-4">
-        {isSquire ? (
-          <>
-            <h3 className="text-gold font-semibold tracking-wide mb-2">◆ VOCAÇÃO — ESCOLHA A SUA</h3>
-            <p className="text-xs text-neutral-500 mb-3">
-              Você é Squire, sem vocação (todos os multiplicadores neutros). Pague{' '}
-              {vocationCost}g pra escolher — é definitivo, não dá pra trocar depois.
-            </p>
-            <div className="flex flex-col gap-2">
-              {VOCATIONS.map((name) => {
-                const cls = CLASSES[name];
-                const canAfford = character.gold >= vocationCost;
-                return (
-                  <div key={name} className="flex flex-col gap-2 bg-wood border border-wood-lighter rounded px-3 py-2">
-                    <div>
-                      <p className="text-sm text-neutral-200">{cls.name}</p>
-                      <p className="text-[10px] text-neutral-500">{cls.description}</p>
-                    </div>
-                    <button
-                      onClick={() => chooseVocation(name)}
-                      disabled={!canAfford}
-                      className="text-xs font-medium bg-gold text-wood px-3 py-1.5 rounded
-                                 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer hover:bg-yellow-500"
-                    >
-                      ESCOLHER ({vocationCost}G)
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </>
-        ) : (
-          <>
-            <h3 className="text-gold font-semibold tracking-wide mb-1">◆ VOCAÇÃO</h3>
-            <p className="text-sm text-neutral-100">{character.class}</p>
-            <p className="text-[10px] text-neutral-500">🔒 Definitiva</p>
-          </>
-        )}
+      {/* Coluna Mochila (ocupa 2 das 4 colunas — precisa de mais espaço pros cards) */}
+      <div className="xl:col-span-2">
+        <Mochila
+          character={character}
+          weight={weight}
+          consumeItem={consumeItem}
+          equipItem={equipItem}
+          sellItem={sellItem}
+          discardItem={discardItem}
+          autoCombat={autoCombat}
+        />
       </div>
     </div>
   );

@@ -241,7 +241,12 @@ function reducer(state, action) {
       return { ...state, character, autoCombat: value };
     }
 
-    case 'TICK': {
+    // Ataque do jogador e ataque do monstro rodam em RELÓGIOS INDEPENDENTES (ver
+    // useGameState() mais abaixo), cada um no seu próprio intervalo real — se sua
+    // Attack Speed for o dobro da do monstro, você bate 2x pra cada 1x dele, de verdade,
+    // e não só "o combate passa mais rápido" (como era antes, quando os dois hits
+    // aconteciam sempre juntos no mesmo tick).
+    case 'PLAYER_ATTACK': {
       const { character: char, monster: currentMonster } = state;
       if (!char || !currentMonster || char.currentHealth <= 0) return state;
 
@@ -322,20 +327,37 @@ function reducer(state, action) {
         return { ...state, character: updatedChar, monster: pickMonster(char.zoneId), log };
       }
 
+      const healthAfterLifesteal = Math.min(charStats.health, char.currentHealth + lifestealHeal);
+
+      return {
+        ...state,
+        character: { ...char, currentHealth: healthAfterLifesteal },
+        monster: { ...currentMonster, currentHealth: monsterHealth },
+        log,
+      };
+    }
+
+    case 'MONSTER_ATTACK': {
+      const { character: char, monster: currentMonster } = state;
+      if (!char || !currentMonster || char.currentHealth <= 0) return state;
+
+      const charStats = computeFinalStats(char);
       // Mesma fórmula real, do lado do monstro: monstro não tem Ability, personagem
       // mitiga com Defense (flat) e Armor (percentual com diminishing returns).
       const monsterDamage = Math.max(
         1,
         (currentMonster.damage - charStats.defense) / (1 + charStats.armor / 100),
       );
-      log = pushLog(log, `${currentMonster.name} causou ${monsterDamage.toFixed(1)} de dano em você.`);
-      const healthAfterLifesteal = Math.min(charStats.health, char.currentHealth + lifestealHeal);
-      const damagedHealth = Math.max(0, healthAfterLifesteal - monsterDamage);
+      let log = pushLog(
+        state.log,
+        `${currentMonster.name} causou ${monsterDamage.toFixed(1)} de dano em você.`,
+      );
+      const newHealthRaw = Math.max(0, char.currentHealth - monsterDamage);
 
       let autoCombat = state.autoCombat;
       let deaths = char.deaths;
-      let newHealth = damagedHealth;
-      if (damagedHealth <= 0) {
+      let newHealth = newHealthRaw;
+      if (newHealthRaw <= 0) {
         deaths += 1;
         autoCombat = false;
         // Ao morrer, a vida volta cheia (respawn instantâneo) — sem isso o personagem
@@ -347,7 +369,6 @@ function reducer(state, action) {
       return {
         ...state,
         character: { ...char, currentHealth: newHealth, deaths, autoCombat },
-        monster: { ...currentMonster, currentHealth: monsterHealth },
         log,
         autoCombat,
       };
@@ -803,16 +824,27 @@ export function useGameState() {
     [state.character],
   );
 
-  // Só recria o intervalo quando algo que muda o RITMO do combate muda de verdade
-  // (ligar/desligar, attack speed, morte) — nunca a cada tick, que era a causa da
-  // corrida entre monstro e personagem.
+  // Dois relógios independentes: o jogador ataca no ritmo da SUA Attack Speed, o
+  // monstro ataca no ritmo dele (base real, já que não temos Attack Speed real por
+  // monstro na fonte de dados) — attack speed dobrada = 2 hits seus pra cada 1 dele,
+  // de verdade, não só "combate mais rápido". Só recria os intervalos quando algo que
+  // muda o RITMO muda de verdade (ligar/desligar, attack speed, morte), nunca a cada
+  // tick — isso evita a corrida que existia quando os dois lados dependiam do mesmo timer.
   useEffect(() => {
     if (!state.autoCombat || !hasCharacter || isDead) return;
     // Fórmula real: Intervalo = 2s / (AttackSpeed / 10).
     const interval = TURN_MS / ((attackSpeed || 10) / 10);
-    const id = setInterval(() => dispatch({ type: 'TICK' }), interval);
+    const id = setInterval(() => dispatch({ type: 'PLAYER_ATTACK' }), interval);
     return () => clearInterval(id);
   }, [state.autoCombat, attackSpeed, isDead, hasCharacter]);
+
+  useEffect(() => {
+    if (!state.autoCombat || !hasCharacter || isDead) return;
+    // Sem dado real de Attack Speed por monstro, usamos a base neutra do jogo
+    // (AttackSpeed 10 → intervalo de 2s) pra todos os monstros.
+    const id = setInterval(() => dispatch({ type: 'MONSTER_ATTACK' }), TURN_MS);
+    return () => clearInterval(id);
+  }, [state.autoCombat, isDead, hasCharacter]);
 
   useEffect(() => {
     if (!hasCharacter || isDead) return;
