@@ -47,10 +47,12 @@ export default function Talentos({ character, talentPointsAvailable, investTalen
           {talentPointsAvailable} ponto(s) disponível(is) — 1 ponto a cada 2 níveis.
         </p>
         <p className="text-[11px] text-neutral-600 mt-1">
-          Árvore real do Apogea (nomes, descrições e ramos). Talentos de arma/armadura
-          (Adaga, Arco, Espada, Escudo, Orbe, Armaduras) só funcionam se você tiver o
-          item certo equipado — troque de arma e eles ligam/desligam na hora. Os que
-          dependem de magias que este jogo idle não simula usam um bônus aproximado.
+          Árvore real do Apogea (10 ramos, mapa oficial da wiki de 13/06/2025). Talentos
+          de arma/armadura (Adaga, Arco, Luva, Espada, Arma Grande, Escudo, Orbe,
+          Armaduras) só funcionam se você tiver o item certo equipado — troque de arma e
+          eles ligam/desligam na hora. Os que dependem de magias/efeitos que este jogo
+          idle não simula (dano verdadeiro, velocidade de movimento etc) usam um bônus
+          aproximado.
         </p>
         <button
           onClick={resetTalents}

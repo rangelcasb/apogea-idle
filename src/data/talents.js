@@ -1,13 +1,23 @@
-// Árvore de talentos REAL do Apogea (nomes, descrições, ramos, ligações de pré-requisito
-// e número de ranks), extraída da calculadora da comunidade (paszqa.github.io/apogea-traits).
-// Fonte também confirma: 1 ponto de talento a cada 2 níveis.
+// Árvore de talentos REAL do Apogea. Reconstruída a partir do mapa oficial da wiki
+// (apogea.fandom.com/wiki/Map:Trait_Tree, imagem "Trait_tree.png" datada de 13/06/2025),
+// que substitui a fonte anterior (calculadora da comunidade paszqa.github.io/apogea-traits,
+// mais antiga e sem os ramos Luva/Arma Grande que o jogo adicionou depois).
+//
+// LIMITAÇÃO HONESTA: a imagem da wiki mostra só o valor FINAL de cada talento (não a
+// lista completa de ranks intermediários como a fonte antiga tinha). Pra talentos que já
+// existiam antes com 5 ranks confirmados, mantive a curva de crescimento antiga e só
+// re-escalei o valor final pro novo máximo mostrado. Pra talentos novos (Luva, Arma
+// Grande, e outros adicionados nessa atualização), não tenho como saber se têm mais de
+// 1 rank — tratei como rank único (1 ponto) usando o valor exato mostrado, em vez de
+// inventar uma progressão que não consigo confirmar. Vale conferir no jogo.
 //
 // IMPORTANTE: este jogo idle não simula o sistema de magias ativas do Apogea real (Fire,
-// Energy, Heal, Blade, Arrow spells etc.). Pra talentos que dependem só disso (redução de
-// cooldown de magia, escudo mágico, etc.) o efeito aqui é um bônus pequeno aproximado —
-// NÃO é o efeito real. Mas pra talentos que dependem de ARMA/ARMADURA equipada (lifeleech
-// de adaga, dano de espada, defesa de escudo...), implementamos a mecânica de verdade E o
-// requisito de equipamento: o talento só faz efeito se você tiver o item certo equipado.
+// Energy, Heal, Blade, Arrow spells etc.), nem "True Damage" (dano que ignora armadura
+// por completo) ou Movespeed. Pra talentos que dependem só disso, o efeito aqui é um
+// bônus pequeno aproximado — NÃO é o efeito real. Mas pra talentos que dependem de
+// ARMA/ARMADURA equipada (lifeleech de adaga, dano de espada/arma grande, defesa de
+// escudo...), implementamos a mecânica de verdade E o requisito de equipamento: o
+// talento só faz efeito se você tiver o item certo equipado.
 
 export const POINTS_PER_TALENT_LEVELS = 2; // 1 ponto a cada 2 níveis
 
@@ -16,20 +26,26 @@ export const TALENT_BRANCHES = {
   staff: 'Cajado',
   dagger: 'Adaga',
   bow: 'Arco',
+  glove: 'Luva',
   lightarmor: 'Armadura Leve',
   shield: 'Escudo',
   heavyarmor: 'Armadura Pesada',
   sword: 'Espada',
+  largeweapon: 'Arma Grande',
   orb: 'Orbe',
 };
 
 // Requisito de equipamento por ramo — checado nos slots "weapon"/"offhand" (armas) ou
 // nos 4 slots de armadura (cabeça/peitoral/pernas/botas). "core" (raiz) não exige nada.
+// "sword" e "largeweapon" viraram ramos SEPARADOS nessa atualização (antes "sword"
+// cobria as duas categorias juntas).
 const BRANCH_REQUIREMENTS = {
   staff: { slots: ['weapon', 'offhand'], categories: ['staff'] },
   dagger: { slots: ['weapon', 'offhand'], categories: ['dagger'] },
   bow: { slots: ['weapon', 'offhand'], categories: ['bow'] },
-  sword: { slots: ['weapon', 'offhand'], categories: ['sword', 'largesword'] },
+  glove: { slots: ['weapon', 'offhand'], categories: ['gloves'] },
+  sword: { slots: ['weapon', 'offhand'], categories: ['sword'] },
+  largeweapon: { slots: ['weapon', 'offhand'], categories: ['largesword'] },
   shield: { slots: ['offhand'], categories: ['shield', 'lightshield', 'heavyshield', 'largeshield'] },
   orb: { slots: ['offhand'], categories: ['orb'] },
   lightarmor: { slots: ['head', 'chest', 'legs', 'boots'], categoryPrefix: 'light' },
@@ -70,7 +86,7 @@ function parseRankValue(str) {
 
 // Mecânicas REAIS implementadas de verdade (não é o bônus genérico) — cada uma lê o
 // valor do rank atual (não é linear por ponto, é o valor real daquele rank específico).
-// Os demais talentos (a maioria, presos a magias que não existem aqui) caem no
+// Os demais talentos (a maioria, presos a magias/efeitos que não existem aqui) caem no
 // bônus genérico simplificado de sempre.
 const MECHANICS = {
   10: 'lifesteal', // Stabbing Preference — Daggers provide Lifeleech
@@ -78,9 +94,8 @@ const MECHANICS = {
   11: 'armorPen', // Thorough Puncture — ignore some of target's armor
   12: 'critChance', // Shearing Stroke — chance of dealing 1.5x damage
   47: 'damagePercent', // Blade Training — Swords have more Damage
-  48: 'damagePercent', // Wrecking It — Gain extra Item Damage
-  32: 'armorPercent', // Block Efficacy — Shields have more defense
-  39: 'armorPercent', // Well Protected — Heavy Armor has more Armor
+  80: 'damagePercent', // Going Big — Large Weapons have more Damage
+  32: 'armorPercent', // Block Efficacy — Shields have more Defense
   16: 'attackSpeedFlat', // Bow Guidance — Bows have extra Attackspeed (ranks já são flat)
 };
 
@@ -92,111 +107,122 @@ function guessEffect(description) {
   if (d.includes('health')) return { stat: 'health', perRank: 3 };
   if (d.includes('mana')) return { stat: 'mana', perRank: 3 };
   if (d.includes('magic')) return { stat: 'magic', perRank: 1 };
+  if (d.includes('ability')) return { stat: 'ability', perRank: 1 };
   return { stat: 'ability', perRank: 1 };
 }
 
 const RAW_TALENTS = [
   { id: 0, name: 'Start Here', parent: null, branch: 'core', description: 'Level 1 starting point.', ranks: [] },
 
-  { id: 1, name: 'Staff Mastery', parent: 0, branch: 'staff', description: 'Staves have a chance of shooting without a cost', ranks: ['5%', '10%', '20%', '35%', '75%'] },
-  { id: 2, name: 'Charge the Staff', parent: 1, branch: 'staff', description: "Casting an energy Fire spell using a staff will make your next attack deal damage", ranks: ['ML/5', 'ML/4', 'ML/2'] },
+  // ── Cajado ────────────────────────────────────────────────────────────────
+  { id: 1, name: 'Staff Mastery', parent: 0, branch: 'staff', description: 'Staves have a chance of shooting without a cost', ranks: ['6%', '12%', '24%', '42%', '90%'] },
+  { id: 2, name: 'Charge the Staff', parent: 1, branch: 'staff', description: 'Casting an Elemental spell using a staff will make your next attack deal extra True Damage', ranks: ['ML/5', 'ML/4', 'ML/2'] },
   { id: 3, name: 'Frantic Conjury', parent: 2, branch: 'staff', description: "Casting a Fire spell has a chance your next attack will cast Conjure Fire on target's location", ranks: ['20%', '30%', '50%'] },
   { id: 4, name: 'Warlock', parent: 3, branch: 'staff', description: 'While holding a staff, gain 1 extra Area of Effect for Energy and Fire spells', ranks: [] },
-  { id: 5, name: 'Magic Touch', parent: 1, branch: 'staff', description: 'Heal spells are stronger by:', ranks: ['10%', '15%', '25%'] },
-  { id: 6, name: 'Healing Stick', parent: 5, branch: 'staff', description: 'While holding a staff, reduces the cooldown of Heal and Holy spells by:', ranks: ['10%', '20%', '35%'] },
-  { id: 7, name: "Child's Channel", parent: 6, branch: 'staff', description: 'Healing others also heals you by 50% and Heal and Light spells are 50% cheaper', ranks: [] },
-  { id: 8, name: "Apogea's Ardor", parent: 5, branch: 'staff', description: 'Reduces the cooldown of Earth and Water spells by:', ranks: ['10%', '20%', '35%'] },
-  { id: 9, name: "Gallop's Fall", parent: 8, branch: 'staff', description: 'While holding a staff, gain 1 extra area of effect for Water and Holy spells', ranks: [] },
-  { id: 62, name: 'Electric Nature', parent: 2, branch: 'staff', description: 'Reduces the cooldown of Energy spells by:', ranks: ['10%', '20%', '35%'] },
+  { id: 64, name: 'Conflagrated Mind', parent: 2, branch: 'staff', description: 'While holding a staff, gain 1 extra Area of Effect and 25% cooldown reduction for Fire spells', ranks: [] },
+  { id: 62, name: 'Electric Nature', parent: 2, branch: 'staff', description: 'Reduces the cooldown of spells by 15%', ranks: ['15%'] },
   { id: 63, name: 'Steering Insight', parent: 62, branch: 'staff', description: 'Energy and Arrow projectile spells bounce when colliding with enemies and explode on death', ranks: [] },
+  { id: 65, name: 'Sacred Stick', parent: 1, branch: 'staff', description: 'While holding a staff, gain 1 extra Area of Effect and 25% cooldown reduction for Holy spells', ranks: [] },
+  { id: 66, name: "Gallop's Fall", parent: 65, branch: 'staff', description: 'Reduces the cooldown of Water spells by 35%', ranks: [] },
 
+  // ── Adaga ─────────────────────────────────────────────────────────────────
   { id: 10, name: 'Stabbing Preference', parent: 0, branch: 'dagger', description: 'Daggers provide Lifeleech', ranks: ['1%', '3%', '6%', '10%', '15%'] },
   { id: 11, name: 'Thorough Puncture', parent: 10, branch: 'dagger', description: "Physical attacks ignore some of the target's armor", ranks: ['8%', '13%', '20%'] },
   { id: 12, name: 'Shearing Stroke', parent: 11, branch: 'dagger', description: 'Attacks have a chance of dealing 1.5x damage', ranks: ['10%', '14%', '20%'] },
   { id: 13, name: 'Luck Foreseen', parent: 12, branch: 'dagger', description: 'Converts 7 Ability into 1% chance of attacking twice', ranks: [] },
-  { id: 14, name: 'Gaff Hack', parent: 11, branch: 'dagger', description: 'Casting a Mystic or Time spell has a chance of boosting your Attackspeed by 10 for 4s', ranks: ['20%', '30%', '50%'] },
-  { id: 15, name: 'Double Danger', parent: 14, branch: 'dagger', description: 'Using two daggers double your Item Damage', ranks: [] },
+  { id: 14, name: 'Gaff Hack', parent: 11, branch: 'dagger', description: 'Casting a Mystic or Time spell has a chance of boosting your Attackspeed by 7 for 4s', ranks: ['20%', '30%', '50%'] },
+  { id: 15, name: 'Double Danger', parent: 14, branch: 'dagger', description: 'Using two daggers doubles your Item Damage', ranks: [] },
+  { id: 67, name: 'Jagged Rhythm', parent: 12, branch: 'dagger', description: 'Attacking using a dagger has a 50% chance of dealing extra (Ability/4) True Damage', ranks: [] },
+  { id: 68, name: 'Luck Foreseen II', parent: 67, branch: 'dagger', description: 'Converts 6 Ability into 1% chance of attacking twice', ranks: [] },
+  { id: 69, name: 'Dark Blade', parent: 68, branch: 'dagger', description: 'Doubles all True Damage you deal, but you also receive the True Damage dealt', ranks: [] },
 
+  // ── Arco ──────────────────────────────────────────────────────────────────
   { id: 16, name: 'Bow Guidance', parent: 0, branch: 'bow', description: 'Bows have extra Attackspeed', ranks: ['1', '2', '3', '4', '6'] },
   { id: 17, name: 'Good Technique', parent: 16, branch: 'bow', description: 'Gain extra Range', ranks: ['1', '2', '4'] },
-  { id: 18, name: 'Artisanal Arsenal', parent: 17, branch: 'bow', description: 'Non-magic arrows deal extra Damage and break less often', ranks: ['1', '2', '4'] },
+  { id: 18, name: 'Artisanal Arsenal', parent: 17, branch: 'bow', description: 'Non-magic arrows deal +7 Damage and break less often', ranks: ['7'] },
   { id: 19, name: 'Explosive Ammo', parent: 18, branch: 'bow', description: 'Arrows have a 25% chance of exploding dealing area damage that briefly slows', ranks: [] },
-  { id: 20, name: 'Shineshooter', parent: 17, branch: 'bow', description: 'Reduces the cooldown of Light and Arrow of spells by:', ranks: ['10%', '20%', '35%'] },
+  { id: 20, name: 'Shineshooter', parent: 17, branch: 'bow', description: 'Reduces the cooldown of Arrow spells by 35%', ranks: ['10%', '20%', '35%'] },
   { id: 21, name: 'Bullseye', parent: 20, branch: 'bow', description: 'Increases the Damage of Arrow and Blade spells against enemies you have currently targeted', ranks: [] },
-  { id: 22, name: 'True Grip', parent: 16, branch: 'bow', description: 'While wearing Gloves attacking regenerates Mana', ranks: ['1', '2', '5'] },
-  { id: 23, name: 'Elvish Practice', parent: 22, branch: 'bow', description: 'Reduces the cooldown of Time and Mystic spells by:', ranks: ['10%', '20%', '35%'] },
-  { id: 24, name: 'Arcane Trickster', parent: 23, branch: 'bow', description: 'While using Gloves, casting Time or Mystic spells has a 50% chance of blocking all physical damage for 3 seconds', ranks: [] },
+  { id: 70, name: 'Tunnelvision', parent: 21, branch: 'bow', description: 'Gain 10 Attackspeed, but you can no longer move while targeting an enemy', ranks: [] },
 
-  { id: 25, name: 'Cozy and Useful', parent: 0, branch: 'lightarmor', description: 'Light Armor is lighter', ranks: ['1%', '5%', '10%', '17%', '25%'] },
+  // ── Luva (NOVO ramo — não existia na fonte antiga) ──────────────────────────
+  { id: 71, name: 'Glove Passion', parent: 0, branch: 'glove', description: "While wearing gloves, gain 10 Mana or Health Regen depending on the item you're holding", ranks: [] },
+  { id: 72, name: 'True Grip', parent: 71, branch: 'glove', description: 'While wearing Gloves, attacking regenerates Mana', ranks: ['1', '2', '4'] },
+  { id: 73, name: 'Elvish Practice', parent: 72, branch: 'glove', description: 'Spells cost 15% less mana', ranks: ['15%'] },
+  { id: 74, name: 'Arcane Trickster', parent: 73, branch: 'glove', description: 'While using Gloves, casting a Time or Mystic spell has a 50% chance of blocking all physical damage for 4 seconds', ranks: [] },
+  { id: 75, name: 'Battle Mage', parent: 74, branch: 'glove', description: 'Converts 50 Max Mana into 1 extra True Damage', ranks: [] },
+  { id: 76, name: 'One With Apogea', parent: 75, branch: 'glove', description: 'Mana damage is reduced in half, all spells cost 5 times more', ranks: [] },
+
+  // ── Armadura Leve ────────────────────────────────────────────────────────
+  { id: 25, name: 'Cozy and Useful', parent: 0, branch: 'lightarmor', description: 'Light Armor has extra mana', ranks: ['1', '3', '6', '10', '15'] },
   { id: 26, name: 'Breeze in Your Hair', parent: 25, branch: 'lightarmor', description: 'Not wearing a helmet gives you Movespeed', ranks: ['1', '2', '3'] },
-  { id: 27, name: 'Lightfoot', parent: 26, branch: 'lightarmor', description: 'If all your equipment weighs less than 150oz, gain Movespeed', ranks: ['1', '2', '3'] },
-  { id: 28, name: 'Battle Boots', parent: 27, branch: 'lightarmor', description: 'Converts all extra Movespeed into 2 Damage', ranks: [] },
-  { id: 29, name: 'Dressing Wizardly', parent: 25, branch: 'lightarmor', description: 'Armor gives you Mana for each oz under X oz, capped at 20 Mana', ranks: ['25oz', '33oz', '45oz'] },
+  { id: 28, name: 'Battle Boots', parent: 26, branch: 'lightarmor', description: 'Converts 1 Movespeed into 1% chance of dealing 1.5x Damage', ranks: [] },
+  { id: 27, name: 'Lightfoot', parent: 25, branch: 'lightarmor', description: 'Converts 10 Free Capacity into 1 Movespeed, capping at 3', ranks: [] },
+  { id: 29, name: 'Dressing Wizardly', parent: 27, branch: 'lightarmor', description: 'Light Armor that weighs less than 35oz has Magic extra', ranks: ['1'] },
   { id: 30, name: 'Powerful Space', parent: 29, branch: 'lightarmor', description: 'Gain 5% Magic for each X Free Capacity you have, capping at 20%', ranks: ['50', '35', '15'] },
-  { id: 31, name: 'Clothes of the Damned', parent: 30, branch: 'lightarmor', description: 'Removes negative effects from light armor and gain 5% Magic for each equipped light armor', ranks: [] },
+  { id: 31, name: 'Clothes of the Damned', parent: 30, branch: 'lightarmor', description: 'Removes negative effects from Light Armor and gain 5% Magic for each equipped Light Armor', ranks: [] },
+  { id: 35, name: 'Darkness Embrace', parent: 31, branch: 'lightarmor', description: 'Death spells are 10 times cheaper. Heal, Light and Holy spells are 10 times more expensive', ranks: [] },
 
-  { id: 32, name: 'Block Efficacy', parent: 0, branch: 'shield', description: 'Shields have more defense', ranks: ['1%', '4%', '8%', '14%', '20%'] },
+  // ── Escudo ───────────────────────────────────────────────────────────────
+  { id: 32, name: 'Block Efficacy', parent: 0, branch: 'shield', description: 'Shields have more Defense', ranks: ['1%', '4%', '8%', '14%', '20%'] },
   { id: 33, name: 'Bread and Butter', parent: 32, branch: 'shield', description: 'Using a sword and shield gives you extra damage', ranks: ['2', '4', '8'] },
-  { id: 34, name: 'Deflect', parent: 33, branch: 'shield', description: 'Blocking with a magic shield reflects damage taken', ranks: ['50%', '70%', '100%'] },
-  { id: 35, name: 'Darkness Embrace', parent: 31, branch: 'shield', description: 'Death spells are 10 times cheaper. Heal and Light spells are 10 times more expensive', ranks: [] },
-  { id: 36, name: 'Bulwark Leap', parent: 34, branch: 'shield', description: 'While holding a shield, casting a Time spell will double your magic shield, capping at 200', ranks: [] },
   { id: 37, name: 'Shieldslam', parent: 33, branch: 'shield', description: 'Blocking an attack has a chance of staggering the attacker', ranks: ['7%', '10%', '15%'] },
-  { id: 38, name: 'Hex Parry', parent: 37, branch: 'shield', description: 'Successfully blocking an attack will empower your next Arrow or Blade spell', ranks: [] },
+  { id: 77, name: 'Rooted Guard', parent: 32, branch: 'shield', description: 'Blocking an attack regenerates 5 health', ranks: [] },
+  { id: 78, name: 'Royal Shield', parent: 77, branch: 'shield', description: 'Reduces the cooldown of Defense spells by 35%', ranks: [] },
+  { id: 79, name: 'Monster Candy', parent: 78, branch: 'shield', description: 'Taunt lasts 100% longer, Conjure and Defense spells cost 50% less mana, lose 99 damage', ranks: [] },
+  { id: 38, name: 'Hex Parry', parent: 77, branch: 'shield', description: 'Successfully blocking an attack will empower your next Arrow or Blade spell by 50%', ranks: [] },
+  { id: 34, name: 'Deflect', parent: 38, branch: 'shield', description: 'Blocking with a Magic Shield will reflect 35% of the damage taken, ignoring armor', ranks: ['35%'] },
+  { id: 36, name: 'Bulwark Leap', parent: 38, branch: 'shield', description: 'While holding a shield, casting a Time or Physical spell will double your Magic Shield, capping at 200', ranks: [] },
 
-  { id: 39, name: 'Well Protected', parent: 0, branch: 'heavyarmor', description: 'Heavy Armor has more Armor', ranks: ['1%', '5%', '10%', '17%', '25%'] },
+  // ── Armadura Pesada ──────────────────────────────────────────────────────
+  { id: 39, name: 'Well Protected', parent: 0, branch: 'heavyarmor', description: 'Heavy Armor has extra Health', ranks: ['1', '3', '6', '10', '15'] },
   { id: 40, name: 'Bulking Up', parent: 39, branch: 'heavyarmor', description: 'Gain Health for each equipped heavy armor', ranks: ['5', '10', '25'] },
-  { id: 41, name: 'Heavy Metal', parent: 40, branch: 'heavyarmor', description: 'If all your equipment weighs more than 150oz, gain Armor', ranks: ['5%', '10%', '20%'] },
-  { id: 42, name: 'Carry Your Might', parent: 41, branch: 'heavyarmor', description: 'Each 75 max capacity gives you 1 extra Armor and 10 Health, capping at 15 Armor and 150 Health', ranks: [] },
+  { id: 41, name: 'Heavy Metal', parent: 40, branch: 'heavyarmor', description: 'Heavy Armor that weighs more than 35oz has Ability extra', ranks: ['1'] },
+  { id: 42, name: 'Carry Your Might', parent: 41, branch: 'heavyarmor', description: 'Converts 100 Max Capacity into 1 Armor, capping at 8', ranks: [] },
+  { id: 98, name: 'Juggernaut', parent: 42, branch: 'heavyarmor', description: 'Removes negative effects from Heavy Armor and gain 5% Ability for each equipped Heavy Armor', ranks: [] },
   { id: 43, name: 'Royal Banner', parent: 39, branch: 'heavyarmor', description: 'Reduces the cooldown of Time and Heal spells by:', ranks: ['10%', '20%', '35%'] },
-  { id: 44, name: 'Magic Steel', parent: 43, branch: 'heavyarmor', description: 'Casting a Time or Heal spell will give you a shield equal to a percentage of your total armor:', ranks: ['75%', '100%', '150%'] },
-  { id: 45, name: 'Blessed Plate', parent: 44, branch: 'heavyarmor', description: 'Removes negative stats from heavy armor and gain 15 Mana for each equipped heavy armor', ranks: [] },
+  { id: 44, name: 'Magic Steel', parent: 43, branch: 'heavyarmor', description: 'Casting a Time or Heal spell will give you a Magic Shield equal to 100% of your armor, capping at 100', ranks: ['100%'] },
+  { id: 45, name: 'Blessed Plate', parent: 44, branch: 'heavyarmor', description: 'Heavy Armor has 1 Magic and 25 Mana extra', ranks: [] },
   { id: 46, name: 'Endowed in Steel', parent: 45, branch: 'heavyarmor', description: 'Attacking using both your hands gives you multiple stat boosts', ranks: [] },
 
-  { id: 47, name: 'Blade Training', parent: 0, branch: 'sword', description: 'Swords have more Damage', ranks: ['1%', '4%', '8%', '14%', '20%'] },
-  { id: 48, name: 'Wrecking It', parent: 47, branch: 'sword', description: 'Gain extra Item Damage', ranks: ['3%', '6%', '10%'] },
-  { id: 49, name: 'No Defense Needed', parent: 48, branch: 'sword', description: 'Damage to swords of size 7 or bigger', ranks: ['3%', '6%', '10%'] },
-  { id: 50, name: 'Magic Blade', parent: 49, branch: 'sword', description: 'Removes negative effects from size 7 or bigger swords and gain 10% Manaleech', ranks: [] },
-  { id: 51, name: 'Hand Finesse', parent: 48, branch: 'sword', description: 'Gain 1 Attackspeed for each X Ability you have capping at 5', ranks: ['15', '13', '10'] },
+  // ── Espada ───────────────────────────────────────────────────────────────
+  { id: 47, name: 'Blade Training', parent: 0, branch: 'sword', description: 'Regular Swords have more Damage', ranks: ['1%', '4%', '8%', '14%', '20%'] },
+  { id: 51, name: 'Hand Finesse', parent: 47, branch: 'sword', description: 'Gain 1 Attackspeed for each 10 Ability you have capping at 5', ranks: [] },
+  { id: 53, name: 'Dual-Wielding', parent: 51, branch: 'sword', description: 'Size 6 swords have an equipsize of 5, but deal reduced Damage by:', ranks: ['40%', '36%', '30%'] },
+  { id: 55, name: 'Fencing Classes', parent: 53, branch: 'sword', description: 'Blade spells cost 15% less mana', ranks: [] },
+  { id: 90, name: 'Highlander', parent: 55, branch: 'sword', description: 'Blade spells cost 50% less mana, lose the ability to auto-attack. Additionally, converts 2 Attackspeed into 1 Damage', ranks: [] },
   { id: 52, name: 'Blade Prowess', parent: 51, branch: 'sword', description: 'While holding one sword of size 6 and no shield, reduces the cooldown of Blade spells by 50%', ranks: [] },
-  { id: 53, name: 'Dual-Wielding', parent: 48, branch: 'sword', description: 'Size 6 swords have an equipsize of 5, but deal reduced Damage by:', ranks: ['40%', '36%', '30%'] },
-  { id: 54, name: 'To Be Ninja', parent: 53, branch: 'sword', description: 'Converts all extra Ability into Attackspeed', ranks: [] },
-  { id: 55, name: 'Fancing Classes', parent: 47, branch: 'sword', description: 'Blade spells are stronger by:', ranks: ['5%', '9%', '15%'] },
+  { id: 54, name: 'To Be Ninja', parent: 52, branch: 'sword', description: 'Attacking has a 25% chance of boosting your Movespeed by 10 for 4 seconds', ranks: [] },
 
+  // ── Arma Grande (NOVO ramo — machado/espada larga, antes misturado com Espada) ──
+  { id: 80, name: 'Going Big', parent: 0, branch: 'largeweapon', description: 'Large Weapons have more Damage', ranks: ['1%', '4%', '8%', '14%', '20%'] },
+  { id: 81, name: 'Berserker', parent: 80, branch: 'largeweapon', description: 'Being below 66% Health gives you 13 extra Damage', ranks: [] },
+  { id: 82, name: 'Overwhelming Force', parent: 81, branch: 'largeweapon', description: 'While using a Large Weapon, attacking has a 35% chance of casting an Area of Effect spell around the target', ranks: [] },
+  { id: 83, name: 'Wrecking It', parent: 80, branch: 'largeweapon', description: 'Casting a Blade or Physical spell will make your next attack deal 14 extra True Damage', ranks: [] },
+  { id: 84, name: 'Magic Blade', parent: 83, branch: 'largeweapon', description: 'Removes negative effects from Large Weapons and gain 10% Manaleech', ranks: [] },
+  { id: 85, name: 'Unfathomable Rage', parent: 84, branch: 'largeweapon', description: 'Converts 2 Intake Damage into 1 Mana, doubles the cost of all spells', ranks: [] },
+
+  // ── Orbe ─────────────────────────────────────────────────────────────────
   { id: 56, name: 'Pondering It', parent: 0, branch: 'orb', description: 'Orbs provide Spellvamp', ranks: ['1%', '3%', '6%', '10%', '15%'] },
   { id: 57, name: 'Unnatural Flow', parent: 56, branch: 'orb', description: 'Your attacks will deal extra magic damage', ranks: ['4', '7', '12'] },
-  { id: 58, name: 'Flaming Sword', parent: 57, branch: 'orb', description: 'Casting a Fire or Blade spell will make your next attack deal extra magic damage', ranks: ['4', '8', '15'] },
-  { id: 59, name: 'Conflagrated Mind', parent: 58, branch: 'orb', description: 'While holding an orb, reduces the cooldown of Fire spells by 35%', ranks: [] },
   { id: 60, name: 'Diamond Skin', parent: 57, branch: 'orb', description: 'Casting an Energy or Arrow spell will give you shield, stacking 3 times', ranks: ['20', '35', '50'] },
   { id: 61, name: 'Unstable Aegis', parent: 60, branch: 'orb', description: 'Taking shield damage will cast Unstable Berserk around yourself', ranks: [] },
+  { id: 91, name: 'Magic Touch', parent: 56, branch: 'orb', description: 'While holding an Orb, Heal spells are 25% stronger', ranks: [] },
+  { id: 92, name: "Apogea's Ardor", parent: 91, branch: 'orb', description: 'While holding an Orb, Heal spells cost 50% less mana', ranks: [] },
+  { id: 93, name: "Child's Channel", parent: 92, branch: 'orb', description: 'Healing others also heals you, reduces the cooldown of all spells by 50%, and spells deal 75% less damage', ranks: [] },
 ];
 
-// Requisito extra REAL (fonte: código-fonte da calculadora paszqa.github.io/apogea-traits)
-// dos talentos "finais" de cada ramo (sem rank, um ponto só): além do pai direto
-// precisar estar no MÁXIMO, o nó-tronco do ramo (o que conecta direto na raiz) também
-// precisa estar maximizado. Ex: pra pegar "Luck Foreseen" (13), Shearing Stroke (12,
-// pai direto) precisa estar nos 3 pontos E Stabbing Preference (10, tronco do ramo
-// adaga) precisa estar nos 5 pontos.
+// Requisito extra REAL confirmado (mesma lógica do código-fonte da calculadora antiga)
+// pros talentos finais dos ramos que não mudaram de estrutura nessa atualização: além
+// do pai direto no MÁXIMO, o nó-tronco do ramo também precisa estar maximizado. Não
+// apliquei essa trava extra aos ramos novos/reorganizados (Luva, Arma Grande, Espada,
+// Orbe, Armadura) porque não tenho confirmação de que ainda vale — eles usam só a
+// trava básica (filho nunca ultrapassa o pai).
 const EXTRA_REQUIREMENTS = {
-  4: [[3, 3], [1, 5]],
-  63: [[62, 3], [1, 5]],
-  7: [[6, 3], [1, 5]],
-  9: [[8, 3], [1, 5]],
   13: [[10, 5], [12, 3]],
   15: [[10, 5], [14, 3]],
   19: [[16, 5], [18, 3]],
   21: [[16, 5], [20, 3]],
-  24: [[23, 3], [16, 5]],
-  28: [[27, 3], [25, 5]],
-  31: [[30, 3], [25, 5]],
-  36: [[32, 5], [34, 3]],
-  38: [[37, 3], [32, 5]],
-  42: [[41, 3], [39, 5]],
-  45: [[44, 3], [39, 5]],
-  50: [[49, 3], [47, 5]],
-  52: [[51, 3], [47, 5]],
-  54: [[47, 5], [53, 3]],
-  59: [[56, 5], [58, 3]],
-  61: [[56, 5], [60, 3]],
 };
 
 export const TALENTS = RAW_TALENTS.map((t) => ({
@@ -221,8 +247,8 @@ export function spentTalentPoints(talentPoints) {
 // 1) O nível do filho nunca pode alcançar/ultrapassar o nível ATUAL do pai — dá pra
 //    intercalar (pai+1, filho+1, pai+1, filho+1...), mas o filho nunca fica à frente.
 //    Nós ligados direto na raiz (parent 0) não têm essa trava.
-// 2) Talentos finais de cada ramo (ver EXTRA_REQUIREMENTS) também exigem o nó-tronco
-//    do ramo maximizado, além do pai direto maximizado.
+// 2) Alguns talentos finais também exigem o nó-tronco do ramo maximizado (ver
+//    EXTRA_REQUIREMENTS acima).
 export function canInvestTalent(talentPoints, talentId) {
   const talent = TALENTS_BY_ID[talentId];
   if (!talent || talent.parent === null) return false;
@@ -246,8 +272,8 @@ export function canInvestTalent(talentPoints, talentId) {
 
 // Agrega os efeitos de TODOS os talentos investidos E cujo requisito de equipamento
 // esteja satisfeito AGORA (troca de arma liga/desliga o talento na hora). Mecânicas
-// reais (lifesteal, armorPen, crit, %dano, %armadura) vão em campos próprios; o resto
-// cai no bônus genérico simplificado de sempre.
+// reais (lifesteal, armorPen, crit, %dano, %armadura, attackspeed) vão em campos
+// próprios; o resto cai no bônus genérico simplificado de sempre.
 export function computeTalentModifiers(talentPoints, equipment) {
   const mods = {
     statBonuses: {},
