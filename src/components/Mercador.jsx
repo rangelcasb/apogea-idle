@@ -37,6 +37,14 @@ export default function Mercador({ character, buyItem, sellToMerchant, autoComba
 
   const searchResults = useMemo(() => searchItemAcrossMerchants(search), [search]);
 
+  const currentWeight = character.inventory.reduce((sum, i) => sum + (i.weight ?? 1) * i.quantity, 0);
+  const freeCapacity = character.stats.capacity - currentWeight;
+  // Peso do item que a compra vai adicionar — mesmo com gold sobrando, se não couber
+  // na mochila (peso > capacidade livre) a compra é recusada.
+  function itemWeight(name) {
+    return getShopItemDefinition(name).weight ?? 1;
+  }
+
   return (
     <div className="flex-1 flex flex-col lg:flex-row gap-4">
       <div className="w-full lg:w-56 shrink-0">
@@ -95,7 +103,7 @@ export default function Mercador({ character, buyItem, sellToMerchant, autoComba
                         {kind === 'sell' ? (
                           <button
                             onClick={() => buyItem(m.name, offer.name)}
-                            disabled={character.gold < offer.price}
+                            disabled={character.gold < offer.price || itemWeight(offer.name) > freeCapacity}
                             className="text-[11px] font-medium bg-green-700 text-white px-2 py-0.5 rounded
                                        disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer hover:bg-green-600"
                           >
@@ -114,6 +122,11 @@ export default function Mercador({ character, buyItem, sellToMerchant, autoComba
                       </div>
                       {kind === 'sell' && character.gold < offer.price && (
                         <span className="text-[10px] text-blood">faltam {offer.price - character.gold}g</span>
+                      )}
+                      {kind === 'sell' && character.gold >= offer.price && itemWeight(offer.name) > freeCapacity && (
+                        <span className="text-[10px] text-blood">
+                          não cabe ({itemWeight(offer.name)}/{Math.max(0, Math.round(freeCapacity))} oz livres)
+                        </span>
                       )}
                       {kind === 'buy' && !owned && (
                         <span className="text-[10px] text-neutral-600">você não tem</span>
@@ -159,7 +172,7 @@ export default function Mercador({ character, buyItem, sellToMerchant, autoComba
                         <span className="text-xs text-gold">{offer.price}g</span>
                         <button
                           onClick={() => buyItem(merchant.name, offer.name)}
-                          disabled={character.gold < offer.price}
+                          disabled={character.gold < offer.price || itemWeight(offer.name) > freeCapacity}
                           className="text-[11px] font-medium bg-green-700 text-white px-2 py-0.5 rounded
                                      disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer hover:bg-green-600"
                         >
@@ -168,6 +181,11 @@ export default function Mercador({ character, buyItem, sellToMerchant, autoComba
                       </div>
                       {character.gold < offer.price && (
                         <span className="text-[10px] text-blood">faltam {offer.price - character.gold}g</span>
+                      )}
+                      {character.gold >= offer.price && itemWeight(offer.name) > freeCapacity && (
+                        <span className="text-[10px] text-blood">
+                          não cabe ({itemWeight(offer.name)}/{Math.max(0, Math.round(freeCapacity))} oz livres)
+                        </span>
                       )}
                     </div>
                   </div>
