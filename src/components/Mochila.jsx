@@ -8,7 +8,7 @@ const TYPE_LABELS = {
   [ITEM_TYPES.MATERIAL]: 'Materials',
 };
 
-function ItemCard({ item, consumeItem, equipItem, sellItem, discardItem, autoCombat }) {
+function ItemCard({ item, consumeItem, equipItem, sellItem, discardItem, autoCombat, addToBlacklist }) {
   return (
     <div className="bg-wood border border-wood-lighter rounded-lg p-2.5 flex flex-col gap-1.5">
       <div className="flex items-baseline justify-between gap-2">
@@ -89,12 +89,19 @@ function ItemCard({ item, consumeItem, equipItem, sellItem, discardItem, autoCom
         >
           DESCARTAR
         </button>
+        <button
+          onClick={() => addToBlacklist(item.name)}
+          title="Nunca mais pegar esse item ao matar monstros"
+          className="text-[10px] font-medium bg-wood-light border border-wood-lighter px-1.5 py-1 rounded cursor-pointer hover:border-blood hover:text-blood"
+        >
+          🚫 BLACKLIST
+        </button>
       </div>
     </div>
   );
 }
 
-export default function Mochila({ character, weight, consumeItem, equipItem, sellItem, discardItem, autoCombat }) {
+export default function Mochila({ character, weight, consumeItem, equipItem, sellItem, discardItem, autoCombat, addToBlacklist }) {
   return (
     <div className="bg-wood-light border border-wood-lighter rounded-lg p-4">
       <h3 className="text-gold font-semibold tracking-wide mb-3">
@@ -117,6 +124,7 @@ export default function Mochila({ character, weight, consumeItem, equipItem, sel
               sellItem={sellItem}
               discardItem={discardItem}
               autoCombat={autoCombat}
+              addToBlacklist={addToBlacklist}
             />
           ))}
         </div>

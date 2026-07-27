@@ -8,6 +8,7 @@ import Quests from './components/Quests';
 import Mercador from './components/Mercador';
 import Banco from './components/Banco';
 import Bestiario from './components/Bestiario';
+import Blacklist from './components/Blacklist';
 import Sidebar from './components/Sidebar';
 
 const TABS = [
@@ -17,6 +18,7 @@ const TABS = [
   { id: 'quests', label: '📜 Quests', implemented: true },
   { id: 'mercador', label: '💱 Mercador', implemented: true },
   { id: 'banco', label: '🏦 Banco', implemented: true },
+  { id: 'blacklist', label: '🚫 Blacklist', implemented: true },
   { id: 'house', label: '🏠 House', implemented: false },
   { id: 'bestiario', label: '📖 Bestiário', implemented: true },
   { id: 'ranking', label: '🏆 Ranking', implemented: false },
@@ -46,6 +48,8 @@ export default function App() {
     discardItem,
     depositItem,
     withdrawItem,
+    addToBlacklist,
+    removeFromBlacklist,
     equipItem,
     unequipItem,
     allocateStat,
@@ -174,6 +178,7 @@ export default function App() {
             chooseVocation={chooseVocation}
             vocationCost={vocationCost}
             autoCombat={autoCombat}
+            addToBlacklist={addToBlacklist}
           />
         )}
         {activeTab === 'talentos' && (
@@ -195,6 +200,9 @@ export default function App() {
           />
         )}
         {activeTab === 'bestiario' && <Bestiario character={character} />}
+        {activeTab === 'blacklist' && (
+          <Blacklist character={character} addToBlacklist={addToBlacklist} removeFromBlacklist={removeFromBlacklist} />
+        )}
         {!TABS.find((t) => t.id === activeTab)?.implemented && (
           <ComingSoon label={TABS.find((t) => t.id === activeTab)?.label} />
         )}

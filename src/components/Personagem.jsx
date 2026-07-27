@@ -35,6 +35,7 @@ export default function Personagem({
   chooseVocation,
   vocationCost,
   autoCombat,
+  addToBlacklist,
 }) {
   const isSquire = character.class === 'Squire';
   const handSize = (character.equipment.weapon?.equipSize ?? 0) + (character.equipment.offhand?.equipSize ?? 0);
@@ -277,6 +278,7 @@ export default function Personagem({
           sellItem={sellItem}
           discardItem={discardItem}
           autoCombat={autoCombat}
+          addToBlacklist={addToBlacklist}
         />
       </div>
     </div>

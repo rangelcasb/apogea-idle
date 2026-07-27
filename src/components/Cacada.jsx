@@ -1,3 +1,5 @@
+import MonsterIcon from './MonsterIcon';
+
 export default function Cacada({ character, monster, log, autoCombat, setAutoCombat, zones, changeZone }) {
   const isDead = character.currentHealth <= 0;
 
@@ -41,7 +43,10 @@ export default function Cacada({ character, monster, log, autoCombat, setAutoCom
           </div>
 
           <div className="bg-wood-light border border-wood-lighter rounded-lg p-4">
-            <h3 className="text-gold font-semibold mb-2">{monster ? monster.name : '...'}</h3>
+            <h3 className="text-gold font-semibold mb-2 flex items-center gap-2">
+              {monster && <MonsterIcon monster={monster} className="w-6 h-6" />}
+              {monster ? monster.name : '...'}
+            </h3>
             <div className="h-3 bg-wood rounded overflow-hidden mb-1">
               <div className="h-full bg-green-600 transition-all" style={{ width: `${monsterHpPct}%` }} />
             </div>
@@ -83,9 +88,11 @@ export default function Cacada({ character, monster, log, autoCombat, setAutoCom
                 </span>
               </div>
               <p className="text-xs text-neutral-400">{zone.description}</p>
-              <p className="text-[11px] text-neutral-500">
-                {zone.monsters.map((m) => m.name).join(', ')}
-              </p>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {zone.monsters.map((m) => (
+                  <MonsterIcon key={m.name} monster={m} className="w-8 h-8" />
+                ))}
+              </div>
               <div className="flex items-center justify-between mt-1">
                 <div className="text-xs">
                   <span className="text-gold">{zone.xpPerHour.toLocaleString('pt-BR')} xp/h</span>

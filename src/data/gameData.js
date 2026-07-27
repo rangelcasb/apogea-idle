@@ -8,3 +8,5 @@ export * from './lootItems.js';
 export * from './satiety.js';
 export * from './quests.js';
 export * from './merchants.js';
+export * from './items.js';
+export * from './lootTables.js';

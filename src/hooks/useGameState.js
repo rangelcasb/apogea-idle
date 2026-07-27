@@ -119,6 +119,7 @@ function createCharacter(name) {
     inventory: STARTER_ITEMS.map((i) => ({ ...i })),
     bank: [],
     monsterKills: {},
+    itemBlacklist: [],
     currentHealth: 0,
     currentMana: 0,
     zoneId: ZONES[0].id,
@@ -155,6 +156,7 @@ function migrateCharacter(char) {
     inventory: char.inventory ?? [],
     bank: char.bank ?? [],
     monsterKills: char.monsterKills ?? {},
+    itemBlacklist: char.itemBlacklist ?? [],
     autoCombat: char.autoCombat ?? false,
     updatedAt: char.updatedAt ?? 0,
   };
@@ -279,12 +281,17 @@ function reducer(state, action) {
       if (monsterHealth <= 0) {
         const boosted = getDailyBoostedMonster().name === currentMonster.name;
         const boostMult = boosted ? BOOSTED_MULTIPLIER : 1;
-        const { gold: rawGold, items: itemDrops } = rollLoot(currentMonster);
+        const { gold: rawGold, items: rawItemDrops } = rollLoot(currentMonster);
         const goldDrop = Math.round(rawGold * boostMult);
         const xpGain = Math.round(currentMonster.xp * boostMult);
 
         log = pushLog(log, `${currentMonster.name} derrotado! +${xpGain} XP.${boosted ? ' (boosted do dia!)' : ''}`);
         if (goldDrop > 0) log = pushLog(log, `+${goldDrop} gold.`);
+
+        // Itens na blacklist simplesmente não são pegos — nem entram na checagem de
+        // peso/mochila cheia, como se o item nunca tivesse caído.
+        const blacklist = new Set(char.itemBlacklist ?? []);
+        const itemDrops = rawItemDrops.filter((item) => !blacklist.has(item.name));
 
         const { inventory: mergedInventory, rejected } = mergeLoot(char.inventory, itemDrops, charStats.capacity);
         for (const item of itemDrops) {
@@ -547,6 +554,30 @@ function reducer(state, action) {
         ...state,
         character: { ...char, inventory },
         log: pushLog(state.log, `Você descartou ${item.name}.`),
+      };
+    }
+
+    case 'ADD_TO_BLACKLIST': {
+      const char = state.character;
+      const name = action.itemName?.trim();
+      if (!char || !name) return state;
+      const itemBlacklist = char.itemBlacklist ?? [];
+      if (itemBlacklist.includes(name)) return state;
+      return {
+        ...state,
+        character: { ...char, itemBlacklist: [...itemBlacklist, name] },
+        log: pushLog(state.log, `${name} adicionado à blacklist — não será mais pego.`),
+      };
+    }
+
+    case 'REMOVE_FROM_BLACKLIST': {
+      const char = state.character;
+      if (!char) return state;
+      const itemBlacklist = (char.itemBlacklist ?? []).filter((n) => n !== action.itemName);
+      return {
+        ...state,
+        character: { ...char, itemBlacklist },
+        log: pushLog(state.log, `${action.itemName} removido da blacklist.`),
       };
     }
 
@@ -884,6 +915,8 @@ export function useGameState() {
   const discardItem = useCallback((itemId) => dispatch({ type: 'DISCARD_ITEM', itemId }), []);
   const depositItem = useCallback((itemId, all) => dispatch({ type: 'DEPOSIT_ITEM', itemId, all }), []);
   const withdrawItem = useCallback((itemId, all) => dispatch({ type: 'WITHDRAW_ITEM', itemId, all }), []);
+  const addToBlacklist = useCallback((itemName) => dispatch({ type: 'ADD_TO_BLACKLIST', itemName }), []);
+  const removeFromBlacklist = useCallback((itemName) => dispatch({ type: 'REMOVE_FROM_BLACKLIST', itemName }), []);
   const equipItem = useCallback((itemId, targetSlot) => dispatch({ type: 'EQUIP_ITEM', itemId, targetSlot }), []);
   const unequipItem = useCallback((slot) => dispatch({ type: 'UNEQUIP_ITEM', slot }), []);
   const allocateStat = useCallback((stat) => dispatch({ type: 'ALLOCATE_STAT', stat }), []);
@@ -912,6 +945,8 @@ export function useGameState() {
     discardItem,
     depositItem,
     withdrawItem,
+    addToBlacklist,
+    removeFromBlacklist,
     equipItem,
     unequipItem,
     allocateStat,

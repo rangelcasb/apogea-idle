@@ -298,3 +298,6 @@ export const REAL_ITEMS = [
 {"name":"Yellow Spellbook: Starlight","slot":null,"category":"book","variants":[{"rarity":"common","weight":16,"sellPrice":7}]},
 {"name":"Zircon Ring","slot":"ring","category":"ring","variants":[{"rarity":"common","weight":1.2,"sellPrice":2,"stats":{"attackSpeed":1}},{"rarity":"uncommon","weight":1,"sellPrice":4,"stats":{"attackSpeed":2}},{"rarity":"rare","weight":0.8,"sellPrice":6,"stats":{"attackSpeed":2}}]},
 ];
+
+// Lista simples de nomes, usada pra sugestão (datalist) no campo de busca/blacklist.
+export const ALL_ITEM_NAMES = REAL_ITEMS.map((i) => i.name).sort();
