@@ -182,8 +182,11 @@ function init() {
     // Retoma o combate automático de onde parou — se estava caçando quando a aba
     // fechou (e não morreu), continua caçando ao reabrir.
     autoCombat: character?.autoCombat && character.currentHealth > 0,
+    combatPauseUntil: 0,
   };
 }
+
+const MONSTER_TRANSITION_MS = 2000;
 
 // Todo o combate roda num único reducer, então "dano no monstro + spawn do próximo"
 // acontece como UMA transição de estado atômica — não há como um tick ler um monstro
@@ -251,6 +254,9 @@ function reducer(state, action) {
     case 'PLAYER_ATTACK': {
       const { character: char, monster: currentMonster } = state;
       if (!char || !currentMonster || char.currentHealth <= 0) return state;
+      // Pausa de 2s depois de derrotar um monstro, antes do próximo combate começar —
+      // dá um respiro pra vida regenerar entre uma criatura e outra.
+      if (state.combatPauseUntil && Date.now() < state.combatPauseUntil) return state;
 
       const charStats = computeFinalStats(char);
 
@@ -331,7 +337,13 @@ function reducer(state, action) {
         updatedChar.currentHealth = leveledUp ? newStats.health : Math.min(newStats.health, char.currentHealth + lifestealHeal);
         updatedChar.currentMana = leveledUp ? newStats.mana : Math.min(newStats.mana, char.currentMana);
 
-        return { ...state, character: updatedChar, monster: pickMonster(char.zoneId), log };
+        return {
+          ...state,
+          character: updatedChar,
+          monster: pickMonster(char.zoneId),
+          log,
+          combatPauseUntil: Date.now() + MONSTER_TRANSITION_MS,
+        };
       }
 
       const healthAfterLifesteal = Math.min(charStats.health, char.currentHealth + lifestealHeal);
@@ -347,6 +359,7 @@ function reducer(state, action) {
     case 'MONSTER_ATTACK': {
       const { character: char, monster: currentMonster } = state;
       if (!char || !currentMonster || char.currentHealth <= 0) return state;
+      if (state.combatPauseUntil && Date.now() < state.combatPauseUntil) return state;
 
       const charStats = computeFinalStats(char);
       // Mesma fórmula real, do lado do monstro: monstro não tem Ability, personagem
