@@ -89,28 +89,37 @@ export default function Mercador({ character, buyItem, sellToMerchant, autoComba
                         {stats && <p className="text-[10px] text-gold truncate">{formatItemStats(stats)}</p>}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-xs text-gold">{offer.price}g</span>
-                      {kind === 'sell' ? (
-                        <button
-                          onClick={() => buyItem(m.name, offer.name)}
-                          disabled={character.gold < offer.price}
-                          title={character.gold < offer.price ? `Falta ${offer.price - character.gold}g` : undefined}
-                          className="text-[11px] font-medium bg-green-700 text-white px-2 py-0.5 rounded
-                                     disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer hover:bg-green-600"
-                        >
-                          COMPRAR
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => sellToMerchant(m.name, owned.id)}
-                          disabled={!owned || autoCombat}
-                          title={autoCombat ? 'Pare a caçada pra vender' : undefined}
-                          className="text-[11px] font-medium bg-wood-lighter px-2 py-0.5 rounded
-                                     disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer hover:border-gold"
-                        >
-                          VENDER
-                        </button>
+                    <div className="flex flex-col items-end gap-0.5 shrink-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gold">{offer.price}g</span>
+                        {kind === 'sell' ? (
+                          <button
+                            onClick={() => buyItem(m.name, offer.name)}
+                            disabled={character.gold < offer.price}
+                            className="text-[11px] font-medium bg-green-700 text-white px-2 py-0.5 rounded
+                                       disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer hover:bg-green-600"
+                          >
+                            COMPRAR
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => sellToMerchant(m.name, owned.id)}
+                            disabled={!owned || autoCombat}
+                            className="text-[11px] font-medium bg-wood-lighter px-2 py-0.5 rounded
+                                       disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer hover:border-gold"
+                          >
+                            VENDER
+                          </button>
+                        )}
+                      </div>
+                      {kind === 'sell' && character.gold < offer.price && (
+                        <span className="text-[10px] text-blood">faltam {offer.price - character.gold}g</span>
+                      )}
+                      {kind === 'buy' && !owned && (
+                        <span className="text-[10px] text-neutral-600">você não tem</span>
+                      )}
+                      {kind === 'buy' && autoCombat && owned && (
+                        <span className="text-[10px] text-blood">em combate</span>
                       )}
                     </div>
                   </div>
@@ -145,16 +154,21 @@ export default function Mercador({ character, buyItem, sellToMerchant, autoComba
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-xs text-gold">{offer.price}g</span>
-                      <button
-                        onClick={() => buyItem(merchant.name, offer.name)}
-                        disabled={character.gold < offer.price}
-                        className="text-[11px] font-medium bg-green-700 text-white px-2 py-0.5 rounded
-                                   disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer hover:bg-green-600"
-                      >
-                        COMPRAR
-                      </button>
+                    <div className="flex flex-col items-end gap-0.5 shrink-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gold">{offer.price}g</span>
+                        <button
+                          onClick={() => buyItem(merchant.name, offer.name)}
+                          disabled={character.gold < offer.price}
+                          className="text-[11px] font-medium bg-green-700 text-white px-2 py-0.5 rounded
+                                     disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer hover:bg-green-600"
+                        >
+                          COMPRAR
+                        </button>
+                      </div>
+                      {character.gold < offer.price && (
+                        <span className="text-[10px] text-blood">faltam {offer.price - character.gold}g</span>
+                      )}
                     </div>
                   </div>
                 ))}
