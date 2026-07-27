@@ -7,7 +7,7 @@ const TYPE_LABELS = {
   [ITEM_TYPES.MATERIAL]: 'Materials',
 };
 
-function ItemCard({ item, consumeItem, equipItem, sellItem, discardItem }) {
+function ItemCard({ item, consumeItem, equipItem, sellItem, discardItem, autoCombat }) {
   return (
     <div className="bg-wood border border-wood-lighter rounded-lg p-2.5 flex flex-col gap-1.5">
       <div className="flex items-baseline justify-between gap-2">
@@ -61,14 +61,20 @@ function ItemCard({ item, consumeItem, equipItem, sellItem, discardItem }) {
         )}
         <button
           onClick={() => sellItem(item.id, false)}
-          className="text-[10px] font-medium bg-wood-light border border-wood-lighter px-1.5 py-1 rounded cursor-pointer hover:border-gold"
+          disabled={autoCombat}
+          title={autoCombat ? 'Pare a caçada pra vender' : undefined}
+          className="text-[10px] font-medium bg-wood-light border border-wood-lighter px-1.5 py-1 rounded cursor-pointer
+                     hover:border-gold disabled:opacity-30 disabled:cursor-not-allowed"
         >
           VENDER 1
         </button>
         {item.quantity > 1 && (
           <button
             onClick={() => sellItem(item.id, true)}
-            className="text-[10px] font-medium bg-wood-light border border-wood-lighter px-1.5 py-1 rounded cursor-pointer hover:border-gold"
+            disabled={autoCombat}
+            title={autoCombat ? 'Pare a caçada pra vender' : undefined}
+            className="text-[10px] font-medium bg-wood-light border border-wood-lighter px-1.5 py-1 rounded cursor-pointer
+                       hover:border-gold disabled:opacity-30 disabled:cursor-not-allowed"
           >
             TUDO
           </button>
@@ -84,12 +90,15 @@ function ItemCard({ item, consumeItem, equipItem, sellItem, discardItem }) {
   );
 }
 
-export default function Mochila({ character, weight, consumeItem, equipItem, sellItem, discardItem }) {
+export default function Mochila({ character, weight, consumeItem, equipItem, sellItem, discardItem, autoCombat }) {
   return (
     <div className="bg-wood-light border border-wood-lighter rounded-lg p-4">
       <h3 className="text-gold font-semibold tracking-wide mb-3">
         ◆ MOCHILA — {Math.round(weight)}/{Math.round(character.stats.capacity)} OZ
       </h3>
+      {autoCombat && (
+        <p className="text-[11px] text-blood mb-2">⚔️ Em combate — pare a caçada pra vender itens.</p>
+      )}
 
       {character.inventory.length === 0 ? (
         <p className="text-sm text-neutral-400">Mochila vazia.</p>
@@ -103,6 +112,7 @@ export default function Mochila({ character, weight, consumeItem, equipItem, sel
               equipItem={equipItem}
               sellItem={sellItem}
               discardItem={discardItem}
+              autoCombat={autoCombat}
             />
           ))}
         </div>

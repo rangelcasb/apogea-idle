@@ -6,6 +6,8 @@ import Personagem from './components/Personagem';
 import Talentos from './components/Talentos';
 import Quests from './components/Quests';
 import Mercador from './components/Mercador';
+import Banco from './components/Banco';
+import Bestiario from './components/Bestiario';
 import Sidebar from './components/Sidebar';
 
 const TABS = [
@@ -14,9 +16,9 @@ const TABS = [
   { id: 'talentos', label: '🌳 Talentos', implemented: true },
   { id: 'quests', label: '📜 Quests', implemented: true },
   { id: 'mercador', label: '💱 Mercador', implemented: true },
-  { id: 'banco', label: '🏦 Banco', implemented: false },
+  { id: 'banco', label: '🏦 Banco', implemented: true },
   { id: 'house', label: '🏠 House', implemented: false },
-  { id: 'bestiario', label: '📖 Bestiário', implemented: false },
+  { id: 'bestiario', label: '📖 Bestiário', implemented: true },
   { id: 'ranking', label: '🏆 Ranking', implemented: false },
 ];
 
@@ -42,6 +44,8 @@ export default function App() {
     consumeItem,
     sellItem,
     discardItem,
+    depositItem,
+    withdrawItem,
     equipItem,
     unequipItem,
     allocateStat,
@@ -169,6 +173,7 @@ export default function App() {
             discardItem={discardItem}
             chooseVocation={chooseVocation}
             vocationCost={vocationCost}
+            autoCombat={autoCombat}
           />
         )}
         {activeTab === 'talentos' && (
@@ -178,8 +183,12 @@ export default function App() {
           <Quests character={character} zones={zones} claimQuest={claimQuest} />
         )}
         {activeTab === 'mercador' && (
-          <Mercador character={character} buyItem={buyItem} sellToMerchant={sellToMerchant} />
+          <Mercador character={character} buyItem={buyItem} sellToMerchant={sellToMerchant} autoCombat={autoCombat} />
         )}
+        {activeTab === 'banco' && (
+          <Banco character={character} weight={weight} depositItem={depositItem} withdrawItem={withdrawItem} />
+        )}
+        {activeTab === 'bestiario' && <Bestiario character={character} />}
         {!TABS.find((t) => t.id === activeTab)?.implemented && (
           <ComingSoon label={TABS.find((t) => t.id === activeTab)?.label} />
         )}

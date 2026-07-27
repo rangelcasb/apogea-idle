@@ -87,6 +87,20 @@ export const MONSTERS_BY_NAME = Object.fromEntries(MONSTER_TEMPLATES.map((m) => 
 export const ALL_MONSTERS = MONSTER_TEMPLATES;
 export const BOOSTED_MULTIPLIER = 1.5;
 
+// Bestiário: cada marco de abates numa criatura específica dá 1 estrela, e cada
+// estrela dá +5% de dano contra ESSA criatura (não contra as outras). Mecânica nossa
+// pra recompensar quem farma bastante numa zona específica.
+export const BESTIARY_STAR_THRESHOLDS = [100, 300, 600, 1000, 5000];
+export const BESTIARY_DAMAGE_PER_STAR = 0.05;
+
+export function monsterStars(kills) {
+  return BESTIARY_STAR_THRESHOLDS.filter((t) => kills >= t).length;
+}
+
+export function monsterDamageMultiplier(kills) {
+  return 1 + monsterStars(kills) * BESTIARY_DAMAGE_PER_STAR;
+}
+
 // "Boosted do dia" — funcionalidade real da tela enviada ("+50% XP e gold hoje" num
 // monstro específico). Escolhemos o monstro do dia de forma determinística pela data,
 // assim todo mundo que jogar no mesmo dia vê o mesmo monstro boostado.

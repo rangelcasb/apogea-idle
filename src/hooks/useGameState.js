@@ -25,6 +25,7 @@ import {
   MERCHANTS_BY_NAME,
   computeDamageRoll,
   VOCATION_COST,
+  monsterDamageMultiplier,
 } from '../data/gameData';
 import { talentPointsForLevel, spentTalentPoints, canInvestTalent } from '../data/talents';
 import {
@@ -114,6 +115,8 @@ function createCharacter(name) {
     talentPoints: {},
     equipment: emptyEquipment(),
     inventory: STARTER_ITEMS.map((i) => ({ ...i })),
+    bank: [],
+    monsterKills: {},
     currentHealth: 0,
     currentMana: 0,
     zoneId: ZONES[0].id,
@@ -147,6 +150,8 @@ function migrateCharacter(char) {
     satiety: char.satiety ?? { remainingMs: 0, bonus: null, foodName: null },
     claimedQuests: char.claimedQuests ?? [],
     inventory: char.inventory ?? [],
+    bank: char.bank ?? [],
+    monsterKills: char.monsterKills ?? {},
     updatedAt: char.updatedAt ?? 0,
   };
 }
@@ -239,6 +244,9 @@ function reducer(state, action) {
       const isCrit = Math.random() < (charStats.critChance ?? 0);
       let baseDamage = computeDamageRoll(charStats).avg;
       if (isCrit) baseDamage *= charStats.critMultiplier ?? 1;
+      // Bestiário: cada estrela ganha nessa criatura específica (marcos de abates) dá
+      // +5% de dano só contra ela.
+      baseDamage *= monsterDamageMultiplier(char.monsterKills?.[currentMonster.name] ?? 0);
 
       const effectiveArmor = Math.max(0, currentMonster.armor * (1 - (charStats.armorPenPercent ?? 0) / 100));
       const playerDamage = Math.max(1, baseDamage / (1 + effectiveArmor / 100));
@@ -279,6 +287,10 @@ function reducer(state, action) {
         log = logAfterXp;
 
         const zoneKills = { ...char.zoneKills, [char.zoneId]: (char.zoneKills[char.zoneId] ?? 0) + 1 };
+        const monsterKills = {
+          ...char.monsterKills,
+          [currentMonster.name]: (char.monsterKills?.[currentMonster.name] ?? 0) + 1,
+        };
 
         const updatedChar = {
           ...char,
@@ -288,6 +300,7 @@ function reducer(state, action) {
           gold: char.gold + goldDrop,
           kills: char.kills + 1,
           zoneKills,
+          monsterKills,
           totalGoldEarned: char.totalGoldEarned + goldDrop,
           totalXpEarned: char.totalXpEarned + xpGain,
           inventory: mergedInventory,
@@ -411,6 +424,9 @@ function reducer(state, action) {
     case 'SELL_ITEM': {
       const char = state.character;
       if (!char) return state;
+      if (state.autoCombat) {
+        return { ...state, log: pushLog(state.log, 'Não dá pra vender itens em combate — pare a caçada primeiro.') };
+      }
       const item = char.inventory.find((i) => i.id === action.itemId);
       if (!item || item.quantity <= 0) return state;
 
@@ -458,6 +474,9 @@ function reducer(state, action) {
     case 'SELL_TO_MERCHANT': {
       const char = state.character;
       if (!char) return state;
+      if (state.autoCombat) {
+        return { ...state, log: pushLog(state.log, 'Não dá pra vender itens em combate — pare a caçada primeiro.') };
+      }
       const merchant = MERCHANTS_BY_NAME[action.merchantName];
       const item = char.inventory.find((i) => i.id === action.itemId);
       if (!item || item.quantity <= 0) return state;
@@ -486,6 +505,59 @@ function reducer(state, action) {
         ...state,
         character: { ...char, inventory },
         log: pushLog(state.log, `Você descartou ${item.name}.`),
+      };
+    }
+
+    case 'DEPOSIT_ITEM': {
+      const char = state.character;
+      if (!char) return state;
+      const item = char.inventory.find((i) => i.id === action.itemId);
+      if (!item || item.quantity <= 0) return state;
+
+      const moveQty = action.all ? item.quantity : Math.min(1, item.quantity);
+      const inventory = char.inventory
+        .map((i) => (i.id === action.itemId ? { ...i, quantity: i.quantity - moveQty } : i))
+        .filter((i) => i.quantity > 0);
+
+      const idx = char.bank.findIndex((i) => i.id === item.id);
+      const bank = idx >= 0
+        ? char.bank.map((i, ix) => (ix === idx ? { ...i, quantity: i.quantity + moveQty } : i))
+        : [...char.bank, { ...item, quantity: moveQty }];
+
+      return {
+        ...state,
+        character: { ...char, inventory, bank },
+        log: pushLog(state.log, `Você guardou ${moveQty}x ${item.name} no banco.`),
+      };
+    }
+
+    case 'WITHDRAW_ITEM': {
+      const char = state.character;
+      if (!char) return state;
+      const item = char.bank.find((i) => i.id === action.itemId);
+      if (!item || item.quantity <= 0) return state;
+
+      const moveQty = action.all ? item.quantity : Math.min(1, item.quantity);
+      const addedWeight = (item.weight ?? 1) * moveQty;
+      const currentWeight = inventoryWeight(char.inventory);
+      const stats = computeFinalStats(char);
+      if (currentWeight + addedWeight > stats.capacity) {
+        return { ...state, log: pushLog(state.log, `Mochila cheia! Não coube ${item.name}.`) };
+      }
+
+      const bank = char.bank
+        .map((i) => (i.id === action.itemId ? { ...i, quantity: i.quantity - moveQty } : i))
+        .filter((i) => i.quantity > 0);
+
+      const idx = char.inventory.findIndex((i) => i.id === item.id);
+      const inventory = idx >= 0
+        ? char.inventory.map((i, ix) => (ix === idx ? { ...i, quantity: i.quantity + moveQty } : i))
+        : [...char.inventory, { ...item, quantity: moveQty }];
+
+      return {
+        ...state,
+        character: { ...char, inventory, bank },
+        log: pushLog(state.log, `Você retirou ${moveQty}x ${item.name} do banco.`),
       };
     }
 
@@ -750,6 +822,8 @@ export function useGameState() {
   const consumeItem = useCallback((itemId) => dispatch({ type: 'CONSUME_ITEM', itemId }), []);
   const sellItem = useCallback((itemId, all) => dispatch({ type: 'SELL_ITEM', itemId, all }), []);
   const discardItem = useCallback((itemId) => dispatch({ type: 'DISCARD_ITEM', itemId }), []);
+  const depositItem = useCallback((itemId, all) => dispatch({ type: 'DEPOSIT_ITEM', itemId, all }), []);
+  const withdrawItem = useCallback((itemId, all) => dispatch({ type: 'WITHDRAW_ITEM', itemId, all }), []);
   const equipItem = useCallback((itemId, targetSlot) => dispatch({ type: 'EQUIP_ITEM', itemId, targetSlot }), []);
   const unequipItem = useCallback((slot) => dispatch({ type: 'UNEQUIP_ITEM', slot }), []);
   const allocateStat = useCallback((stat) => dispatch({ type: 'ALLOCATE_STAT', stat }), []);
@@ -776,6 +850,8 @@ export function useGameState() {
     consumeItem,
     sellItem,
     discardItem,
+    depositItem,
+    withdrawItem,
     equipItem,
     unequipItem,
     allocateStat,

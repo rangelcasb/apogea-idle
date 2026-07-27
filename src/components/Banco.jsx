@@ -1,0 +1,86 @@
+import { RARITY_COLORS, RARITY_LABELS, formatItemStats } from '../data/gameData';
+
+function ItemRow({ item, actionLabel, onAction, onActionAll }) {
+  return (
+    <div className="bg-wood border border-wood-lighter rounded-lg p-2.5 flex flex-col gap-1.5">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className={`text-sm leading-tight ${RARITY_COLORS[item.rarity] ?? 'text-neutral-100'}`}>
+          {item.name}
+          {item.rarity && item.rarity !== 'common' && (
+            <span className="text-[10px] ml-1">({RARITY_LABELS[item.rarity]})</span>
+          )}
+        </p>
+        <span className="text-xs text-neutral-400 shrink-0">×{item.quantity}</span>
+      </div>
+      {item.stats && <p className="text-[10px] text-gold">{formatItemStats(item.stats)}</p>}
+      <div className="flex gap-1 flex-wrap">
+        <button
+          onClick={() => onAction(item.id)}
+          className="text-[10px] font-medium bg-gold text-wood px-1.5 py-1 rounded cursor-pointer hover:bg-yellow-500"
+        >
+          {actionLabel} 1
+        </button>
+        {item.quantity > 1 && (
+          <button
+            onClick={() => onActionAll(item.id)}
+            className="text-[10px] font-medium bg-wood-light border border-wood-lighter px-1.5 py-1 rounded cursor-pointer hover:border-gold"
+          >
+            {actionLabel} TUDO
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function Banco({ character, weight, depositItem, withdrawItem }) {
+  return (
+    <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+      <div className="bg-wood-light border border-wood-lighter rounded-lg p-4">
+        <h3 className="text-gold font-semibold tracking-wide mb-1">
+          ◆ MOCHILA — {Math.round(weight)}/{Math.round(character.stats.capacity)} OZ
+        </h3>
+        <p className="text-[11px] text-neutral-500 mb-3">
+          Itens guardados no banco não pesam na mochila e ficam seguros pra sempre.
+        </p>
+        {character.inventory.length === 0 ? (
+          <p className="text-sm text-neutral-400">Mochila vazia.</p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {character.inventory.map((item) => (
+              <ItemRow
+                key={item.id}
+                item={item}
+                actionLabel="GUARDAR"
+                onAction={(id) => depositItem(id, false)}
+                onActionAll={(id) => depositItem(id, true)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="bg-wood-light border border-wood-lighter rounded-lg p-4">
+        <h3 className="text-gold font-semibold tracking-wide mb-1">◆ BANCO</h3>
+        <p className="text-[11px] text-neutral-500 mb-3">
+          Retirar um item precisa de espaço livre na mochila (peso/capacidade).
+        </p>
+        {character.bank.length === 0 ? (
+          <p className="text-sm text-neutral-400">Banco vazio.</p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {character.bank.map((item) => (
+              <ItemRow
+                key={item.id}
+                item={item}
+                actionLabel="RETIRAR"
+                onAction={(id) => withdrawItem(id, false)}
+                onActionAll={(id) => withdrawItem(id, true)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
