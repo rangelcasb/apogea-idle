@@ -1,4 +1,4 @@
-import { useReducer, useEffect, useMemo, useCallback, useState } from 'react';
+import { useReducer, useEffect, useMemo, useCallback, useState, useRef } from 'react';
 import {
   ZONES,
   STARTER_ITEMS,
@@ -47,6 +47,10 @@ const REGEN_TICK_MS = 10000;
 const STORAGE_KEY = 'apogea-idle-character';
 const RESPEC_COST = 200;
 const TALENT_RESET_BASE_COST = 200;
+// Progresso offline: no máximo 8h de recompensa, e só XP/gold (nada de item — não
+// tem como saber que peso "teria" cabido na mochila do jeito que o real drop escolhe).
+const OFFLINE_CAP_MS = 8 * 60 * 60 * 1000;
+const OFFLINE_MIN_MS = 60 * 1000; // ignora hiatos triviais (ex: dar refresh na página)
 
 // Custo dobra a cada reset de talentos (200, 400, 800, 1600...) — não é um valor real
 // do jogo (o jogo real não deixa resetar talentos livremente), é uma mecânica nossa
@@ -280,7 +284,11 @@ function reducer(state, action) {
       // crítico...) só entram se o requisito ainda estiver ativo agora mesmo — troque
       // a arma e o talento correspondente liga/desliga na hora (ver talents.js).
       const isCrit = Math.random() < (charStats.critChance ?? 0);
-      let baseDamage = computeDamageRoll(charStats).avg;
+      // Cada golpe sorteia um valor dentro do range min-máx real (igual a barra
+      // "Dano por golpe X-Y" mostra) — usar sempre a média fazia todo hit sair com o
+      // mesmo número, sem a variação que o jogo real tem.
+      const { min: minDamage, max: maxDamage } = computeDamageRoll(charStats);
+      let baseDamage = minDamage + Math.random() * (maxDamage - minDamage);
       if (isCrit) baseDamage *= charStats.critMultiplier ?? 1;
       // Bestiário: cada estrela ganha nessa criatura específica (marcos de abates) dá
       // +5% de dano só contra ela.
@@ -439,7 +447,22 @@ function reducer(state, action) {
         }
       }
 
-      const satiety = tickSatiety(char.satiety, REGEN_TICK_MS);
+      let satiety = tickSatiety(char.satiety, REGEN_TICK_MS);
+
+      // Comer automático: se a saciedade zerou e tem comida na mochila, come sozinho
+      // pra manter o bônus ativo sem precisar voltar pra tela toda hora.
+      if (satiety.remainingMs <= 0) {
+        const foodIdx = inventory.findIndex((i) => FOOD_CATEGORIES.has(i.category) && i.quantity > 0);
+        if (foodIdx >= 0) {
+          const food = inventory[foodIdx];
+          satiety = eatFood(satiety, food.category);
+          satiety.foodName = food.name;
+          inventory = inventory
+            .map((i, idx) => (idx === foodIdx ? { ...i, quantity: i.quantity - 1 } : i))
+            .filter((i) => i.quantity > 0);
+          log = pushLog(log, `Você comeu ${food.name} automaticamente. Saciado por ${Math.round(satiety.remainingMs / 60000)}min.`);
+        }
+      }
 
       if (
         currentHealth === char.currentHealth &&
@@ -829,6 +852,34 @@ function reducer(state, action) {
       };
     }
 
+    // Progresso offline: calculado FORA do reducer (precisa de Date.now() e da zona)
+    // e despachado já pronto — xpGain/goldGain só chegam aqui depois de aplicar o
+    // teto de 8h. Nunca dá item, só XP e gold (peso/mochila cheia não fariam sentido
+    // pra algo que não aconteceu de verdade na tela).
+    case 'APPLY_OFFLINE_PROGRESS': {
+      const char = state.character;
+      if (!char || (action.xpGain <= 0 && action.goldGain <= 0)) return state;
+      const hoursLabel = action.hours >= 1 ? `${action.hours.toFixed(1)}h` : `${Math.round(action.hours * 60)}min`;
+      const log0 = pushLog(
+        state.log,
+        `Enquanto você esteve fora (${hoursLabel} caçando em ${action.zoneName}): +${action.xpGain} XP, +${action.goldGain} gold.`,
+      );
+      const { xp, level, levelBatches, log, leveledUp } = applyXpGain(char, action.xpGain, log0);
+      const updatedChar = {
+        ...char,
+        xp,
+        level,
+        levelBatches,
+        gold: char.gold + action.goldGain,
+        totalGoldEarned: char.totalGoldEarned + action.goldGain,
+        totalXpEarned: char.totalXpEarned + action.xpGain,
+      };
+      const newStats = computeFinalStats(updatedChar);
+      updatedChar.currentHealth = leveledUp ? newStats.health : Math.min(newStats.health, char.currentHealth);
+      updatedChar.currentMana = leveledUp ? newStats.mana : Math.min(newStats.mana, char.currentMana);
+      return { ...state, character: updatedChar, log };
+    }
+
     default:
       return state;
   }
@@ -853,12 +904,38 @@ export function useGameState() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [authError, setAuthError] = useState(null);
+  const [offlineReport, setOfflineReport] = useState(null);
+  const offlineChecked = useRef(false);
 
   useEffect(() => {
     if (state.character) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state.character));
     }
   }, [state.character]);
+
+  // Só roda uma vez, com o personagem exatamente como veio do localStorage ao abrir —
+  // "estava caçando quando fechou" é o único caso que gera recompensa.
+  useEffect(() => {
+    if (offlineChecked.current) return;
+    offlineChecked.current = true;
+    const char = state.character;
+    if (!char || !char.autoCombat || char.currentHealth <= 0) return;
+
+    const elapsedMs = Math.min(Date.now() - (char.updatedAt || Date.now()), OFFLINE_CAP_MS);
+    if (elapsedMs < OFFLINE_MIN_MS) return;
+
+    const zone = ZONES.find((z) => z.id === char.zoneId) ?? ZONES[0];
+    const hours = elapsedMs / 3600000;
+    const xpGain = Math.round(zone.xpPerHour * hours);
+    const goldGain = Math.round(zone.goldPerHour * hours);
+    if (xpGain <= 0 && goldGain <= 0) return;
+
+    dispatch({ type: 'APPLY_OFFLINE_PROGRESS', xpGain, goldGain, hours, zoneName: zone.name });
+    setOfflineReport({ hours, xpGain, goldGain, zoneName: zone.name });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const dismissOfflineReport = useCallback(() => setOfflineReport(null), []);
 
   // Login com Google dá o MESMO UID em qualquer dispositivo — é essa a chave usada
   // no Firestore, então não precisa de código nenhum pra continuar no celular.
@@ -1025,6 +1102,8 @@ export function useGameState() {
     claimQuest,
     buyItem,
     sellToMerchant,
+    offlineReport,
+    dismissOfflineReport,
     syncStatus,
     syncError,
     user,

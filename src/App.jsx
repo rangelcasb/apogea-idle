@@ -65,6 +65,8 @@ export default function App() {
     claimQuest,
     buyItem,
     sellToMerchant,
+    offlineReport,
+    dismissOfflineReport,
     syncStatus,
     syncError,
     user,
@@ -136,6 +138,22 @@ export default function App() {
           </button>
         </div>
       </header>
+
+      {offlineReport && (
+        <div className="mx-4 mt-3 bg-gold/10 border border-gold rounded-lg p-3 flex items-center justify-between gap-3">
+          <p className="text-sm text-neutral-100">
+            🌙 Enquanto você esteve fora ({offlineReport.hours >= 1 ? `${offlineReport.hours.toFixed(1)}h` : `${Math.round(offlineReport.hours * 60)}min`}
+            {' '}caçando em {offlineReport.zoneName}): <span className="text-gold font-semibold">+{offlineReport.xpGain.toLocaleString('pt-BR')} XP</span>
+            {' '}e <span className="text-gold font-semibold">+{offlineReport.goldGain.toLocaleString('pt-BR')} gold</span>.
+          </p>
+          <button
+            onClick={dismissOfflineReport}
+            className="text-xs font-medium bg-wood-lighter px-3 py-1.5 rounded shrink-0 cursor-pointer hover:text-blood"
+          >
+            OK
+          </button>
+        </div>
+      )}
 
       <nav className="flex flex-wrap border-b border-wood-lighter">
         {TABS.map((tab) => (
