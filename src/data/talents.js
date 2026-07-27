@@ -4,12 +4,16 @@
 // mais antiga e sem os ramos Luva/Arma Grande que o jogo adicionou depois).
 //
 // LIMITAÇÃO HONESTA: a imagem da wiki mostra só o valor FINAL de cada talento (não a
-// lista completa de ranks intermediários como a fonte antiga tinha). Pra talentos que já
-// existiam antes com 5 ranks confirmados, mantive a curva de crescimento antiga e só
-// re-escalei o valor final pro novo máximo mostrado. Pra talentos novos (Luva, Arma
-// Grande, e outros adicionados nessa atualização), não tenho como saber se têm mais de
-// 1 rank — tratei como rank único (1 ponto) usando o valor exato mostrado, em vez de
-// inventar uma progressão que não consigo confirmar. Vale conferir no jogo.
+// lista completa de ranks intermediários como a fonte antiga tinha). Onde o talento já
+// existia antes com ranks confirmados (ou é claramente o mesmo nó, só reposicionado),
+// mantive/reaproveitei a curva de crescimento real antiga. Pra talentos novos com valor
+// único mostrado e que têm um talento "filho" (ou seja, claramente não são um nó final
+// de 1 ponto só), projetei uma curva de 3 ranks usando a MÉDIA da forma de crescimento
+// dos talentos de 3 ranks já confirmados da árvore antiga (primeiro rank ≈ 40% do
+// valor final, segundo ≈ 65%, terceiro = 100% — média de curvas como Thorough Puncture
+// 8/13/20 e Shearing Stroke 10/14/20). Pra talentos-folha (sem filho, sempre foram de
+// 1 ponto só na fonte antiga) e pra valores pequenos demais pra uma curva fazer sentido,
+// mantive rank único com o valor exato mostrado. Vale conferir no jogo.
 //
 // IMPORTANTE: este jogo idle não simula o sistema de magias ativas do Apogea real (Fire,
 // Energy, Heal, Blade, Arrow spells etc.), nem "True Damage" (dano que ignora armadura
@@ -97,7 +101,16 @@ const MECHANICS = {
   80: 'damagePercent', // Going Big — Large Weapons have more Damage
   32: 'armorPercent', // Block Efficacy — Shields have more Defense
   16: 'attackSpeedFlat', // Bow Guidance — Bows have extra Attackspeed (ranks já são flat)
+  67: 'trueDamageChance', // Jagged Rhythm — dagger, 50% chance of extra (Ability/4) True Damage
+  68: 'doubleAttack', // Luck Foreseen II — Ability/6 = % chance of attacking twice
+  69: 'trueDamageDouble', // Dark Blade — doubles True Damage dealt, but you take that too
 };
+
+// Valores fixos das 3 mecânicas de dano-verdadeiro/ataque-duplo da adaga (não escalam
+// por rank — são talentos de 1 ponto só, o valor real vem direto da descrição).
+const TRUE_DAMAGE_CHANCE = 0.5; // Jagged Rhythm: 50% de chance por golpe
+const TRUE_DAMAGE_ABILITY_DIVISOR = 4; // Jagged Rhythm: dano extra = Ability / 4
+const DOUBLE_ATTACK_ABILITY_DIVISOR = 6; // Luck Foreseen II: 6 Ability = 1% de chance
 
 function guessEffect(description) {
   const d = description.toLowerCase();
@@ -120,7 +133,7 @@ const RAW_TALENTS = [
   { id: 3, name: 'Frantic Conjury', parent: 2, branch: 'staff', description: "Casting a Fire spell has a chance your next attack will cast Conjure Fire on target's location", ranks: ['20%', '30%', '50%'] },
   { id: 4, name: 'Warlock', parent: 3, branch: 'staff', description: 'While holding a staff, gain 1 extra Area of Effect for Energy and Fire spells', ranks: [] },
   { id: 64, name: 'Conflagrated Mind', parent: 2, branch: 'staff', description: 'While holding a staff, gain 1 extra Area of Effect and 25% cooldown reduction for Fire spells', ranks: [] },
-  { id: 62, name: 'Electric Nature', parent: 2, branch: 'staff', description: 'Reduces the cooldown of spells by 15%', ranks: ['15%'] },
+  { id: 62, name: 'Electric Nature', parent: 2, branch: 'staff', description: 'Reduces the cooldown of spells by 15%', ranks: ['6%', '10%', '15%'] },
   { id: 63, name: 'Steering Insight', parent: 62, branch: 'staff', description: 'Energy and Arrow projectile spells bounce when colliding with enemies and explode on death', ranks: [] },
   { id: 65, name: 'Sacred Stick', parent: 1, branch: 'staff', description: 'While holding a staff, gain 1 extra Area of Effect and 25% cooldown reduction for Holy spells', ranks: [] },
   { id: 66, name: "Gallop's Fall", parent: 65, branch: 'staff', description: 'Reduces the cooldown of Water spells by 35%', ranks: [] },
@@ -148,7 +161,7 @@ const RAW_TALENTS = [
   // ── Luva (NOVO ramo — não existia na fonte antiga) ──────────────────────────
   { id: 71, name: 'Glove Passion', parent: 0, branch: 'glove', description: "While wearing gloves, gain 10 Mana or Health Regen depending on the item you're holding", ranks: [] },
   { id: 72, name: 'True Grip', parent: 71, branch: 'glove', description: 'While wearing Gloves, attacking regenerates Mana', ranks: ['1', '2', '4'] },
-  { id: 73, name: 'Elvish Practice', parent: 72, branch: 'glove', description: 'Spells cost 15% less mana', ranks: ['15%'] },
+  { id: 73, name: 'Elvish Practice', parent: 72, branch: 'glove', description: 'Spells cost 15% less mana', ranks: ['6%', '10%', '15%'] },
   { id: 74, name: 'Arcane Trickster', parent: 73, branch: 'glove', description: 'While using Gloves, casting a Time or Mystic spell has a 50% chance of blocking all physical damage for 4 seconds', ranks: [] },
   { id: 75, name: 'Battle Mage', parent: 74, branch: 'glove', description: 'Converts 50 Max Mana into 1 extra True Damage', ranks: [] },
   { id: 76, name: 'One With Apogea', parent: 75, branch: 'glove', description: 'Mana damage is reduced in half, all spells cost 5 times more', ranks: [] },
@@ -168,7 +181,7 @@ const RAW_TALENTS = [
   { id: 33, name: 'Bread and Butter', parent: 32, branch: 'shield', description: 'Using a sword and shield gives you extra damage', ranks: ['2', '4', '8'] },
   { id: 37, name: 'Shieldslam', parent: 33, branch: 'shield', description: 'Blocking an attack has a chance of staggering the attacker', ranks: ['7%', '10%', '15%'] },
   { id: 77, name: 'Rooted Guard', parent: 32, branch: 'shield', description: 'Blocking an attack regenerates 5 health', ranks: [] },
-  { id: 78, name: 'Royal Shield', parent: 77, branch: 'shield', description: 'Reduces the cooldown of Defense spells by 35%', ranks: [] },
+  { id: 78, name: 'Royal Shield', parent: 77, branch: 'shield', description: 'Reduces the cooldown of Defense spells by 35%', ranks: ['14%', '23%', '35%'] },
   { id: 79, name: 'Monster Candy', parent: 78, branch: 'shield', description: 'Taunt lasts 100% longer, Conjure and Defense spells cost 50% less mana, lose 99 damage', ranks: [] },
   { id: 38, name: 'Hex Parry', parent: 77, branch: 'shield', description: 'Successfully blocking an attack will empower your next Arrow or Blade spell by 50%', ranks: [] },
   { id: 34, name: 'Deflect', parent: 38, branch: 'shield', description: 'Blocking with a Magic Shield will reflect 35% of the damage taken, ignoring armor', ranks: ['35%'] },
@@ -181,13 +194,13 @@ const RAW_TALENTS = [
   { id: 42, name: 'Carry Your Might', parent: 41, branch: 'heavyarmor', description: 'Converts 100 Max Capacity into 1 Armor, capping at 8', ranks: [] },
   { id: 98, name: 'Juggernaut', parent: 42, branch: 'heavyarmor', description: 'Removes negative effects from Heavy Armor and gain 5% Ability for each equipped Heavy Armor', ranks: [] },
   { id: 43, name: 'Royal Banner', parent: 39, branch: 'heavyarmor', description: 'Reduces the cooldown of Time and Heal spells by:', ranks: ['10%', '20%', '35%'] },
-  { id: 44, name: 'Magic Steel', parent: 43, branch: 'heavyarmor', description: 'Casting a Time or Heal spell will give you a Magic Shield equal to 100% of your armor, capping at 100', ranks: ['100%'] },
+  { id: 44, name: 'Magic Steel', parent: 43, branch: 'heavyarmor', description: 'Casting a Time or Heal spell will give you a Magic Shield equal to a percentage of your total armor, capping at 100', ranks: ['75%', '100%', '150%'] },
   { id: 45, name: 'Blessed Plate', parent: 44, branch: 'heavyarmor', description: 'Heavy Armor has 1 Magic and 25 Mana extra', ranks: [] },
   { id: 46, name: 'Endowed in Steel', parent: 45, branch: 'heavyarmor', description: 'Attacking using both your hands gives you multiple stat boosts', ranks: [] },
 
   // ── Espada ───────────────────────────────────────────────────────────────
   { id: 47, name: 'Blade Training', parent: 0, branch: 'sword', description: 'Regular Swords have more Damage', ranks: ['1%', '4%', '8%', '14%', '20%'] },
-  { id: 51, name: 'Hand Finesse', parent: 47, branch: 'sword', description: 'Gain 1 Attackspeed for each 10 Ability you have capping at 5', ranks: [] },
+  { id: 51, name: 'Hand Finesse', parent: 47, branch: 'sword', description: 'Gain 1 Attackspeed for each X Ability you have capping at 5', ranks: ['15', '13', '10'] },
   { id: 53, name: 'Dual-Wielding', parent: 51, branch: 'sword', description: 'Size 6 swords have an equipsize of 5, but deal reduced Damage by:', ranks: ['40%', '36%', '30%'] },
   { id: 55, name: 'Fencing Classes', parent: 53, branch: 'sword', description: 'Blade spells cost 15% less mana', ranks: [] },
   { id: 90, name: 'Highlander', parent: 55, branch: 'sword', description: 'Blade spells cost 50% less mana, lose the ability to auto-attack. Additionally, converts 2 Attackspeed into 1 Damage', ranks: [] },
@@ -196,9 +209,9 @@ const RAW_TALENTS = [
 
   // ── Arma Grande (NOVO ramo — machado/espada larga, antes misturado com Espada) ──
   { id: 80, name: 'Going Big', parent: 0, branch: 'largeweapon', description: 'Large Weapons have more Damage', ranks: ['1%', '4%', '8%', '14%', '20%'] },
-  { id: 81, name: 'Berserker', parent: 80, branch: 'largeweapon', description: 'Being below 66% Health gives you 13 extra Damage', ranks: [] },
+  { id: 81, name: 'Berserker', parent: 80, branch: 'largeweapon', description: 'Being below 66% Health gives you extra Damage', ranks: ['5', '8', '13'] },
   { id: 82, name: 'Overwhelming Force', parent: 81, branch: 'largeweapon', description: 'While using a Large Weapon, attacking has a 35% chance of casting an Area of Effect spell around the target', ranks: [] },
-  { id: 83, name: 'Wrecking It', parent: 80, branch: 'largeweapon', description: 'Casting a Blade or Physical spell will make your next attack deal 14 extra True Damage', ranks: [] },
+  { id: 83, name: 'Wrecking It', parent: 80, branch: 'largeweapon', description: 'Casting a Blade or Physical spell will make your next attack deal extra True Damage', ranks: ['6', '9', '14'] },
   { id: 84, name: 'Magic Blade', parent: 83, branch: 'largeweapon', description: 'Removes negative effects from Large Weapons and gain 10% Manaleech', ranks: [] },
   { id: 85, name: 'Unfathomable Rage', parent: 84, branch: 'largeweapon', description: 'Converts 2 Intake Damage into 1 Mana, doubles the cost of all spells', ranks: [] },
 
@@ -283,6 +296,10 @@ export function computeTalentModifiers(talentPoints, equipment) {
     critMultiplier: 1.5,
     damagePercent: 0,
     armorPercent: 0,
+    trueDamageChance: 0,
+    trueDamageAbilityDivisor: 0,
+    doubleAttackAbilityDivisor: 0,
+    trueDamageDoubled: false,
   };
 
   for (const [idStr, points] of Object.entries(talentPoints ?? {})) {
@@ -310,6 +327,16 @@ export function computeTalentModifiers(talentPoints, equipment) {
         break;
       case 'attackSpeedFlat':
         if (!Number.isNaN(rankValue)) mods.statBonuses.attackSpeed = (mods.statBonuses.attackSpeed ?? 0) + rankValue;
+        break;
+      case 'trueDamageChance':
+        mods.trueDamageChance = TRUE_DAMAGE_CHANCE;
+        mods.trueDamageAbilityDivisor = TRUE_DAMAGE_ABILITY_DIVISOR;
+        break;
+      case 'doubleAttack':
+        mods.doubleAttackAbilityDivisor = DOUBLE_ATTACK_ABILITY_DIVISOR;
+        break;
+      case 'trueDamageDouble':
+        mods.trueDamageDoubled = true;
         break;
       default: {
         if (!talent.effect) break;
@@ -339,5 +366,15 @@ export function applyTalentEffects(stats, character) {
   next.armorPenPercent = mods.armorPenPercent;
   next.critChance = mods.critChance;
   next.critMultiplier = mods.critMultiplier;
+
+  // Jagged Rhythm/Luck Foreseen II/Dark Blade (adaga): dependem do stat final de
+  // Ability (já com todos os bônus aplicados), por isso são calculados aqui no fim,
+  // não dentro de computeTalentModifiers.
+  next.trueDamageChance = mods.trueDamageChance;
+  next.trueDamagePerHit = mods.trueDamageAbilityDivisor ? next.ability / mods.trueDamageAbilityDivisor : 0;
+  next.trueDamageDoubled = mods.trueDamageDoubled;
+  next.doubleAttackChance = mods.doubleAttackAbilityDivisor
+    ? Math.min(1, next.ability / mods.doubleAttackAbilityDivisor / 100)
+    : 0;
   return next;
 }

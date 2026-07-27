@@ -325,32 +325,63 @@ function reducer(state, action) {
 
       const charStats = computeFinalStats(char);
 
-      // Talentos de arma/armadura equipada (lifesteal de adaga, penetração de armor,
-      // crítico...) só entram se o requisito ainda estiver ativo agora mesmo — troque
-      // a arma e o talento correspondente liga/desliga na hora (ver talents.js).
-      const isCrit = Math.random() < (charStats.critChance ?? 0);
-      // Cada golpe sorteia um valor dentro do range min-máx real (igual a barra
-      // "Dano por golpe X-Y" mostra) — usar sempre a média fazia todo hit sair com o
-      // mesmo número, sem a variação que o jogo real tem.
-      const { min: minDamage, max: maxDamage } = computeDamageRoll(charStats);
-      let baseDamage = minDamage + Math.random() * (maxDamage - minDamage);
-      if (isCrit) baseDamage *= charStats.critMultiplier ?? 1;
-      // Bestiário: cada estrela ganha nessa criatura específica (marcos de abates) dá
-      // +5% de dano só contra ela.
-      baseDamage *= monsterDamageMultiplier(char.monsterKills?.[currentMonster.name] ?? 0);
+      // Um golpe: dano físico normal (com crítico e mitigação de armadura) + a chance
+      // de dano-verdadeiro da adaga (Jagged Rhythm), que ignora armadura por completo
+      // e não é afetado por crítico. Talentos de arma/armadura só entram se o requisito
+      // ainda estiver ativo agora mesmo — troque a arma e eles ligam/desligam na hora.
+      function rollHit() {
+        const isCrit = Math.random() < (charStats.critChance ?? 0);
+        // Cada golpe sorteia um valor dentro do range min-máx real (igual a barra
+        // "Dano por golpe X-Y" mostra) — usar sempre a média fazia todo hit sair com o
+        // mesmo número, sem a variação que o jogo real tem.
+        const { min: minDamage, max: maxDamage } = computeDamageRoll(charStats);
+        let dmg = minDamage + Math.random() * (maxDamage - minDamage);
+        if (isCrit) dmg *= charStats.critMultiplier ?? 1;
+        // Bestiário: cada estrela ganha nessa criatura específica (marcos de abates) dá
+        // +5% de dano só contra ela.
+        dmg *= monsterDamageMultiplier(char.monsterKills?.[currentMonster.name] ?? 0);
 
-      const effectiveArmor = Math.max(0, currentMonster.armor * (1 - (charStats.armorPenPercent ?? 0) / 100));
-      const playerDamage = Math.max(1, baseDamage / (1 + effectiveArmor / 100));
+        const effectiveArmor = Math.max(0, currentMonster.armor * (1 - (charStats.armorPenPercent ?? 0) / 100));
+        const damage = Math.max(1, dmg / (1 + effectiveArmor / 100));
+
+        // Jagged Rhythm: 50% de chance de causar (Ability/4) de dano verdadeiro extra,
+        // ignorando a armadura. Dark Blade dobra esse dano verdadeiro, mas você recebe
+        // a mesma quantia de volta.
+        let trueDamage = 0;
+        if (charStats.trueDamageChance && Math.random() < charStats.trueDamageChance) {
+          trueDamage = charStats.trueDamagePerHit ?? 0;
+          if (charStats.trueDamageDoubled) trueDamage *= 2;
+        }
+        const selfTrueDamage = charStats.trueDamageDoubled && trueDamage > 0 ? trueDamage : 0;
+
+        return { damage, isCrit, trueDamage, selfTrueDamage };
+      }
+
+      // Luck Foreseen II: Ability/6 = % de chance de atacar duas vezes no mesmo golpe.
+      const hits = [rollHit()];
+      if (charStats.doubleAttackChance && Math.random() < charStats.doubleAttackChance) {
+        hits.push(rollHit());
+      }
+      const isCrit = hits.some((h) => h.isCrit);
+      const totalTrueDamage = hits.reduce((sum, h) => sum + h.trueDamage, 0);
+      const totalSelfDamage = hits.reduce((sum, h) => sum + h.selfTrueDamage, 0);
+      const playerDamage = hits.reduce((sum, h) => sum + h.damage, 0) + totalTrueDamage;
       const monsterHealth = Math.max(0, currentMonster.currentHealth - playerDamage);
 
       const lifestealHeal = playerDamage * ((charStats.lifestealPercent ?? 0) / 100);
 
       let log = pushLog(
         state.log,
-        `Você causou ${playerDamage.toFixed(1)} de dano em ${currentMonster.name}.${isCrit ? ' (crítico!)' : ''}`,
+        `Você causou ${playerDamage.toFixed(1)} de dano em ${currentMonster.name}.${isCrit ? ' (crítico!)' : ''}${hits.length > 1 ? ' (ataque duplo!)' : ''}`,
       );
+      if (totalTrueDamage > 0) {
+        log = pushLog(log, `Dano verdadeiro: +${totalTrueDamage.toFixed(1)} (ignora armadura).`);
+      }
       if (lifestealHeal > 0) {
         log = pushLog(log, `Lifesteal: +${lifestealHeal.toFixed(1)} de vida.`);
+      }
+      if (totalSelfDamage > 0) {
+        log = pushLog(log, `Dark Blade: você recebeu ${totalSelfDamage.toFixed(1)} de dano verdadeiro.`);
       }
 
       if (monsterHealth <= 0) {
@@ -426,7 +457,12 @@ function reducer(state, action) {
         };
         const newStats = computeFinalStats(updatedChar);
         // Subir de nível enche vida e mana por completo — igual ao jogo real.
-        updatedChar.currentHealth = leveledUp ? newStats.health : Math.min(newStats.health, char.currentHealth + lifestealHeal);
+        // Dark Blade pode causar dano em você mesmo (dano verdadeiro dobrado que
+        // recebe de volta) — não deixamos matar nessa hora pra não duplicar a lógica
+        // de morte/respawn do MONSTER_ATTACK, só reduz até o mínimo de 1 de vida.
+        updatedChar.currentHealth = leveledUp
+          ? newStats.health
+          : Math.max(1, Math.min(newStats.health, char.currentHealth + lifestealHeal) - totalSelfDamage);
         updatedChar.currentMana = leveledUp ? newStats.mana : Math.min(newStats.mana, char.currentMana);
 
         return {
@@ -438,7 +474,10 @@ function reducer(state, action) {
         };
       }
 
-      const healthAfterLifesteal = Math.min(charStats.health, char.currentHealth + lifestealHeal);
+      const healthAfterLifesteal = Math.max(
+        1,
+        Math.min(charStats.health, char.currentHealth + lifestealHeal) - totalSelfDamage,
+      );
 
       return {
         ...state,
