@@ -1,7 +1,7 @@
 import { RARITY_COLORS, RARITY_LABELS, formatItemStats } from '../data/gameData';
 import ItemIcon from './ItemIcon';
 
-function ItemRow({ item, actionLabel, onAction, onActionAll }) {
+function ItemRow({ item, actionLabel, onAction, onActionAll, disabled }) {
   return (
     <div className="bg-wood border border-wood-lighter rounded-lg p-2.5 flex flex-col gap-1.5">
       <div className="flex items-baseline justify-between gap-2">
@@ -20,14 +20,18 @@ function ItemRow({ item, actionLabel, onAction, onActionAll }) {
       <div className="flex gap-1 flex-wrap">
         <button
           onClick={() => onAction(item.id)}
-          className="text-[10px] font-medium bg-gold text-wood px-1.5 py-1 rounded cursor-pointer hover:bg-yellow-500"
+          disabled={disabled}
+          className="text-[10px] font-medium bg-gold text-wood px-1.5 py-1 rounded cursor-pointer hover:bg-yellow-500
+                     disabled:opacity-30 disabled:cursor-not-allowed"
         >
           {actionLabel} 1
         </button>
         {item.quantity > 1 && (
           <button
             onClick={() => onActionAll(item.id)}
-            className="text-[10px] font-medium bg-wood-light border border-wood-lighter px-1.5 py-1 rounded cursor-pointer hover:border-gold"
+            disabled={disabled}
+            className="text-[10px] font-medium bg-wood-light border border-wood-lighter px-1.5 py-1 rounded cursor-pointer
+                       hover:border-gold disabled:opacity-30 disabled:cursor-not-allowed"
           >
             {actionLabel} TUDO
           </button>
@@ -37,7 +41,7 @@ function ItemRow({ item, actionLabel, onAction, onActionAll }) {
   );
 }
 
-export default function Banco({ character, weight, depositItem, withdrawItem }) {
+export default function Banco({ character, weight, depositItem, withdrawItem, autoCombat }) {
   return (
     <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
       <div className="bg-wood-light border border-wood-lighter rounded-lg p-4">
@@ -47,6 +51,9 @@ export default function Banco({ character, weight, depositItem, withdrawItem }) 
         <p className="text-[11px] text-neutral-500 mb-3">
           Itens guardados no banco não pesam na mochila e ficam seguros pra sempre.
         </p>
+        {autoCombat && (
+          <p className="text-[11px] text-blood mb-2">⚔️ Em combate — pare a caçada pra mexer no banco.</p>
+        )}
         {character.inventory.length === 0 ? (
           <p className="text-sm text-neutral-400">Mochila vazia.</p>
         ) : (
@@ -58,6 +65,7 @@ export default function Banco({ character, weight, depositItem, withdrawItem }) 
                 actionLabel="GUARDAR"
                 onAction={(id) => depositItem(id, false)}
                 onActionAll={(id) => depositItem(id, true)}
+                disabled={autoCombat}
               />
             ))}
           </div>
@@ -80,6 +88,7 @@ export default function Banco({ character, weight, depositItem, withdrawItem }) 
                 actionLabel="RETIRAR"
                 onAction={(id) => withdrawItem(id, false)}
                 onActionAll={(id) => withdrawItem(id, true)}
+                disabled={autoCombat}
               />
             ))}
           </div>

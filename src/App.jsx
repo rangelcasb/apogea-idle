@@ -186,7 +186,13 @@ export default function App() {
           <Mercador character={character} buyItem={buyItem} sellToMerchant={sellToMerchant} autoCombat={autoCombat} />
         )}
         {activeTab === 'banco' && (
-          <Banco character={character} weight={weight} depositItem={depositItem} withdrawItem={withdrawItem} />
+          <Banco
+            character={character}
+            weight={weight}
+            depositItem={depositItem}
+            withdrawItem={withdrawItem}
+            autoCombat={autoCombat}
+          />
         )}
         {activeTab === 'bestiario' && <Bestiario character={character} />}
         {!TABS.find((t) => t.id === activeTab)?.implemented && (

@@ -477,6 +477,9 @@ function reducer(state, action) {
     case 'BUY_ITEM': {
       const char = state.character;
       if (!char) return state;
+      if (state.autoCombat) {
+        return { ...state, log: pushLog(state.log, 'Não dá pra comprar itens em combate — pare a caçada primeiro.') };
+      }
       const merchant = MERCHANTS_BY_NAME[action.merchantName];
       const offer = merchant?.sells.find((s) => s.name === action.itemName);
       if (!offer) {
@@ -550,6 +553,9 @@ function reducer(state, action) {
     case 'DEPOSIT_ITEM': {
       const char = state.character;
       if (!char) return state;
+      if (state.autoCombat) {
+        return { ...state, log: pushLog(state.log, 'Não dá pra mexer no banco em combate — pare a caçada primeiro.') };
+      }
       const item = char.inventory.find((i) => i.id === action.itemId);
       if (!item || item.quantity <= 0) return state;
 
@@ -573,6 +579,9 @@ function reducer(state, action) {
     case 'WITHDRAW_ITEM': {
       const char = state.character;
       if (!char) return state;
+      if (state.autoCombat) {
+        return { ...state, log: pushLog(state.log, 'Não dá pra mexer no banco em combate — pare a caçada primeiro.') };
+      }
       const item = char.bank.find((i) => i.id === action.itemId);
       if (!item || item.quantity <= 0) return state;
 

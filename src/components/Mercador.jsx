@@ -103,7 +103,7 @@ export default function Mercador({ character, buyItem, sellToMerchant, autoComba
                         {kind === 'sell' ? (
                           <button
                             onClick={() => buyItem(m.name, offer.name)}
-                            disabled={character.gold < offer.price || itemWeight(offer.name) > freeCapacity}
+                            disabled={autoCombat || character.gold < offer.price || itemWeight(offer.name) > freeCapacity}
                             className="text-[11px] font-medium bg-green-700 text-white px-2 py-0.5 rounded
                                        disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer hover:bg-green-600"
                           >
@@ -120,10 +120,13 @@ export default function Mercador({ character, buyItem, sellToMerchant, autoComba
                           </button>
                         )}
                       </div>
-                      {kind === 'sell' && character.gold < offer.price && (
+                      {kind === 'sell' && autoCombat && (
+                        <span className="text-[10px] text-blood">em combate</span>
+                      )}
+                      {kind === 'sell' && !autoCombat && character.gold < offer.price && (
                         <span className="text-[10px] text-blood">faltam {offer.price - character.gold}g</span>
                       )}
-                      {kind === 'sell' && character.gold >= offer.price && itemWeight(offer.name) > freeCapacity && (
+                      {kind === 'sell' && !autoCombat && character.gold >= offer.price && itemWeight(offer.name) > freeCapacity && (
                         <span className="text-[10px] text-blood">
                           não cabe ({itemWeight(offer.name)}/{Math.max(0, Math.round(freeCapacity))} oz livres)
                         </span>
@@ -172,17 +175,20 @@ export default function Mercador({ character, buyItem, sellToMerchant, autoComba
                         <span className="text-xs text-gold">{offer.price}g</span>
                         <button
                           onClick={() => buyItem(merchant.name, offer.name)}
-                          disabled={character.gold < offer.price || itemWeight(offer.name) > freeCapacity}
+                          disabled={autoCombat || character.gold < offer.price || itemWeight(offer.name) > freeCapacity}
                           className="text-[11px] font-medium bg-green-700 text-white px-2 py-0.5 rounded
                                      disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer hover:bg-green-600"
                         >
                           COMPRAR
                         </button>
                       </div>
-                      {character.gold < offer.price && (
+                      {autoCombat && (
+                        <span className="text-[10px] text-blood">em combate</span>
+                      )}
+                      {!autoCombat && character.gold < offer.price && (
                         <span className="text-[10px] text-blood">faltam {offer.price - character.gold}g</span>
                       )}
-                      {character.gold >= offer.price && itemWeight(offer.name) > freeCapacity && (
+                      {!autoCombat && character.gold >= offer.price && itemWeight(offer.name) > freeCapacity && (
                         <span className="text-[10px] text-blood">
                           não cabe ({itemWeight(offer.name)}/{Math.max(0, Math.round(freeCapacity))} oz livres)
                         </span>
