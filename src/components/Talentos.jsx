@@ -34,9 +34,10 @@ function TalentNode({ talent, points, canInvest, isActive, onInvest }) {
   );
 }
 
-export default function Talentos({ character, talentPointsAvailable, investTalent }) {
+export default function Talentos({ character, talentPointsAvailable, investTalent, resetTalents, talentResetCost }) {
   const branches = Object.keys(TALENT_BRANCHES).filter((b) => b !== 'core');
   const talentPoints = character.talentPoints ?? {};
+  const hasInvestedPoints = Object.values(talentPoints).some((p) => p > 0);
 
   return (
     <div className="flex-1">
@@ -50,6 +51,17 @@ export default function Talentos({ character, talentPointsAvailable, investTalen
           (Adaga, Arco, Espada, Escudo, Orbe, Armaduras) só funcionam se você tiver o
           item certo equipado — troque de arma e eles ligam/desligam na hora. Os que
           dependem de magias que este jogo idle não simula usam um bônus aproximado.
+        </p>
+        <button
+          onClick={resetTalents}
+          disabled={!hasInvestedPoints || character.gold < talentResetCost}
+          className="mt-3 text-xs font-medium bg-wood border border-wood-lighter rounded px-3 py-1.5
+                     disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer hover:border-blood hover:text-blood"
+        >
+          RESETAR TALENTOS ({talentResetCost.toLocaleString('pt-BR')}G)
+        </button>
+        <p className="text-[10px] text-neutral-600 mt-1">
+          Custo dobra a cada reset (começa em 200g). Devolve todos os pontos investidos.
         </p>
       </div>
 

@@ -56,6 +56,8 @@ export default function App() {
     resetAttributes,
     respecCost,
     investTalent,
+    resetTalents,
+    talentResetCost,
     talentPointsAvailable,
     unspentPoints,
     weight,
@@ -182,7 +184,13 @@ export default function App() {
           />
         )}
         {activeTab === 'talentos' && (
-          <Talentos character={character} talentPointsAvailable={talentPointsAvailable} investTalent={investTalent} />
+          <Talentos
+            character={character}
+            talentPointsAvailable={talentPointsAvailable}
+            investTalent={investTalent}
+            resetTalents={resetTalents}
+            talentResetCost={talentResetCost}
+          />
         )}
         {activeTab === 'quests' && (
           <Quests character={character} zones={zones} claimQuest={claimQuest} />

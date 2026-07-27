@@ -46,6 +46,14 @@ const TURN_MS = 2000;
 const REGEN_TICK_MS = 10000;
 const STORAGE_KEY = 'apogea-idle-character';
 const RESPEC_COST = 200;
+const TALENT_RESET_BASE_COST = 200;
+
+// Custo dobra a cada reset de talentos (200, 400, 800, 1600...) — não é um valor real
+// do jogo (o jogo real não deixa resetar talentos livremente), é uma mecânica nossa
+// pra desencorajar respec repetido sem travar de vez.
+function talentResetCost(resetCount) {
+  return TALENT_RESET_BASE_COST * 2 ** (resetCount ?? 0);
+}
 
 // Aplica ganho de XP e resolve level-ups (compartilhado entre matar monstro e
 // reivindicar recompensa de quest). Retorna os campos atualizados + log com as
@@ -122,6 +130,7 @@ function createCharacter(name) {
     bank: [],
     monsterKills: {},
     itemBlacklist: [],
+    talentResetCount: 0,
     currentHealth: 0,
     currentMana: 0,
     zoneId: ZONES[0].id,
@@ -164,6 +173,7 @@ function migrateCharacter(char) {
       typeof entry === 'string' ? { name: entry, minRarity: null } : entry,
     ),
     autoCombat: char.autoCombat ?? false,
+    talentResetCount: char.talentResetCount ?? 0,
     updatedAt: char.updatedAt ?? 0,
   };
 }
@@ -750,6 +760,24 @@ function reducer(state, action) {
       };
     }
 
+    case 'RESET_TALENTS': {
+      const char = state.character;
+      if (!char) return state;
+      const cost = talentResetCost(char.talentResetCount);
+      const hasPoints = Object.values(char.talentPoints ?? {}).some((p) => p > 0);
+      if (char.gold < cost || !hasPoints) return state;
+      return {
+        ...state,
+        character: {
+          ...char,
+          gold: char.gold - cost,
+          talentPoints: {},
+          talentResetCount: (char.talentResetCount ?? 0) + 1,
+        },
+        log: pushLog(state.log, `Talentos resetados por ${cost} gold.`),
+      };
+    }
+
     case 'INVEST_TALENT': {
       const char = state.character;
       if (!char) return state;
@@ -953,6 +981,7 @@ export function useGameState() {
   const unequipItem = useCallback((slot) => dispatch({ type: 'UNEQUIP_ITEM', slot }), []);
   const allocateStat = useCallback((stat) => dispatch({ type: 'ALLOCATE_STAT', stat }), []);
   const resetAttributes = useCallback(() => dispatch({ type: 'RESET_ATTRIBUTES' }), []);
+  const resetTalents = useCallback(() => dispatch({ type: 'RESET_TALENTS' }), []);
   const investTalent = useCallback((talentId) => dispatch({ type: 'INVEST_TALENT', talentId }), []);
   const changeZone = useCallback((zoneId) => dispatch({ type: 'CHANGE_ZONE', zoneId }), []);
   const claimQuest = useCallback((questId) => dispatch({ type: 'CLAIM_QUEST', questId }), []);
@@ -985,6 +1014,8 @@ export function useGameState() {
     resetAttributes,
     respecCost: RESPEC_COST,
     investTalent,
+    resetTalents,
+    talentResetCost: state.character ? talentResetCost(state.character.talentResetCount) : TALENT_RESET_BASE_COST,
     talentPointsAvailable: state.character
       ? talentPointsForLevel(state.character.level) - spentTalentPoints(state.character.talentPoints)
       : 0,
