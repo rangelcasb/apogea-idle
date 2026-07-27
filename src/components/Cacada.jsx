@@ -129,6 +129,7 @@ export default function Cacada({ character, monster, log, autoCombat, setAutoCom
   // vivo. Fora de combate, mostra a grade de zonas — igual à tela "Zonas de Caça".
   if (autoCombat) {
     const hpPct = Math.max(0, (character.currentHealth / character.stats.health) * 100);
+    const mpPct = Math.max(0, (character.currentMana / character.stats.mana) * 100);
     const monsterHpPct = displayedMonster
       ? Math.max(0, (displayedMonster.currentHealth / displayedMonster.maxHealth) * 100)
       : 0;
@@ -188,6 +189,9 @@ export default function Cacada({ character, monster, log, autoCombat, setAutoCom
                 <div className="w-24 h-2 bg-black/50 rounded overflow-hidden">
                   <div className="h-full bg-blood transition-all" style={{ width: `${hpPct}%` }} />
                 </div>
+                <div className="w-24 h-2 bg-black/50 rounded overflow-hidden">
+                  <div className="h-full bg-blue-500 transition-all" style={{ width: `${mpPct}%` }} />
+                </div>
                 <div className="relative w-16 h-16 flex items-center justify-center">
                   <img
                     key={`player-icon-${playerHitId}`}
@@ -197,6 +201,16 @@ export default function Cacada({ character, monster, log, autoCombat, setAutoCom
                   />
                   <Floaters floaters={floaters} side="player" />
                 </div>
+                <p className="text-[10px] text-neutral-200 drop-shadow text-center">
+                  {Math.round(character.currentHealth)}/{Math.round(character.stats.health)} HP
+                  {' · '}
+                  {Math.round(character.currentMana)}/{Math.round(character.stats.mana)} MP
+                  <br />
+                  <span className="text-green-400">+{character.stats.hpRegen.toFixed(1)} HP</span>
+                  {' · '}
+                  <span className="text-blue-300">+{character.stats.mpRegen.toFixed(1)} MP</span>
+                  <span className="text-neutral-400"> /10s</span>
+                </p>
               </div>
 
               <div className="relative flex flex-col items-center gap-1">
