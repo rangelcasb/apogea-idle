@@ -373,8 +373,14 @@ function reducer(state, action) {
           return minRarity ? rarityAtLeast(item.rarity, minRarity) : false;
         });
 
-        const { inventory: mergedInventory, rejected } = mergeLoot(char.inventory, itemDrops, charStats.capacity);
-        for (const item of itemDrops) {
+        // Com comer automático ligado, comida nem entra na checagem de peso — ela é
+        // comida na hora, nunca fica ocupando espaço, então "mochila cheia" não deve
+        // bloquear um alimento que nem vai ficar guardado.
+        const foodDrops = char.autoEat ? itemDrops.filter((i) => FOOD_CATEGORIES.has(i.category)) : [];
+        const nonFoodDrops = char.autoEat ? itemDrops.filter((i) => !FOOD_CATEGORIES.has(i.category)) : itemDrops;
+
+        const { inventory: mergedInventory, rejected } = mergeLoot(char.inventory, nonFoodDrops, charStats.capacity);
+        for (const item of nonFoodDrops) {
           const wasRejected = rejected.includes(item);
           log = pushLog(
             log,
@@ -386,11 +392,13 @@ function reducer(state, action) {
 
         let inventoryAfterLoot = mergedInventory;
         let satiety = char.satiety;
-        if (char.autoEat) {
-          const eaten = autoEatAllFood(inventoryAfterLoot, satiety, log);
-          inventoryAfterLoot = eaten.inventory;
-          satiety = eaten.satiety;
-          log = eaten.log;
+        for (const food of foodDrops) {
+          for (let i = 0; i < food.quantity; i++) satiety = eatFood(satiety, food.category);
+          satiety.foodName = satiety.foodName ?? food.name;
+          log = pushLog(
+            log,
+            `Você comeu ${food.name} x${food.quantity} automaticamente. Saciado por ${Math.round(satiety.remainingMs / 60000)}min.`,
+          );
         }
 
         const { xp, level, levelBatches, log: logAfterXp, leveledUp } = applyXpGain(char, xpGain, log);
@@ -613,6 +621,18 @@ function reducer(state, action) {
       }
 
       const def = getShopItemDefinition(action.itemName);
+      let log = pushLog(state.log, `Você comprou ${action.itemName} de ${merchant.name} por ${offer.price} gold.`);
+      let satiety = char.satiety;
+
+      // Comida comprada com comer automático ligado é comida na hora — não depende de
+      // espaço na mochila (nunca chega a ficar guardada).
+      if (char.autoEat && FOOD_CATEGORIES.has(def.category)) {
+        satiety = eatFood(satiety, def.category);
+        satiety.foodName = satiety.foodName ?? action.itemName;
+        log = pushLog(log, `Você comeu ${action.itemName} automaticamente. Saciado por ${Math.round(satiety.remainingMs / 60000)}min.`);
+        return { ...state, character: { ...char, gold: char.gold - offer.price, satiety }, log };
+      }
+
       const id = `${slugify(action.itemName)}-${def.rarity}`;
       const addedWeight = def.weight ?? 1;
       const currentWeight = inventoryWeight(char.inventory);
@@ -622,18 +642,9 @@ function reducer(state, action) {
       }
 
       const idx = char.inventory.findIndex((i) => i.id === id);
-      let inventory = idx >= 0
+      const inventory = idx >= 0
         ? char.inventory.map((i, ix) => (ix === idx ? { ...i, quantity: i.quantity + 1 } : i))
         : [...char.inventory, { id, name: action.itemName, quantity: 1, ...def }];
-
-      let log = pushLog(state.log, `Você comprou ${action.itemName} de ${merchant.name} por ${offer.price} gold.`);
-      let satiety = char.satiety;
-      if (char.autoEat) {
-        const eaten = autoEatAllFood(inventory, satiety, log);
-        inventory = eaten.inventory;
-        satiety = eaten.satiety;
-        log = eaten.log;
-      }
 
       return {
         ...state,
