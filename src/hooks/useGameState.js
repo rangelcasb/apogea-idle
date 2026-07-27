@@ -54,14 +54,16 @@ function applyXpGain(char, xpGain, log) {
   let levelBatches = char.levelBatches;
   let needed = xpForNextLevel(level);
   let nextLog = log;
+  let didLevelUp = false;
   while (xp >= needed) {
     xp -= needed;
     level += 1;
+    didLevelUp = true;
     levelBatches = [...levelBatches, { remaining: POINTS_PER_LEVEL, spent: {} }];
     nextLog = pushLog(nextLog, `Level up! Agora você é nível ${level}. +${POINTS_PER_LEVEL} pontos de atributo.`);
     needed = xpForNextLevel(level);
   }
-  return { xp, level, levelBatches, log: nextLog };
+  return { xp, level, levelBatches, log: nextLog, leveledUp: didLevelUp };
 }
 
 function inventoryWeight(inventory) {
@@ -283,7 +285,7 @@ function reducer(state, action) {
           );
         }
 
-        const { xp, level, levelBatches, log: logAfterXp } = applyXpGain(char, xpGain, log);
+        const { xp, level, levelBatches, log: logAfterXp, leveledUp } = applyXpGain(char, xpGain, log);
         log = logAfterXp;
 
         const zoneKills = { ...char.zoneKills, [char.zoneId]: (char.zoneKills[char.zoneId] ?? 0) + 1 };
@@ -306,8 +308,9 @@ function reducer(state, action) {
           inventory: mergedInventory,
         };
         const newStats = computeFinalStats(updatedChar);
-        updatedChar.currentHealth = Math.min(newStats.health, char.currentHealth + lifestealHeal);
-        updatedChar.currentMana = Math.min(newStats.mana, char.currentMana);
+        // Subir de nível enche vida e mana por completo — igual ao jogo real.
+        updatedChar.currentHealth = leveledUp ? newStats.health : Math.min(newStats.health, char.currentHealth + lifestealHeal);
+        updatedChar.currentMana = leveledUp ? newStats.mana : Math.min(newStats.mana, char.currentMana);
 
         return { ...state, character: updatedChar, monster: pickMonster(char.zoneId), log };
       }
@@ -664,7 +667,7 @@ function reducer(state, action) {
         state.log,
         `Quest concluída: ${quest.description} — +${quest.rewardGold} gold, +${quest.rewardXp} XP.`,
       );
-      const { xp, level, levelBatches, log } = applyXpGain(char, quest.rewardXp, log0);
+      const { xp, level, levelBatches, log, leveledUp } = applyXpGain(char, quest.rewardXp, log0);
 
       const updatedChar = {
         ...char,
@@ -677,8 +680,9 @@ function reducer(state, action) {
         claimedQuests: [...char.claimedQuests, quest.id],
       };
       const newStats = computeFinalStats(updatedChar);
-      updatedChar.currentHealth = Math.min(newStats.health, char.currentHealth);
-      updatedChar.currentMana = Math.min(newStats.mana, char.currentMana);
+      // Subir de nível enche vida e mana por completo — igual ao jogo real.
+      updatedChar.currentHealth = leveledUp ? newStats.health : Math.min(newStats.health, char.currentHealth);
+      updatedChar.currentMana = leveledUp ? newStats.mana : Math.min(newStats.mana, char.currentMana);
 
       return { ...state, character: updatedChar, log };
     }
