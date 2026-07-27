@@ -124,6 +124,7 @@ function createCharacter(name) {
     zoneId: ZONES[0].id,
     satiety: { remainingMs: 0, bonus: null, foodName: null },
     claimedQuests: [],
+    autoCombat: false,
     updatedAt: Date.now(),
   };
   const stats = computeFinalStats(raw);
@@ -154,6 +155,7 @@ function migrateCharacter(char) {
     inventory: char.inventory ?? [],
     bank: char.bank ?? [],
     monsterKills: char.monsterKills ?? {},
+    autoCombat: char.autoCombat ?? false,
     updatedAt: char.updatedAt ?? 0,
   };
 }
@@ -175,7 +177,9 @@ function init() {
     character,
     monster: character ? pickMonster(character.zoneId) : null,
     log: [],
-    autoCombat: false,
+    // Retoma o combate automático de onde parou — se estava caçando quando a aba
+    // fechou (e não morreu), continua caçando ao reabrir.
+    autoCombat: character?.autoCombat && character.currentHealth > 0,
   };
 }
 
@@ -222,7 +226,7 @@ function reducer(state, action) {
         character,
         monster: pickMonster(character.zoneId),
         log: pushLog([], `Personagem sincronizado! Bem-vindo de volta, ${character.name}.`),
-        autoCombat: false,
+        autoCombat: character.autoCombat && character.currentHealth > 0,
       };
     }
 
@@ -231,7 +235,10 @@ function reducer(state, action) {
 
     case 'SET_AUTO_COMBAT': {
       const value = typeof action.valueOrFn === 'function' ? action.valueOrFn(state.autoCombat) : action.valueOrFn;
-      return { ...state, autoCombat: value };
+      // Guarda no personagem também (não só no estado local) — é o que permite
+      // salvar isso no localStorage/nuvem e retomar a caçada ao reabrir o jogo.
+      const character = state.character ? { ...state.character, autoCombat: value } : state.character;
+      return { ...state, character, autoCombat: value };
     }
 
     case 'TICK': {
@@ -339,7 +346,7 @@ function reducer(state, action) {
 
       return {
         ...state,
-        character: { ...char, currentHealth: newHealth, deaths },
+        character: { ...char, currentHealth: newHealth, deaths, autoCombat },
         monster: { ...currentMonster, currentHealth: monsterHealth },
         log,
         autoCombat,
