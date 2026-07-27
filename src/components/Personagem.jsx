@@ -43,9 +43,9 @@ export default function Personagem({
   const dps = avgDamage / interval;
 
   return (
-    <div className="flex-1 grid grid-cols-1 lg:grid-cols-5 gap-4 items-start">
+    <div className="flex-1 grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-5 gap-4 items-start">
       {/* Coluna Atributos + Combate */}
-      <div className="flex flex-col gap-4 lg:col-span-2">
+      <div className="flex flex-col gap-4 2xl:col-span-2">
         <div className="bg-wood-light border border-wood-lighter rounded-lg p-4">
           <h3 className="text-gold font-semibold tracking-wide mb-3">◆ ATRIBUTOS</h3>
 

@@ -109,7 +109,7 @@ export default function App() {
   const currentZone = zones.find((z) => z.id === character.zoneId);
 
   return (
-    <div className="max-w-6xl mx-auto min-h-svh flex flex-col">
+    <div className="max-w-[1600px] mx-auto min-h-svh flex flex-col">
       <header className="flex items-center justify-between px-4 py-3 border-b border-wood-lighter">
         <div>
           <h1 className="text-xl font-bold text-gold tracking-wide">APOGEA IDLE</h1>
