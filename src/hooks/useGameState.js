@@ -108,6 +108,32 @@ function mergeLoot(inventory, droppedItems, capacity) {
   return { inventory: next, rejected };
 }
 
+// Comer automático (opção "Comer automático" do painel Personagem): come TODA comida
+// de saciedade (RawFood/EdibleFood/CookedFood/SpecialFood/Drinks) que estiver na
+// mochila assim que ela chega — seja de loot ou de compra no mercador. Come a pilha
+// inteira de uma vez (a duração de cada unidade soma, igual comer manualmente várias
+// vezes seguidas).
+function autoEatAllFood(inventory, satiety, log) {
+  let nextInventory = inventory;
+  let nextSatiety = satiety;
+  let nextLog = log;
+
+  for (const item of inventory) {
+    if (!FOOD_CATEGORIES.has(item.category) || item.quantity <= 0) continue;
+    for (let i = 0; i < item.quantity; i++) {
+      nextSatiety = eatFood(nextSatiety, item.category);
+    }
+    nextSatiety.foodName = nextSatiety.foodName ?? item.name;
+    nextInventory = nextInventory.filter((it) => it.id !== item.id);
+    nextLog = pushLog(
+      nextLog,
+      `Você comeu ${item.name} x${item.quantity} automaticamente. Saciado por ${Math.round(nextSatiety.remainingMs / 60000)}min.`,
+    );
+  }
+
+  return { inventory: nextInventory, satiety: nextSatiety, log: nextLog };
+}
+
 function emptyEquipment() {
   return Object.fromEntries(Object.keys(EQUIP_SLOTS).map((slot) => [slot, null]));
 }
@@ -141,6 +167,7 @@ function createCharacter(name) {
     satiety: { remainingMs: 0, bonus: null, foodName: null },
     claimedQuests: [],
     autoCombat: false,
+    autoEat: false,
     updatedAt: Date.now(),
   };
   const stats = computeFinalStats(raw);
@@ -177,6 +204,7 @@ function migrateCharacter(char) {
       typeof entry === 'string' ? { name: entry, minRarity: null } : entry,
     ),
     autoCombat: char.autoCombat ?? false,
+    autoEat: char.autoEat ?? false,
     talentResetCount: char.talentResetCount ?? 0,
     updatedAt: char.updatedAt ?? 0,
   };
@@ -266,6 +294,23 @@ function reducer(state, action) {
       return { ...state, character, autoCombat: value };
     }
 
+    case 'SET_AUTO_EAT': {
+      const char = state.character;
+      if (!char) return state;
+      // Ligar a opção já come na hora toda comida que estiver parada na mochila —
+      // não só a que chegar depois.
+      let inventory = char.inventory;
+      let satiety = char.satiety;
+      let log = state.log;
+      if (action.enabled) {
+        const eaten = autoEatAllFood(inventory, satiety, log);
+        inventory = eaten.inventory;
+        satiety = eaten.satiety;
+        log = eaten.log;
+      }
+      return { ...state, character: { ...char, autoEat: action.enabled, inventory, satiety }, log };
+    }
+
     // Ataque do jogador e ataque do monstro rodam em RELÓGIOS INDEPENDENTES (ver
     // useGameState() mais abaixo), cada um no seu próprio intervalo real — se sua
     // Attack Speed for o dobro da do monstro, você bate 2x pra cada 1x dele, de verdade,
@@ -339,6 +384,15 @@ function reducer(state, action) {
           );
         }
 
+        let inventoryAfterLoot = mergedInventory;
+        let satiety = char.satiety;
+        if (char.autoEat) {
+          const eaten = autoEatAllFood(inventoryAfterLoot, satiety, log);
+          inventoryAfterLoot = eaten.inventory;
+          satiety = eaten.satiety;
+          log = eaten.log;
+        }
+
         const { xp, level, levelBatches, log: logAfterXp, leveledUp } = applyXpGain(char, xpGain, log);
         log = logAfterXp;
 
@@ -359,7 +413,8 @@ function reducer(state, action) {
           monsterKills,
           totalGoldEarned: char.totalGoldEarned + goldDrop,
           totalXpEarned: char.totalXpEarned + xpGain,
-          inventory: mergedInventory,
+          inventory: inventoryAfterLoot,
+          satiety,
         };
         const newStats = computeFinalStats(updatedChar);
         // Subir de nível enche vida e mana por completo — igual ao jogo real.
@@ -449,9 +504,10 @@ function reducer(state, action) {
 
       let satiety = tickSatiety(char.satiety, REGEN_TICK_MS);
 
-      // Comer automático: se a saciedade zerou e tem comida na mochila, come sozinho
-      // pra manter o bônus ativo sem precisar voltar pra tela toda hora.
-      if (satiety.remainingMs <= 0) {
+      // Comer automático (opção ligada no painel do Personagem): se a saciedade zerou
+      // e sobrou comida na mochila (normalmente não sobra, já que agora se come na
+      // hora que a comida chega), come sozinho como último recurso.
+      if (char.autoEat && satiety.remainingMs <= 0) {
         const foodIdx = inventory.findIndex((i) => FOOD_CATEGORIES.has(i.category) && i.quantity > 0);
         if (foodIdx >= 0) {
           const food = inventory[foodIdx];
@@ -566,14 +622,23 @@ function reducer(state, action) {
       }
 
       const idx = char.inventory.findIndex((i) => i.id === id);
-      const inventory = idx >= 0
+      let inventory = idx >= 0
         ? char.inventory.map((i, ix) => (ix === idx ? { ...i, quantity: i.quantity + 1 } : i))
         : [...char.inventory, { id, name: action.itemName, quantity: 1, ...def }];
 
+      let log = pushLog(state.log, `Você comprou ${action.itemName} de ${merchant.name} por ${offer.price} gold.`);
+      let satiety = char.satiety;
+      if (char.autoEat) {
+        const eaten = autoEatAllFood(inventory, satiety, log);
+        inventory = eaten.inventory;
+        satiety = eaten.satiety;
+        log = eaten.log;
+      }
+
       return {
         ...state,
-        character: { ...char, gold: char.gold - offer.price, inventory },
-        log: pushLog(state.log, `Você comprou ${action.itemName} de ${merchant.name} por ${offer.price} gold.`),
+        character: { ...char, gold: char.gold - offer.price, inventory, satiety },
+        log,
       };
     }
 
@@ -1044,6 +1109,7 @@ export function useGameState() {
     dispatch({ type: 'RESET' });
   }, []);
   const setAutoCombat = useCallback((valueOrFn) => dispatch({ type: 'SET_AUTO_COMBAT', valueOrFn }), []);
+  const setAutoEat = useCallback((enabled) => dispatch({ type: 'SET_AUTO_EAT', enabled }), []);
   const consumeItem = useCallback((itemId) => dispatch({ type: 'CONSUME_ITEM', itemId }), []);
   const sellItem = useCallback((itemId, all) => dispatch({ type: 'SELL_ITEM', itemId, all }), []);
   const discardItem = useCallback((itemId) => dispatch({ type: 'DISCARD_ITEM', itemId }), []);
@@ -1074,6 +1140,7 @@ export function useGameState() {
     log: state.log,
     autoCombat: state.autoCombat,
     setAutoCombat,
+    setAutoEat,
     createNewCharacter,
     chooseVocation,
     vocationCost: VOCATION_COST,

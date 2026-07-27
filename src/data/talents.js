@@ -170,6 +170,35 @@ const RAW_TALENTS = [
   { id: 61, name: 'Unstable Aegis', parent: 60, branch: 'orb', description: 'Taking shield damage will cast Unstable Berserk around yourself', ranks: [] },
 ];
 
+// Requisito extra REAL (fonte: código-fonte da calculadora paszqa.github.io/apogea-traits)
+// dos talentos "finais" de cada ramo (sem rank, um ponto só): além do pai direto
+// precisar estar no MÁXIMO, o nó-tronco do ramo (o que conecta direto na raiz) também
+// precisa estar maximizado. Ex: pra pegar "Luck Foreseen" (13), Shearing Stroke (12,
+// pai direto) precisa estar nos 3 pontos E Stabbing Preference (10, tronco do ramo
+// adaga) precisa estar nos 5 pontos.
+const EXTRA_REQUIREMENTS = {
+  4: [[3, 3], [1, 5]],
+  63: [[62, 3], [1, 5]],
+  7: [[6, 3], [1, 5]],
+  9: [[8, 3], [1, 5]],
+  13: [[10, 5], [12, 3]],
+  15: [[10, 5], [14, 3]],
+  19: [[16, 5], [18, 3]],
+  21: [[16, 5], [20, 3]],
+  24: [[23, 3], [16, 5]],
+  28: [[27, 3], [25, 5]],
+  31: [[30, 3], [25, 5]],
+  36: [[32, 5], [34, 3]],
+  38: [[37, 3], [32, 5]],
+  42: [[41, 3], [39, 5]],
+  45: [[44, 3], [39, 5]],
+  50: [[49, 3], [47, 5]],
+  52: [[51, 3], [47, 5]],
+  54: [[47, 5], [53, 3]],
+  59: [[56, 5], [58, 3]],
+  61: [[56, 5], [60, 3]],
+};
+
 export const TALENTS = RAW_TALENTS.map((t) => ({
   ...t,
   maxPoints: Math.max(1, t.ranks.length),
@@ -188,16 +217,31 @@ export function spentTalentPoints(talentPoints) {
   return Object.values(talentPoints ?? {}).reduce((sum, n) => sum + n, 0);
 }
 
-// Pré-requisito simplificado: precisa ter pelo menos 1 ponto no talento-pai (a raiz,
-// id 0, está sempre "ativa"). O jogo real exige ranks específicos do pai em alguns
-// casos — simplificamos para "ao menos 1 ponto".
+// Pré-requisito REAL (mesma lógica da calculadora oficial da comunidade):
+// 1) O nível do filho nunca pode alcançar/ultrapassar o nível ATUAL do pai — dá pra
+//    intercalar (pai+1, filho+1, pai+1, filho+1...), mas o filho nunca fica à frente.
+//    Nós ligados direto na raiz (parent 0) não têm essa trava.
+// 2) Talentos finais de cada ramo (ver EXTRA_REQUIREMENTS) também exigem o nó-tronco
+//    do ramo maximizado, além do pai direto maximizado.
 export function canInvestTalent(talentPoints, talentId) {
   const talent = TALENTS_BY_ID[talentId];
   if (!talent || talent.parent === null) return false;
   const current = talentPoints?.[talentId] ?? 0;
   if (current >= talent.maxPoints) return false;
-  if (talent.parent === 0) return true;
-  return (talentPoints?.[talent.parent] ?? 0) > 0;
+
+  if (talent.parent !== 0) {
+    const parentLevel = talentPoints?.[talent.parent] ?? 0;
+    if (current >= parentLevel) return false;
+  }
+
+  const extra = EXTRA_REQUIREMENTS[talentId];
+  if (extra) {
+    for (const [reqId, reqLevel] of extra) {
+      if ((talentPoints?.[reqId] ?? 0) < reqLevel) return false;
+    }
+  }
+
+  return true;
 }
 
 // Agrega os efeitos de TODOS os talentos investidos E cujo requisito de equipamento

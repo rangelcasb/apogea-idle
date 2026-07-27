@@ -39,6 +39,7 @@ export default function App() {
     log,
     autoCombat,
     setAutoCombat,
+    setAutoEat,
     createNewCharacter,
     chooseVocation,
     vocationCost,
@@ -199,6 +200,7 @@ export default function App() {
             vocationCost={vocationCost}
             autoCombat={autoCombat}
             addToBlacklist={addToBlacklist}
+            setAutoEat={setAutoEat}
           />
         )}
         {activeTab === 'talentos' && (

@@ -36,6 +36,7 @@ export default function Personagem({
   vocationCost,
   autoCombat,
   addToBlacklist,
+  setAutoEat,
 }) {
   const isSquire = character.class === 'Squire';
   const handSize = (character.equipment.weapon?.equipSize ?? 0) + (character.equipment.offhand?.equipSize ?? 0);
@@ -182,6 +183,24 @@ export default function Personagem({
               )}
             </div>
           )}
+        </div>
+
+        <div className="bg-wood-light border border-wood-lighter rounded-lg p-4">
+          <label className="flex items-center justify-between gap-2 cursor-pointer">
+            <span>
+              <span className="text-gold font-semibold tracking-wide">◆ COMER AUTOMÁTICO</span>
+              <p className="text-[11px] text-neutral-500 mt-0.5">
+                Come qualquer comida assim que ela chega na mochila (loot ou compra), pra manter
+                a saciedade sempre ativa sem precisar voltar na tela.
+              </p>
+            </span>
+            <input
+              type="checkbox"
+              checked={character.autoEat ?? false}
+              onChange={(e) => setAutoEat(e.target.checked)}
+              className="shrink-0 w-5 h-5 accent-gold cursor-pointer"
+            />
+          </label>
         </div>
 
         <div className="bg-wood-light border border-wood-lighter rounded-lg p-4">
