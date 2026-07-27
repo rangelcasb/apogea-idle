@@ -33,7 +33,6 @@ import {
   logout,
   saveGameState,
   loadGameState,
-  checkRedirectResult,
 } from '../services/firebase';
 
 const SYNC_DEBOUNCE_MS = 1500;
@@ -652,13 +651,6 @@ export function useGameState() {
   // Login com Google dá o MESMO UID em qualquer dispositivo — é essa a chave usada
   // no Firestore, então não precisa de código nenhum pra continuar no celular.
   useEffect(() => {
-    // Necessário pra capturar erro de configuração (ex: domínio não autorizado no
-    // Firebase, ou cookies de terceiros bloqueados) quando o usuário volta do
-    // redirect do login do Google — mostramos isso na tela em vez de só no console.
-    checkRedirectResult().catch((err) => {
-      console.error('Falha no login com Google:', err);
-      setAuthError(err?.code || err?.message || 'Erro desconhecido no login.');
-    });
     const unsubscribe = onAuthChange((firebaseUser) => {
       setUser(firebaseUser);
       setAuthLoading(false);

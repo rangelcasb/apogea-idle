@@ -2,8 +2,7 @@ import { initializeApp } from 'firebase/app';
 import {
   getAuth,
   GoogleAuthProvider,
-  signInWithRedirect,
-  getRedirectResult,
+  signInWithPopup,
   signOut,
   onAuthStateChanged,
 } from 'firebase/auth';
@@ -32,15 +31,14 @@ export const db = getFirestore(app);
 // Login com Google — a MESMA conta em qualquer dispositivo dá o mesmo UID, então
 // o personagem sincroniza sozinho sem precisar de código nenhum (diferente do login
 // anônimo, que gera um UID novo e desconectado em cada navegador/dispositivo).
-// Usa redirect em vez de popup: popup depende de comunicação entre janelas que
-// hosts como Vercel costumam bloquear por segurança (COOP), fazendo o popup fechar
-// sozinho como se o usuário tivesse cancelado.
+// Popup (não redirect): o redirect depende de um "cofre" de dados guardado no domínio
+// do Firebase (apogeaidle.firebaseapp.com) que o navegador trata como terceiro em
+// relação ao site — em vários navegadores isso se perde durante a ida-e-volta e o
+// login falha silenciosamente. Popup conversa com a janela do site em tempo real, sem
+// depender desse armazenamento; o vercel.json ajusta o cabeçalho COOP que antes fazia
+// o popup fechar sozinho.
 export function loginWithGoogle() {
-  return signInWithRedirect(auth, new GoogleAuthProvider());
-}
-
-export function checkRedirectResult() {
-  return getRedirectResult(auth);
+  return signInWithPopup(auth, new GoogleAuthProvider());
 }
 
 export function logout() {
