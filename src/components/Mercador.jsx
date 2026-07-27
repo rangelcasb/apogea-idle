@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { MERCHANTS, getShopItemDefinition, formatItemStats } from '../data/gameData';
+import ItemIcon from './ItemIcon';
 
 // Busca por nome de item em TODOS os mercadores de uma vez — sem isso, achar quem
 // vende/compra um item específico exigia clicar um por um nos 53 NPCs.
@@ -79,11 +80,14 @@ export default function Mercador({ character, buyItem, sellToMerchant, autoComba
                     key={`${m.name}-${kind}-${offer.name}`}
                     className="flex items-center justify-between bg-wood border border-wood-lighter rounded px-2.5 py-1.5 gap-2"
                   >
-                    <div className="min-w-0">
-                      <p className="text-xs text-neutral-200">
-                        {offer.name} <span className="text-neutral-500">({kind === 'sell' ? 'compra de' : 'venda para'} {m.name})</span>
-                      </p>
-                      {stats && <p className="text-[10px] text-gold truncate">{formatItemStats(stats)}</p>}
+                    <div className="min-w-0 flex items-center gap-2">
+                      <ItemIcon name={offer.name} />
+                      <div className="min-w-0">
+                        <p className="text-xs text-neutral-200">
+                          {offer.name} <span className="text-neutral-500">({kind === 'sell' ? 'compra de' : 'venda para'} {m.name})</span>
+                        </p>
+                        {stats && <p className="text-[10px] text-gold truncate">{formatItemStats(stats)}</p>}
+                      </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="text-xs text-gold">{offer.price}g</span>
@@ -131,11 +135,14 @@ export default function Mercador({ character, buyItem, sellToMerchant, autoComba
                     key={offer.name}
                     className="flex items-center justify-between bg-wood border border-wood-lighter rounded px-2.5 py-1.5 gap-2"
                   >
-                    <div className="min-w-0">
-                      <p className="text-xs text-neutral-200">{offer.name}</p>
-                      {statsPreview[offer.name] && (
-                        <p className="text-[10px] text-gold truncate">{formatItemStats(statsPreview[offer.name])}</p>
-                      )}
+                    <div className="min-w-0 flex items-center gap-2">
+                      <ItemIcon name={offer.name} />
+                      <div className="min-w-0">
+                        <p className="text-xs text-neutral-200">{offer.name}</p>
+                        {statsPreview[offer.name] && (
+                          <p className="text-[10px] text-gold truncate">{formatItemStats(statsPreview[offer.name])}</p>
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="text-xs text-gold">{offer.price}g</span>
@@ -168,11 +175,14 @@ export default function Mercador({ character, buyItem, sellToMerchant, autoComba
                       key={offer.name}
                       className="flex items-center justify-between bg-wood border border-wood-lighter rounded px-2.5 py-1.5 gap-2"
                     >
-                      <div className="min-w-0">
-                        <p className="text-xs text-neutral-200">
-                          {offer.name} {owned && <span className="text-neutral-500">×{owned.quantity}</span>}
-                        </p>
-                        {stats && <p className="text-[10px] text-gold truncate">{formatItemStats(stats)}</p>}
+                      <div className="min-w-0 flex items-center gap-2">
+                        <ItemIcon name={offer.name} />
+                        <div className="min-w-0">
+                          <p className="text-xs text-neutral-200">
+                            {offer.name} {owned && <span className="text-neutral-500">×{owned.quantity}</span>}
+                          </p>
+                          {stats && <p className="text-[10px] text-gold truncate">{formatItemStats(stats)}</p>}
+                        </div>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <span className="text-xs text-gold">{offer.price}g</span>

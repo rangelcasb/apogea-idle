@@ -1,4 +1,5 @@
 import { ITEM_TYPES, RARITY_COLORS, RARITY_LABELS, FOOD_CATEGORIES, formatItemStats } from '../data/gameData';
+import ItemIcon from './ItemIcon';
 
 const TYPE_LABELS = {
   [ITEM_TYPES.WEAPON]: 'Weapons',
@@ -11,12 +12,15 @@ function ItemCard({ item, consumeItem, equipItem, sellItem, discardItem, autoCom
   return (
     <div className="bg-wood border border-wood-lighter rounded-lg p-2.5 flex flex-col gap-1.5">
       <div className="flex items-baseline justify-between gap-2">
-        <p className={`text-sm leading-tight ${RARITY_COLORS[item.rarity] ?? 'text-neutral-100'}`}>
-          {item.name}
-          {item.rarity && item.rarity !== 'common' && (
-            <span className="text-[10px] ml-1">({RARITY_LABELS[item.rarity]})</span>
-          )}
-        </p>
+        <span className="flex items-center gap-2 min-w-0">
+          <ItemIcon name={item.name} />
+          <p className={`text-sm leading-tight truncate ${RARITY_COLORS[item.rarity] ?? 'text-neutral-100'}`}>
+            {item.name}
+            {item.rarity && item.rarity !== 'common' && (
+              <span className="text-[10px] ml-1">({RARITY_LABELS[item.rarity]})</span>
+            )}
+          </p>
+        </span>
         <span className="text-xs text-neutral-400 shrink-0">×{item.quantity}</span>
       </div>
 

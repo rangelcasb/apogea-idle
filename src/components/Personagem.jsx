@@ -1,5 +1,6 @@
 import { ALLOCATABLE_STATS, canAllocatePoint, CLASSES, EQUIP_SLOTS, HAND_CAPACITY, RARITY_COLORS, formatItemStats, computeDamageRoll } from '../data/gameData';
 import Mochila from './Mochila';
+import ItemIcon from './ItemIcon';
 
 const VOCATIONS = ['Knight', 'Rogue', 'Mage'];
 
@@ -197,16 +198,19 @@ export default function Personagem({
                   key={slot}
                   className="flex items-center justify-between bg-wood border border-wood-lighter rounded px-3 py-2"
                 >
-                  <div>
-                    <p className="text-[10px] text-neutral-500">{label}</p>
-                    {item ? (
-                      <>
-                        <p className={`text-sm ${RARITY_COLORS[item.rarity] ?? 'text-neutral-100'}`}>{item.name}</p>
-                        <EquipStats stats={item.stats} />
-                      </>
-                    ) : (
-                      <p className="text-sm text-neutral-600">vazio</p>
-                    )}
+                  <div className="flex items-center gap-2 min-w-0">
+                    {item && <ItemIcon name={item.name} />}
+                    <div className="min-w-0">
+                      <p className="text-[10px] text-neutral-500">{label}</p>
+                      {item ? (
+                        <>
+                          <p className={`text-sm truncate ${RARITY_COLORS[item.rarity] ?? 'text-neutral-100'}`}>{item.name}</p>
+                          <EquipStats stats={item.stats} />
+                        </>
+                      ) : (
+                        <p className="text-sm text-neutral-600">vazio</p>
+                      )}
+                    </div>
                   </div>
                   {item && (
                     <button
