@@ -3,27 +3,16 @@ import { EQUIP_SLOTS } from '../data/gameData';
 import MonsterIcon from './MonsterIcon';
 import ItemIcon from './ItemIcon';
 
-// Fundo estilizado por região da zona — não temos os cenários reais do jogo, então é
-// só um gradiente pra dar uma pista visual do ambiente (grama, gelo, deserto...).
-const REGION_BACKGROUND = {
-  Basile: 'from-green-900 via-green-800 to-green-950',
-  Caravan: 'from-yellow-900 via-amber-800 to-yellow-950',
-  Nordha: 'from-slate-700 via-slate-800 to-slate-900',
-  Swamp: 'from-teal-950 via-emerald-950 to-neutral-950',
-  Plains: 'from-lime-900 via-green-900 to-neutral-900',
-  Dorosam: 'from-cyan-900 via-slate-800 to-slate-950',
-  Desert: 'from-orange-800 via-amber-700 to-orange-950',
-};
+// Fundo real enviado pelo usuário (screenshot do jogo) — fica atrás de um véu escuro
+// pra garantir contraste das barras de vida/texto por cima.
+const COMBAT_BG_URL = '/assets/apogea-bg.png';
+const AVATAR_URL = '/assets/avatar.svg';
 
 const PLAYER_DAMAGE_RE = /^Você causou ([\d.]+) de dano em .+?\./;
 const MONSTER_DAMAGE_RE = /^.+? causou ([\d.]+) de dano em você\./;
 const LIFESTEAL_RE = /^Lifesteal: \+([\d.]+) de vida\./;
 const KILL_XP_RE = /derrotado! \+(\d+) XP/;
 const GOLD_RE = /^\+(\d+) gold\./;
-
-// Sem sprite real do personagem, um emoji por classe já dá uma pista visual melhor
-// que um boneco genérico igual pra todo mundo.
-const CLASS_ICON = { Squire: '⚔️', Knight: '🛡️', Rogue: '🗡️', Mage: '🔮' };
 
 // Observa o log e devolve um "contador de tremida" pra cada lado — cada vez que o
 // personagem ou o monstro leva um hit, o contador sobe, o que remonta o ícone (via
@@ -144,7 +133,6 @@ export default function Cacada({ character, monster, log, autoCombat, setAutoCom
       ? Math.max(0, (displayedMonster.currentHealth / displayedMonster.maxHealth) * 100)
       : 0;
     const zone = zones.find((z) => z.id === character.zoneId);
-    const bg = REGION_BACKGROUND[zone?.region] ?? 'from-wood-light via-wood to-wood';
     const avgMonsterXp = zone?.monsters.length
       ? zone.monsters.reduce((sum, m) => sum + m.xp, 0) / zone.monsters.length
       : 0;
@@ -189,17 +177,24 @@ export default function Cacada({ character, monster, log, autoCombat, setAutoCom
           </div>
 
           {/* Cena de combate */}
-          <div className={`flex-1 relative rounded-lg border border-wood-lighter overflow-hidden bg-gradient-to-b ${bg} min-h-[220px]`}>
+          <div
+            className="flex-1 relative rounded-lg border border-wood-lighter overflow-hidden min-h-[220px] bg-cover bg-center"
+            style={{ backgroundImage: `url(${COMBAT_BG_URL})` }}
+          >
+            <div className="absolute inset-0 bg-black/45" />
             <div className="absolute inset-0 flex items-center justify-around px-8">
               <div className="relative flex flex-col items-center gap-1">
                 <p className="text-xs font-semibold text-neutral-100 drop-shadow">{character.name}</p>
                 <div className="w-24 h-2 bg-black/50 rounded overflow-hidden">
                   <div className="h-full bg-blood transition-all" style={{ width: `${hpPct}%` }} />
                 </div>
-                <div className="relative w-16 h-16 flex items-center justify-center bg-black/20 rounded-full">
-                  <span key={`player-icon-${playerHitId}`} className="text-4xl animate-shake">
-                    {CLASS_ICON[character.class] ?? '⚔️'}
-                  </span>
+                <div className="relative w-16 h-16 flex items-center justify-center">
+                  <img
+                    key={`player-icon-${playerHitId}`}
+                    src={AVATAR_URL}
+                    alt={character.name}
+                    className="w-16 h-16 object-contain drop-shadow-lg animate-shake"
+                  />
                   <Floaters floaters={floaters} side="player" />
                 </div>
               </div>
