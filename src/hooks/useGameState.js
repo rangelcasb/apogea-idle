@@ -26,6 +26,8 @@ import {
   computeDamageRoll,
   VOCATION_COST,
   monsterDamageMultiplier,
+  rarityAtLeast,
+  RARITY_LABELS,
 } from '../data/gameData';
 import { talentPointsForLevel, spentTalentPoints, canInvestTalent } from '../data/talents';
 import {
@@ -156,7 +158,11 @@ function migrateCharacter(char) {
     inventory: char.inventory ?? [],
     bank: char.bank ?? [],
     monsterKills: char.monsterKills ?? {},
-    itemBlacklist: char.itemBlacklist ?? [],
+    // Formato antigo era um array de strings (nome do item, sempre bloqueado em
+    // qualquer raridade) — convertido pro formato novo { name, minRarity }.
+    itemBlacklist: (char.itemBlacklist ?? []).map((entry) =>
+      typeof entry === 'string' ? { name: entry, minRarity: null } : entry,
+    ),
     autoCombat: char.autoCombat ?? false,
     updatedAt: char.updatedAt ?? 0,
   };
@@ -295,9 +301,14 @@ function reducer(state, action) {
         if (goldDrop > 0) log = pushLog(log, `+${goldDrop} gold.`);
 
         // Itens na blacklist simplesmente não são pegos — nem entram na checagem de
-        // peso/mochila cheia, como se o item nunca tivesse caído.
-        const blacklist = new Set(char.itemBlacklist ?? []);
-        const itemDrops = rawItemDrops.filter((item) => !blacklist.has(item.name));
+        // peso/mochila cheia, como se o item nunca tivesse caído. Uma entrada pode
+        // ter raridade mínima (ex: "Torch" só é bloqueada abaixo de épico).
+        const blacklistMap = new Map((char.itemBlacklist ?? []).map((e) => [e.name, e.minRarity]));
+        const itemDrops = rawItemDrops.filter((item) => {
+          if (!blacklistMap.has(item.name)) return true;
+          const minRarity = blacklistMap.get(item.name);
+          return minRarity ? rarityAtLeast(item.rarity, minRarity) : false;
+        });
 
         const { inventory: mergedInventory, rejected } = mergeLoot(char.inventory, itemDrops, charStats.capacity);
         for (const item of itemDrops) {
@@ -574,19 +585,24 @@ function reducer(state, action) {
       const char = state.character;
       const name = action.itemName?.trim();
       if (!char || !name) return state;
-      const itemBlacklist = char.itemBlacklist ?? [];
-      if (itemBlacklist.includes(name)) return state;
+      // minRarity null = bloqueia o item em qualquer raridade; com minRarity, só
+      // bloqueia abaixo dela (ex: Torch com minRarity "epic" deixa passar épico+).
+      const minRarity = action.minRarity ?? null;
+      const itemBlacklist = (char.itemBlacklist ?? []).filter((e) => e.name !== name);
+      const message = minRarity
+        ? `${name} adicionado à blacklist — só será pego a partir de ${RARITY_LABELS[minRarity] ?? minRarity}.`
+        : `${name} adicionado à blacklist — não será mais pego.`;
       return {
         ...state,
-        character: { ...char, itemBlacklist: [...itemBlacklist, name] },
-        log: pushLog(state.log, `${name} adicionado à blacklist — não será mais pego.`),
+        character: { ...char, itemBlacklist: [...itemBlacklist, { name, minRarity }] },
+        log: pushLog(state.log, message),
       };
     }
 
     case 'REMOVE_FROM_BLACKLIST': {
       const char = state.character;
       if (!char) return state;
-      const itemBlacklist = (char.itemBlacklist ?? []).filter((n) => n !== action.itemName);
+      const itemBlacklist = (char.itemBlacklist ?? []).filter((e) => e.name !== action.itemName);
       return {
         ...state,
         character: { ...char, itemBlacklist },
@@ -928,7 +944,10 @@ export function useGameState() {
   const discardItem = useCallback((itemId) => dispatch({ type: 'DISCARD_ITEM', itemId }), []);
   const depositItem = useCallback((itemId, all) => dispatch({ type: 'DEPOSIT_ITEM', itemId, all }), []);
   const withdrawItem = useCallback((itemId, all) => dispatch({ type: 'WITHDRAW_ITEM', itemId, all }), []);
-  const addToBlacklist = useCallback((itemName) => dispatch({ type: 'ADD_TO_BLACKLIST', itemName }), []);
+  const addToBlacklist = useCallback(
+    (itemName, minRarity) => dispatch({ type: 'ADD_TO_BLACKLIST', itemName, minRarity }),
+    [],
+  );
   const removeFromBlacklist = useCallback((itemName) => dispatch({ type: 'REMOVE_FROM_BLACKLIST', itemName }), []);
   const equipItem = useCallback((itemId, targetSlot) => dispatch({ type: 'EQUIP_ITEM', itemId, targetSlot }), []);
   const unequipItem = useCallback((slot) => dispatch({ type: 'UNEQUIP_ITEM', slot }), []);

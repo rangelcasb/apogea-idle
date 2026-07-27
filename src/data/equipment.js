@@ -25,6 +25,18 @@ export const EQUIP_SLOTS = {
 // Tamanho máximo combinado (arma + mão secundária) — real, é o "MÃOS: X/10" da tela.
 export const HAND_CAPACITY = 10;
 
+// Ordem crescente de raridade de instância — usada pra comparar "pelo menos X"
+// (ex: blacklist condicional "só pegar Torch a partir de épico").
+export const RARITY_ORDER = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
+
+export function rarityAtLeast(rarity, minRarity) {
+  if (!minRarity) return true;
+  const idx = RARITY_ORDER.indexOf(rarity);
+  const minIdx = RARITY_ORDER.indexOf(minRarity);
+  if (idx === -1 || minIdx === -1) return true;
+  return idx >= minIdx;
+}
+
 // Cores por raridade de instância (common/uncommon/rare/epic/legendary), pra UI.
 export const RARITY_LABELS = {
   common: 'Comum',
