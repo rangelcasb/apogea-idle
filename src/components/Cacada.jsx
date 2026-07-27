@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { EQUIP_SLOTS } from '../data/gameData';
+import { EQUIP_SLOTS, EQUIP_GRID_LAYOUT, RARITY_BORDER_COLORS } from '../data/gameData';
 import MonsterIcon from './MonsterIcon';
 import ItemIcon from './ItemIcon';
 
@@ -161,15 +161,20 @@ export default function Cacada({ character, monster, log, autoCombat, setAutoCom
         )}
 
         <div className="flex flex-col sm:flex-row gap-4">
-          {/* Grade de equipamento */}
+          {/* Grade de equipamento — layout fixo (pescoço/cabeça/arma, munição/peitoral/
+              mão secundária, anel/pernas/mochila, botas centralizada embaixo), moldura
+              na cor da raridade do item equipado. */}
           <div className="bg-wood-light border border-wood-lighter rounded-lg p-3 grid grid-cols-3 gap-2 content-start shrink-0 sm:w-40">
-            {Object.entries(EQUIP_SLOTS).map(([slot, label]) => {
+            {EQUIP_GRID_LAYOUT.map((slot, i) => {
               const item = character.equipment[slot];
+              const borderClass = item ? (RARITY_BORDER_COLORS[item.rarity] ?? 'border-wood-lighter') : 'border-wood-lighter';
+              const isLast = i === EQUIP_GRID_LAYOUT.length - 1;
               return (
                 <div
                   key={slot}
-                  title={item ? item.name : label}
-                  className="bg-wood border border-wood-lighter rounded flex items-center justify-center aspect-square"
+                  title={item ? item.name : EQUIP_SLOTS[slot]}
+                  className={`bg-wood border-2 ${borderClass} rounded flex items-center justify-center aspect-square
+                    ${isLast ? 'col-start-2' : ''}`}
                 >
                   {item ? <ItemIcon name={item.name} className="w-7 h-7" /> : <span className="text-neutral-700 text-xs">·</span>}
                 </div>

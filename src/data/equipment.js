@@ -53,6 +53,25 @@ export const RARITY_COLORS = {
   legendary: 'text-gold',
 };
 
+// Mesma escala, mas como cor de BORDA — usada pra moldar o quadradinho de cada slot
+// de equipamento na cor da raridade do item equipado (grade de equipamento da Caçada).
+export const RARITY_BORDER_COLORS = {
+  common: 'border-neutral-400',
+  uncommon: 'border-green-400',
+  rare: 'border-blue-400',
+  epic: 'border-purple-400',
+  legendary: 'border-gold',
+};
+
+// Layout fixo pedido pelo usuário (3 colunas + botas centralizada sozinha embaixo),
+// igual ao print da tela de equipamento do jogo real.
+export const EQUIP_GRID_LAYOUT = [
+  'neck', 'head', 'weapon',
+  'ammo', 'chest', 'offhand',
+  'ring', 'legs', 'backpack',
+  'boots',
+];
+
 // Nomes em português pra cada chave de stat que um item pode dar — usado em toda
 // tela que mostra item.stats (Mochila, Personagem, Mercador), pra não exibir chaves
 // em inglês cru como "attackSpeed".
