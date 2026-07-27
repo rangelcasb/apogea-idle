@@ -66,9 +66,9 @@ export const RARITY_BORDER_COLORS = {
 // Layout fixo pedido pelo usuário (3 colunas + botas centralizada sozinha embaixo),
 // igual ao print da tela de equipamento do jogo real.
 export const EQUIP_GRID_LAYOUT = [
-  'neck', 'head', 'weapon',
-  'ammo', 'chest', 'offhand',
-  'ring', 'legs', 'backpack',
+  'neck', 'head', 'backpack',
+  'weapon', 'chest', 'offhand',
+  'ring', 'legs', 'ammo',
   'boots',
 ];
 
