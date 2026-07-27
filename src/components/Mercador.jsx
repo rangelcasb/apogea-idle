@@ -95,6 +95,7 @@ export default function Mercador({ character, buyItem, sellToMerchant, autoComba
                         <button
                           onClick={() => buyItem(m.name, offer.name)}
                           disabled={character.gold < offer.price}
+                          title={character.gold < offer.price ? `Falta ${offer.price - character.gold}g` : undefined}
                           className="text-[11px] font-medium bg-green-700 text-white px-2 py-0.5 rounded
                                      disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer hover:bg-green-600"
                         >

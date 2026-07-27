@@ -451,7 +451,15 @@ function reducer(state, action) {
       if (!char) return state;
       const merchant = MERCHANTS_BY_NAME[action.merchantName];
       const offer = merchant?.sells.find((s) => s.name === action.itemName);
-      if (!offer || char.gold < offer.price) return state;
+      if (!offer) {
+        return { ...state, log: pushLog(state.log, `${merchant?.name ?? action.merchantName} não vende ${action.itemName}.`) };
+      }
+      if (char.gold < offer.price) {
+        return {
+          ...state,
+          log: pushLog(state.log, `Gold insuficiente: ${action.itemName} custa ${offer.price}g, você tem ${char.gold}g.`),
+        };
+      }
 
       const def = getShopItemDefinition(action.itemName);
       const id = `${slugify(action.itemName)}-${def.rarity}`;
