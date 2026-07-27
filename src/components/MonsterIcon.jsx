@@ -24,7 +24,7 @@ export default function MonsterIcon({ monster, className = 'w-10 h-10' }) {
     <div className="relative inline-block" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
       <Icon name={monster.name} className={className} />
       {hover && (
-        <div className="absolute z-20 top-full left-0 mt-1 w-56 bg-wood border border-gold rounded-lg p-3 shadow-lg text-left">
+        <div className="absolute z-50 top-full left-0 mt-1 w-56 bg-wood border border-gold rounded-lg p-3 shadow-lg text-left">
           <p className="flex items-center gap-2 text-sm font-semibold text-gold mb-1">
             <Icon name={monster.name} className="w-5 h-5" />
             {monster.name}

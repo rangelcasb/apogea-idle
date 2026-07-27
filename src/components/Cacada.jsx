@@ -177,12 +177,15 @@ export default function Cacada({ character, monster, log, autoCombat, setAutoCom
             })}
           </div>
 
-          {/* Cena de combate */}
+          {/* Cena de combate — sem overflow-hidden: o tooltip do monstro (MonsterIcon)
+              precisa poder "vazar" pra fora da cena pra não ficar atrás do log embaixo. */}
           <div
-            className="flex-1 relative rounded-lg border border-wood-lighter overflow-hidden min-h-[220px] bg-cover bg-center"
+            className="flex-1 relative rounded-lg border border-wood-lighter min-h-[220px] bg-cover bg-center"
             style={{ backgroundImage: `url(${COMBAT_BG_URL})` }}
           >
-            <div className="absolute inset-0 bg-black/45" />
+            <div className="absolute inset-0 rounded-lg overflow-hidden">
+              <div className="absolute inset-0 bg-black/45" />
+            </div>
             <div className="absolute inset-0 flex items-center justify-around px-8">
               <div className="relative flex flex-col items-center gap-1">
                 <p className="text-xs font-semibold text-neutral-100 drop-shadow">{character.name}</p>
