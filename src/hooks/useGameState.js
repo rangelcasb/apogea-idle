@@ -66,6 +66,9 @@ const STORAGE_KEY = 'apogea-idle-character';
 // fonte real, só confirmado que existe (daí o talento "Staff Mastery": chance de
 // atirar sem esse custo). Fixo e moderado, pra não esvaziar a mana rápido demais.
 const STAFF_BASIC_ATTACK_MANA_COST = 3;
+// Balanceamento nosso: Magic vira multiplicador da cura das magias de Cura (a cada
+// 100 de Magic, dobra) — não é uma fórmula real do jogo.
+const HEAL_MAGIC_MULTIPLIER_DIVISOR = 100;
 const RESPEC_COST = 200;
 const TALENT_RESET_BASE_COST = 200;
 // Progresso offline: no máximo 8h de recompensa, e só XP/gold (nada de item — não
@@ -616,8 +619,11 @@ function reducer(state, action) {
 
         if (spell.kind === 'heal') {
           const missingHealth = charStats.health - workingChar.currentHealth;
-          // Magic Touch (Orbe): magias de Cura curam 25% a mais.
-          const healAmount = missingHealth * ((spell.missingHealthPct ?? 0) / 100) * (1 + (charStats.healPowerBonusPercent ?? 0) / 100);
+          // Magic entra como multiplicador da cura (balanceamento nosso, a pedido do
+          // usuário — a fonte real não faz Magic escalar o Heal, só magias de dano):
+          // cada 100 pontos de Magic dobra a cura. Magic Touch (Orbe) some por cima.
+          const magicMultiplier = 1 + (charStats.magic ?? 0) / HEAL_MAGIC_MULTIPLIER_DIVISOR;
+          const healAmount = missingHealth * ((spell.missingHealthPct ?? 0) / 100) * magicMultiplier * (1 + (charStats.healPowerBonusPercent ?? 0) / 100);
           const currentHealth = spell.hpCast
             ? Math.max(1, workingChar.currentHealth - effectiveManaCost)
             : workingChar.currentHealth;
