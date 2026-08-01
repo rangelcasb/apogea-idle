@@ -209,6 +209,7 @@ export default function App() {
             autoCombat={autoCombat}
             addToBlacklist={addToBlacklist}
             setAutoEat={setAutoEat}
+            learnSpell={learnSpell}
           />
         )}
         {activeTab === 'talentos' && (
@@ -243,7 +244,6 @@ export default function App() {
           <Magias
             character={character}
             spellCooldowns={spellCooldowns}
-            learnSpell={learnSpell}
             equipSpell={equipSpell}
             unequipSpell={unequipSpell}
             setAutoCastSpells={setAutoCastSpells}

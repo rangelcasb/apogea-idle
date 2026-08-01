@@ -37,6 +37,7 @@ export default function Personagem({
   autoCombat,
   addToBlacklist,
   setAutoEat,
+  learnSpell,
 }) {
   const isSquire = character.class === 'Squire';
   const handSize = (character.equipment.weapon?.equipSize ?? 0) + (character.equipment.offhand?.equipSize ?? 0);
@@ -298,6 +299,8 @@ export default function Personagem({
           discardItem={discardItem}
           autoCombat={autoCombat}
           addToBlacklist={addToBlacklist}
+          learnSpell={learnSpell}
+          learnedSpells={character.learnedSpells}
         />
       </div>
     </div>

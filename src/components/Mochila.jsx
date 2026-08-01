@@ -1,5 +1,7 @@
-import { ITEM_TYPES, RARITY_COLORS, RARITY_LABELS, FOOD_CATEGORIES, formatItemStats } from '../data/gameData';
+import { ITEM_TYPES, RARITY_COLORS, RARITY_LABELS, FOOD_CATEGORIES, formatItemStats, SPELLS } from '../data/gameData';
 import ItemIcon from './ItemIcon';
+
+const SPELLS_BY_BOOK = Object.fromEntries(SPELLS.map((s) => [s.book, s]));
 
 const TYPE_LABELS = {
   [ITEM_TYPES.WEAPON]: 'Weapons',
@@ -8,7 +10,9 @@ const TYPE_LABELS = {
   [ITEM_TYPES.MATERIAL]: 'Materials',
 };
 
-function ItemCard({ item, consumeItem, equipItem, sellItem, discardItem, autoCombat, addToBlacklist }) {
+function ItemCard({ item, consumeItem, equipItem, sellItem, discardItem, autoCombat, addToBlacklist, learnSpell, learnedSpells }) {
+  const spell = item.category === 'book' ? SPELLS_BY_BOOK[item.name] : null;
+  const alreadyLearned = spell && (learnedSpells ?? []).includes(spell.id);
   return (
     <div className="bg-wood border border-wood-lighter rounded-lg p-2.5 flex flex-col gap-1.5">
       <div className="flex items-baseline justify-between gap-2">
@@ -63,6 +67,17 @@ function ItemCard({ item, consumeItem, equipItem, sellItem, discardItem, autoCom
             EQUIPAR
           </button>
         )}
+        {spell && (
+          <button
+            onClick={() => learnSpell(spell.id)}
+            disabled={alreadyLearned}
+            title={alreadyLearned ? 'Você já aprendeu essa magia' : `Aprender ${spell.id} (consome o livro)`}
+            className="text-[10px] font-medium bg-green-700 text-white px-1.5 py-1 rounded cursor-pointer
+                       hover:bg-green-600 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-green-700"
+          >
+            {alreadyLearned ? 'JÁ APRENDIDA' : '📖 APRENDER'}
+          </button>
+        )}
         <button
           onClick={() => sellItem(item.id, false)}
           disabled={autoCombat}
@@ -101,7 +116,7 @@ function ItemCard({ item, consumeItem, equipItem, sellItem, discardItem, autoCom
   );
 }
 
-export default function Mochila({ character, weight, consumeItem, equipItem, sellItem, discardItem, autoCombat, addToBlacklist }) {
+export default function Mochila({ character, weight, consumeItem, equipItem, sellItem, discardItem, autoCombat, addToBlacklist, learnSpell, learnedSpells }) {
   return (
     <div className="bg-wood-light border border-wood-lighter rounded-lg p-4">
       <h3 className="text-gold font-semibold tracking-wide mb-3">
@@ -125,6 +140,8 @@ export default function Mochila({ character, weight, consumeItem, equipItem, sel
               discardItem={discardItem}
               autoCombat={autoCombat}
               addToBlacklist={addToBlacklist}
+              learnSpell={learnSpell}
+              learnedSpells={learnedSpells}
             />
           ))}
         </div>

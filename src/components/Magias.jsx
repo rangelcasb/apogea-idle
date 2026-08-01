@@ -20,7 +20,7 @@ function useNow(intervalMs) {
   return now;
 }
 
-export default function Magias({ character, spellCooldowns, learnSpell, equipSpell, unequipSpell, setAutoCastSpells }) {
+export default function Magias({ character, spellCooldowns, equipSpell, unequipSpell, setAutoCastSpells }) {
   const now = useNow(250);
   const stats = computeFinalStats(character);
   const learned = character.learnedSpells ?? [];
@@ -116,14 +116,11 @@ export default function Magias({ character, spellCooldowns, learnSpell, equipSpe
                 </div>
 
                 {!isLearned ? (
-                  <button
-                    onClick={() => learnSpell(spell.id)}
-                    disabled={bookQty <= 0}
-                    className="text-[11px] font-medium bg-wood-lighter px-2.5 py-1.5 rounded
-                               disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer hover:text-gold"
-                  >
-                    {bookQty > 0 ? `APRENDER (usa ${spell.book})` : `Precisa de ${spell.book}`}
-                  </button>
+                  <p className="text-[11px] text-neutral-500">
+                    {bookQty > 0
+                      ? `Você tem ${spell.book} — aprenda pela Mochila.`
+                      : `Precisa achar ${spell.book} pra aprender.`}
+                  </p>
                 ) : isEquipped ? (
                   <button
                     onClick={() => unequipSpell(slotIndex)}
