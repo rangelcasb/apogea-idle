@@ -93,8 +93,7 @@ function parseRankValue(str) {
 // Os demais talentos (a maioria, presos a magias/efeitos que não existem aqui) caem no
 // bônus genérico simplificado de sempre.
 const MECHANICS = {
-  10: 'lifesteal', // Stabbing Preference — Daggers provide Lifeleech
-  56: 'lifesteal', // Pondering It — Orbs provide Spellvamp
+  10: 'lifesteal', // Stabbing Preference — Daggers provide Lifeleech (ataque físico)
   11: 'armorPen', // Thorough Puncture — ignore some of target's armor
   12: 'critChance', // Shearing Stroke — chance of dealing 1.5x damage
   47: 'damagePercent', // Blade Training — Swords have more Damage
@@ -116,7 +115,27 @@ const MECHANICS = {
   66: 'waterCooldownReduction', // Gallop's Fall — reduz cooldown de magias de Água (35%)
   4: 'elementalAoeBonus', // Warlock — sem sistema de área de efeito (1 monstro por vez), aproximado como +dano em Energia/Fogo
   63: 'projectileBounceBonus', // Steering Insight — sem sistema de ricochete, aproximado como +dano em Energia/Arco
+
+  // Ramo Orbe — mesmo raciocínio: agora que existe sistema de magia real, essas
+  // mecânicas ligam de verdade em vez do bônus genérico de Ability.
+  56: 'spellLifesteal', // Pondering It — Spellvamp: cura baseada no DANO DE MAGIA (não no ataque físico)
+  57: 'spellPowerBonus', // Unnatural Flow — soma um bônus fixo (4/7/12) na "Base Damage" das magias, igual mais Ability serve pro ataque físico
+  60: 'diamondSkin', // Diamond Skin — conjurar magia de Energia dá escudo (20/35/50), empilha até 3x
+  61: 'unstableAegis', // Unstable Aegis — quando o escudo absorve dano, estoura um "Unstable Berserk" homebrew no monstro
+  91: 'healPowerBonus', // Magic Touch — com Orbe, magias de Cura curam 25% mais
+  92: 'healManaDiscount', // Apogea's Ardor — com Orbe, magias de Cura custam 50% menos mana
+  93: 'standby', // Child's Channel — combo complexo demais (cura em outros, etc.) — em standby por enquanto, sem efeito
 };
+
+// Ramo Orbe: valores fixos dos talentos de 1 ponto só (fonte real não documenta rank
+// diferente pra esses).
+const HEAL_POWER_BONUS_PCT = 25;
+const HEAL_MANA_DISCOUNT_PCT = 50;
+export const DIAMOND_SKIN_MAX_STACKS = 3;
+// "Unstable Berserk" não é uma das 34 magias documentadas — a descrição do talento só
+// diz que ele é conjurado, sem fórmula. Aproximamos como um estouro de dano verdadeiro
+// (ignora armadura) baseado no Magic, igual ao padrão de outras mecânicas homebrew.
+export const UNSTABLE_AEGIS_MAGIC_DIVISOR = 4;
 
 // Valores fixos dos talentos de 1 ponto só do ramo Cajado que dependem de cooldown ou
 // bônus aproximado — não escalam por rank (a fonte real não documenta um valor
@@ -341,6 +360,12 @@ export function computeTalentModifiers(talentPoints, equipment) {
     waterCooldownReductionPercent: 0,
     fireEnergyDamageBonusPercent: 0,
     energyArrowDamageBonusPercent: 0,
+    spellLifestealPercent: 0,
+    spellPowerBonus: 0,
+    diamondSkinValue: 0,
+    unstableAegisActive: false,
+    healPowerBonusPercent: 0,
+    healManaDiscountPercent: 0,
   };
 
   for (const [idStr, points] of Object.entries(talentPoints ?? {})) {
@@ -408,6 +433,26 @@ export function computeTalentModifiers(talentPoints, equipment) {
       case 'projectileBounceBonus':
         mods.energyArrowDamageBonusPercent = STEERING_INSIGHT_DAMAGE_BONUS_PCT;
         break;
+      case 'spellLifesteal':
+        if (!Number.isNaN(rankValue)) mods.spellLifestealPercent += rankValue;
+        break;
+      case 'spellPowerBonus':
+        if (!Number.isNaN(rankValue)) mods.spellPowerBonus += rankValue;
+        break;
+      case 'diamondSkin':
+        if (!Number.isNaN(rankValue)) mods.diamondSkinValue = rankValue;
+        break;
+      case 'unstableAegis':
+        mods.unstableAegisActive = true;
+        break;
+      case 'healPowerBonus':
+        mods.healPowerBonusPercent = HEAL_POWER_BONUS_PCT;
+        break;
+      case 'healManaDiscount':
+        mods.healManaDiscountPercent = HEAL_MANA_DISCOUNT_PCT;
+        break;
+      case 'standby':
+        break;
       default: {
         if (!talent.effect) break;
         const { stat, perRank } = talent.effect;
@@ -458,5 +503,13 @@ export function applyTalentEffects(stats, character) {
   next.waterCooldownReductionPercent = mods.waterCooldownReductionPercent;
   next.fireEnergyDamageBonusPercent = mods.fireEnergyDamageBonusPercent;
   next.energyArrowDamageBonusPercent = mods.energyArrowDamageBonusPercent;
+
+  // Ramo Orbe
+  next.spellLifestealPercent = mods.spellLifestealPercent;
+  next.spellPowerBonus = mods.spellPowerBonus;
+  next.diamondSkinValue = mods.diamondSkinValue;
+  next.unstableAegisActive = mods.unstableAegisActive;
+  next.healPowerBonusPercent = mods.healPowerBonusPercent;
+  next.healManaDiscountPercent = mods.healManaDiscountPercent;
   return next;
 }

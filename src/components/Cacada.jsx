@@ -213,6 +213,9 @@ export default function Cacada({ character, monster, log, autoCombat, setAutoCom
                   {Math.round(character.currentHealth)}/{Math.round(character.stats.health)} HP
                   {' · '}
                   {Math.round(character.currentMana)}/{Math.round(character.stats.mana)} MP
+                  {character.shieldPoints > 0 && (
+                    <span className="text-cyan-300"> · 🛡 {Math.round(character.shieldPoints)}</span>
+                  )}
                   <br />
                   <span className="text-green-400">+{character.stats.hpRegen.toFixed(1)} HP</span>
                   {' · '}

@@ -35,7 +35,13 @@ import {
   computeSpellEffect,
   canCastSpell,
 } from '../data/gameData';
-import { talentPointsForLevel, spentTalentPoints, canInvestTalent } from '../data/talents';
+import {
+  talentPointsForLevel,
+  spentTalentPoints,
+  canInvestTalent,
+  DIAMOND_SKIN_MAX_STACKS,
+  UNSTABLE_AEGIS_MAGIC_DIVISOR,
+} from '../data/talents';
 import {
   onAuthChange,
   loginWithGoogle,
@@ -185,6 +191,7 @@ function createCharacter(name) {
     spellHealThresholds: {},
     staffChargeBuff: 0,
     franticConjuryBuff: false,
+    shieldPoints: 0,
     updatedAt: Date.now(),
   };
   const stats = computeFinalStats(raw);
@@ -230,6 +237,7 @@ function migrateCharacter(char) {
     spellHealThresholds: char.spellHealThresholds ?? {},
     staffChargeBuff: char.staffChargeBuff ?? 0,
     franticConjuryBuff: char.franticConjuryBuff ?? false,
+    shieldPoints: char.shieldPoints ?? 0,
     updatedAt: char.updatedAt ?? 0,
   };
 }
@@ -573,8 +581,14 @@ function reducer(state, action) {
         if (!workingMonster || workingChar.currentHealth <= 0) break;
         if ((spellCooldowns[spellId] ?? 0) > now) continue;
         if (!canCastSpell(spell, charStats)) continue;
+
+        // Apogea's Ardor (Orbe): magias de Cura custam 50% menos mana.
+        const effectiveManaCost = spell.kind === 'heal' && !spell.hpCast
+          ? spell.manaCost * (1 - (charStats.healManaDiscountPercent ?? 0) / 100)
+          : spell.manaCost;
+
         const costPool = spell.hpCast ? workingChar.currentHealth : workingChar.currentMana;
-        if (costPool < spell.manaCost) continue;
+        if (costPool < effectiveManaCost) continue;
 
         // Magia de cura só entra em ação quando a vida cair pra igual ou abaixo do
         // limiar configurado pelo jogador (senão ficaria curando 5% de quase nada toda
@@ -597,11 +611,12 @@ function reducer(state, action) {
 
         if (spell.kind === 'heal') {
           const missingHealth = charStats.health - workingChar.currentHealth;
-          const healAmount = missingHealth * ((spell.missingHealthPct ?? 0) / 100);
+          // Magic Touch (Orbe): magias de Cura curam 25% a mais.
+          const healAmount = missingHealth * ((spell.missingHealthPct ?? 0) / 100) * (1 + (charStats.healPowerBonusPercent ?? 0) / 100);
           const currentHealth = spell.hpCast
-            ? Math.max(1, workingChar.currentHealth - spell.manaCost)
+            ? Math.max(1, workingChar.currentHealth - effectiveManaCost)
             : workingChar.currentHealth;
-          const currentMana = spell.hpCast ? workingChar.currentMana : workingChar.currentMana - spell.manaCost;
+          const currentMana = spell.hpCast ? workingChar.currentMana : workingChar.currentMana - effectiveManaCost;
           workingChar = {
             ...workingChar,
             currentHealth: Math.min(charStats.health, currentHealth + healAmount),
@@ -619,20 +634,34 @@ function reducer(state, action) {
         if (['Energy', 'Arrow'].includes(spell.type)) dmgBonusPct += charStats.energyArrowDamageBonusPercent ?? 0;
 
         const { avg: avgWeaponDamage } = computeDamageRoll(charStats);
-        const rawDamage = computeSpellEffect(spell, charStats, avgWeaponDamage) * (1 + dmgBonusPct / 100);
+        // Unnatural Flow (Orbe): soma um bônus fixo (4/7/12) na Base Damage da magia
+        // antes de qualquer multiplicador percentual.
+        const rawDamage = (computeSpellEffect(spell, charStats, avgWeaponDamage) + (charStats.spellPowerBonus ?? 0)) * (1 + dmgBonusPct / 100);
         const effectiveArmor = Math.max(0, workingMonster.armor * (1 - (charStats.armorPenPercent ?? 0) / 100));
         const spellDamage = Math.max(1, (rawDamage - effectiveArmor / 2) / (1 + effectiveArmor / 100));
 
-        const currentHealth = spell.hpCast ? Math.max(1, workingChar.currentHealth - spell.manaCost) : workingChar.currentHealth;
-        const currentMana = spell.hpCast ? workingChar.currentMana : workingChar.currentMana - spell.manaCost;
+        const currentHealth = spell.hpCast ? Math.max(1, workingChar.currentHealth - effectiveManaCost) : workingChar.currentHealth;
+        const currentMana = spell.hpCast ? workingChar.currentMana : workingChar.currentMana - effectiveManaCost;
         workingChar = { ...workingChar, currentHealth, currentMana };
 
-        // Vampiric Bite ("leeching life", % não documentada pela fonte — estimativa
-        // nossa): cura parte do dano causado, igual ao lifesteal de arma.
-        if (spell.lifestealPercent) {
-          const spellLifesteal = spellDamage * (spell.lifestealPercent / 100);
+        // Lifesteal de magia: Vampiric Bite (própria magia, % não documentada, nossa
+        // estimativa) + Pondering It (Orbe, Spellvamp real por rank) — somam.
+        const totalSpellLifestealPct = (spell.lifestealPercent ?? 0) + (charStats.spellLifestealPercent ?? 0);
+        if (totalSpellLifestealPct > 0) {
+          const spellLifesteal = spellDamage * (totalSpellLifestealPct / 100);
           workingChar = { ...workingChar, currentHealth: Math.min(charStats.health, workingChar.currentHealth + spellLifesteal) };
           log = pushLog(log, `${spell.id}: lifesteal +${spellLifesteal.toFixed(1)} de vida.`);
+        }
+
+        // Diamond Skin (Orbe): conjurar magia de Energia dá escudo (valor do rank
+        // atual), empilha até DIAMOND_SKIN_MAX_STACKS vezes.
+        if (spell.type === 'Energy' && charStats.diamondSkinValue > 0) {
+          const maxShield = charStats.diamondSkinValue * DIAMOND_SKIN_MAX_STACKS;
+          const newShield = Math.min(maxShield, (workingChar.shieldPoints ?? 0) + charStats.diamondSkinValue);
+          if (newShield !== workingChar.shieldPoints) {
+            workingChar = { ...workingChar, shieldPoints: newShield };
+            log = pushLog(log, `Diamond Skin: +${charStats.diamondSkinValue} de escudo (total ${newShield}).`);
+          }
         }
 
         // Charge the Staff: cast Elemental (Fogo/Energia/Água/Terra) carrega o PRÓXIMO
@@ -824,26 +853,58 @@ function reducer(state, action) {
       // atacante aqui) — depois Armor — (Resultado - Armadura/2) / (1 + Armadura/100).
       const afterDefense = Math.max(0, currentMonster.damage - charStats.defense);
       const monsterDamage = Math.max(1, (afterDefense - charStats.armor / 2) / (1 + charStats.armor / 100));
+
+      // Diamond Skin (Orbe): escudo acumulado por conjurar magia de Energia absorve
+      // esse dano ANTES da vida.
+      const shieldBefore = char.shieldPoints ?? 0;
+      const absorbed = Math.min(shieldBefore, monsterDamage);
+      const damageToHealth = monsterDamage - absorbed;
+      const shieldAfter = shieldBefore - absorbed;
+
       let log = pushLog(
         state.log,
-        `${currentMonster.name} causou ${monsterDamage.toFixed(1)} de dano em você.`,
+        `${currentMonster.name} causou ${monsterDamage.toFixed(1)} de dano em você.${absorbed > 0 ? ` Escudo absorveu ${absorbed.toFixed(1)}.` : ''}`,
       );
-      const newHealthRaw = Math.max(0, char.currentHealth - monsterDamage);
+
+      let workingChar = { ...char, shieldPoints: shieldAfter };
+      let workingMonster = currentMonster;
+      let combatPauseUntil = state.combatPauseUntil;
+
+      // Unstable Aegis (Orbe): toda vez que o escudo absorve dano, estoura um
+      // "Unstable Berserk" homebrew (dano verdadeiro baseado em Magic) no monstro —
+      // não é uma das 34 magias documentadas, valor aproximado.
+      if (absorbed > 0 && charStats.unstableAegisActive) {
+        const burst = charStats.magic / UNSTABLE_AEGIS_MAGIC_DIVISOR;
+        log = pushLog(log, `Unstable Aegis: estourou ${burst.toFixed(1)} de dano verdadeiro em ${workingMonster.name}.`);
+        const monsterHealthAfterBurst = Math.max(0, workingMonster.currentHealth - burst);
+        if (monsterHealthAfterBurst <= 0) {
+          const result = defeatMonster(workingChar, workingMonster, log);
+          workingChar = result.character;
+          workingMonster = result.monster;
+          log = result.log;
+          combatPauseUntil = result.combatPauseUntil;
+        } else {
+          workingMonster = { ...workingMonster, currentHealth: monsterHealthAfterBurst };
+        }
+      }
+
+      const newStats = computeFinalStats(workingChar);
+      const newHealthRaw = Math.max(0, workingChar.currentHealth - damageToHealth);
 
       let autoCombat = state.autoCombat;
-      let deaths = char.deaths;
+      let deaths = workingChar.deaths;
       let newHealth = newHealthRaw;
-      let inventory = char.inventory;
-      let currentMana = char.currentMana;
+      let inventory = workingChar.inventory;
+      let currentMana = workingChar.currentMana;
       if (newHealthRaw <= 0) {
         deaths += 1;
         autoCombat = false;
         // Ao morrer, a vida volta cheia (respawn instantâneo) — sem isso o personagem
         // ficava travado com 0 de vida pra sempre, já que o regen não age em vida 0.
-        newHealth = charStats.health;
+        newHealth = newStats.health;
         log = pushLog(log, 'Você foi derrotado! Reviveu com a vida cheia. Combate automático interrompido.');
       } else {
-        const potionResult = autoUsePotions({ ...char, currentHealth: newHealthRaw }, charStats, log);
+        const potionResult = autoUsePotions({ ...workingChar, currentHealth: newHealthRaw }, newStats, log);
         inventory = potionResult.inventory;
         newHealth = potionResult.currentHealth;
         currentMana = potionResult.currentMana;
@@ -852,9 +913,11 @@ function reducer(state, action) {
 
       return {
         ...state,
-        character: { ...char, currentHealth: newHealth, currentMana, deaths, autoCombat, inventory },
+        character: { ...workingChar, currentHealth: newHealth, currentMana, deaths, autoCombat, inventory },
+        monster: workingMonster,
         log,
         autoCombat,
+        combatPauseUntil,
       };
     }
 
