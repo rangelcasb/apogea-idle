@@ -49,7 +49,7 @@ const ITEM_NAME_ALIASES = {
 };
 const SPELLBOOK_COLOR_RE = /^(Red|Blue|Green|Evil|Yellow) Book (.+)$/;
 
-function resolveRealItemName(name) {
+export function resolveRealItemName(name) {
   if (REAL_ITEMS_BY_NAME[name]) return name;
   if (ITEM_NAME_ALIASES[name] && REAL_ITEMS_BY_NAME[ITEM_NAME_ALIASES[name]]) return ITEM_NAME_ALIASES[name];
   const m = SPELLBOOK_COLOR_RE.exec(name);
@@ -109,10 +109,15 @@ export function rollLoot(monster) {
       gold += drop.quantity;
       continue;
     }
+    // As tabelas de loot dos monstros usam grafia antiga pra alguns itens (ex: "Evil
+    // Book Dark Bind" em vez de "Evil Spellbook: DarkBind") — getItemDefinition já
+    // resolve isso pra achar os stats certos, mas o item tem que NASCER com o nome
+    // RESOLVIDO, senão tudo que depende do nome exato (aprender magia, ícone) quebra.
+    const resolvedName = resolveRealItemName(drop.name);
     const def = getItemDefinition(drop.name);
     items.push({
-      id: slugify(drop.name) + '-' + def.rarity,
-      name: drop.name,
+      id: slugify(resolvedName) + '-' + def.rarity,
+      name: resolvedName,
       quantity: drop.quantity,
       ...def,
     });
@@ -123,8 +128,9 @@ export function rollLoot(monster) {
 
 
 function starterItem(name, quantity) {
+  const resolvedName = resolveRealItemName(name);
   const def = getItemDefinition(name);
-  return { id: `${slugify(name)}-${def.rarity}`, name, quantity, ...def };
+  return { id: `${slugify(resolvedName)}-${def.rarity}`, name: resolvedName, quantity, ...def };
 }
 
 export const STARTER_ITEMS = [

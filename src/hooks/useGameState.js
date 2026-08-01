@@ -21,6 +21,7 @@ import {
   isQuestComplete,
   isQuestClaimed,
   getShopItemDefinition,
+  resolveRealItemName,
   slugify,
   MERCHANTS_BY_NAME,
   computeDamageRoll,
@@ -222,6 +223,20 @@ function createCharacter(name) {
   return raw;
 }
 
+// Bug real corrigido: itens de loot com nome "antigo" (ex: "Evil Book Dark Bind", da
+// tabela de drops) nasciam com esse nome cru em vez do nome canônico do catálogo
+// ("Evil Spellbook: DarkBind") — os stats vinham certos (o resolvedor já existia pra
+// isso), só o NOME ficava errado, quebrando tudo que compara por nome exato (aprender
+// magia, ícone). Personagens que já tinham itens assim salvos precisam ser migrados
+// aqui; loot novo já nasce certo (ver rollLoot em lootItems.js).
+function migrateItemNames(items) {
+  return (items ?? []).map((item) => {
+    const resolvedName = resolveRealItemName(item.name);
+    if (resolvedName === item.name) return item;
+    return { ...item, name: resolvedName, id: `${slugify(resolvedName)}-${item.rarity}` };
+  });
+}
+
 // Personagens salvos antes do sistema de pontos/equipamento/talentos não têm esses
 // campos — preenchemos com valores neutros pra não quebrar a tela ao carregar um save
 // antigo.
@@ -241,8 +256,8 @@ function migrateCharacter(char) {
     currentMana: char.currentMana ?? 0,
     satiety: char.satiety ?? { remainingMs: 0, bonus: null, foodName: null },
     claimedQuests: char.claimedQuests ?? [],
-    inventory: char.inventory ?? [],
-    bank: char.bank ?? [],
+    inventory: migrateItemNames(char.inventory),
+    bank: migrateItemNames(char.bank),
     monsterKills: char.monsterKills ?? {},
     // Formato antigo era um array de strings (nome do item, sempre bloqueado em
     // qualquer raridade) — convertido pro formato novo { name, minRarity }.
