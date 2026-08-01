@@ -155,6 +155,13 @@ export function computeFinalStats(character) {
       stats[key] = Math.round(((stats[key] ?? 0) + val) * 100) / 100;
     }
   }
+  // Fórmula real da Staff (apogean.eu/lists/formulae): "WeaponDamage + Magic / 5" —
+  // com cajado equipado, o Damage base do golpe ganha um bônus extra vindo do seu
+  // Magic, além do bônus de Damage que o próprio item já dá. Antes isso não entrava
+  // no cálculo: cajado se comportava exatamente igual a qualquer outra arma.
+  if (character.equipment?.weapon?.category === 'staff') {
+    stats.damage = Math.round((stats.damage + stats.magic / 5) * 100) / 100;
+  }
   const talented = applyTalentEffects(stats, character);
   return applySatietyBonus(talented, character.satiety);
 }
