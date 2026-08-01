@@ -1020,6 +1020,7 @@ export function useGameState() {
   const [authLoading, setAuthLoading] = useState(true);
   const [authError, setAuthError] = useState(null);
   const [offlineReport, setOfflineReport] = useState(null);
+  const [initialSyncDone, setInitialSyncDone] = useState(false);
   const offlineChecked = useRef(false);
 
   useEffect(() => {
@@ -1064,15 +1065,24 @@ export function useGameState() {
 
   // Ao logar: busca o personagem salvo na nuvem sob esse UID. Se for mais recente
   // que o local (jogou por outro dispositivo depois), usa a versão da nuvem.
+  //
+  // "initialSyncDone" existe pra corrigir uma corrida séria: sem ele, o efeito de
+  // SALVAR (logo abaixo) podia disparar antes dessa busca terminar — e se a busca
+  // demorasse mais que o debounce de salvar, o personagem VELHO deste aparelho subia
+  // pra nuvem e sobrescrevia um progresso mais avançado feito em outro aparelho
+  // (exatamente o que te fez "voltar" de nível). Agora salvar só é permitido depois
+  // que essa comparação inicial terminar.
   useEffect(() => {
     if (!user) return;
+    setInitialSyncDone(false);
     let cancelled = false;
     (async () => {
       const remote = await loadGameState(user.uid).catch(() => null);
-      if (cancelled || !remote) return;
-      if ((remote.updatedAt ?? 0) > (state.character?.updatedAt ?? 0)) {
+      if (cancelled) return;
+      if (remote && (remote.updatedAt ?? 0) > (state.character?.updatedAt ?? 0)) {
         dispatch({ type: 'LOAD_REMOTE_CHARACTER', character: remote });
       }
+      setInitialSyncDone(true);
     })();
     return () => {
       cancelled = true;
@@ -1082,8 +1092,9 @@ export function useGameState() {
 
   // Salva na nuvem (debounced) toda vez que o personagem muda, sob o UID da conta
   // Google logada — é isso que faz o outro dispositivo puxar o progresso depois.
+  // Só roda depois do initialSyncDone (ver comentário acima).
   useEffect(() => {
-    if (!user || !state.character) return;
+    if (!user || !state.character || !initialSyncDone) return;
     setSyncStatus('syncing');
     const timer = setTimeout(() => {
       saveGameState(user.uid, state.character)
@@ -1098,7 +1109,7 @@ export function useGameState() {
         });
     }, SYNC_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [user, state.character]);
+  }, [user, state.character, initialSyncDone]);
 
   const login = useCallback(() => {
     setAuthError(null);

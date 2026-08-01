@@ -9,6 +9,7 @@ import Mercador from './components/Mercador';
 import Banco from './components/Banco';
 import Bestiario from './components/Bestiario';
 import Blacklist from './components/Blacklist';
+import Ranking from './components/Ranking';
 import Sidebar from './components/Sidebar';
 
 const TABS = [
@@ -21,7 +22,7 @@ const TABS = [
   { id: 'blacklist', label: '🚫 Blacklist', implemented: true },
   { id: 'house', label: '🏠 House', implemented: false },
   { id: 'bestiario', label: '📖 Bestiário', implemented: true },
-  { id: 'ranking', label: '🏆 Ranking', implemented: false },
+  { id: 'ranking', label: '🏆 Ranking', implemented: true },
 ];
 
 function ComingSoon({ label }) {
@@ -231,6 +232,7 @@ export default function App() {
         {activeTab === 'blacklist' && (
           <Blacklist character={character} addToBlacklist={addToBlacklist} removeFromBlacklist={removeFromBlacklist} />
         )}
+        {activeTab === 'ranking' && <Ranking />}
         {!TABS.find((t) => t.id === activeTab)?.implemented && (
           <ComingSoon label={TABS.find((t) => t.id === activeTab)?.label} />
         )}

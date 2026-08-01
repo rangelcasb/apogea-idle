@@ -11,6 +11,8 @@ import {
   doc,
   setDoc,
   getDoc,
+  collection,
+  getDocs,
 } from 'firebase/firestore';
 
 // Preencha com as credenciais do seu projeto Firebase (Console > Configurações do projeto).
@@ -60,4 +62,12 @@ export async function saveGameState(userId, state) {
 export async function loadGameState(userId) {
   const snap = await getDoc(doc(db, 'characters', userId));
   return snap.exists() ? snap.data() : null;
+}
+
+// Ranking: lista o personagem de TODA conta cadastrada. Exige que a regra do Firestore
+// libere leitura da coleção inteira pra qualquer usuário logado (por padrão só permite
+// cada conta ler o próprio documento) — ver Console > Firestore > Regras.
+export async function loadAllCharacters() {
+  const snap = await getDocs(collection(db, 'characters'));
+  return snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
 }
