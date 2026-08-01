@@ -175,6 +175,7 @@ function createCharacter(name) {
     learnedSpells: [],
     equippedSpells: Array(SPELL_SLOTS).fill(null),
     autoCastSpells: false,
+    autoPotion: { enabled: false, healthPct: 30, manaPct: 30 },
     updatedAt: Date.now(),
   };
   const stats = computeFinalStats(raw);
@@ -216,6 +217,7 @@ function migrateCharacter(char) {
     learnedSpells: char.learnedSpells ?? [],
     equippedSpells: char.equippedSpells ?? Array(SPELL_SLOTS).fill(null),
     autoCastSpells: char.autoCastSpells ?? false,
+    autoPotion: char.autoPotion ?? { enabled: false, healthPct: 30, manaPct: 30 },
     updatedAt: char.updatedAt ?? 0,
   };
 }
@@ -243,6 +245,59 @@ function init() {
     combatPauseUntil: 0,
     spellCooldowns: {},
   };
+}
+
+// Acha a maior poção disponível na mochila pra um stat (health/mana) — usar a maior
+// primeiro é mais eficiente pro auto-uso (menos vezes que precisa checar de novo).
+function findBestPotion(inventory, statKey) {
+  let best = null;
+  let bestIdx = -1;
+  inventory.forEach((item, idx) => {
+    if (item.category === 'Potions' && item.stats?.[statKey] > 0 && item.quantity > 0) {
+      if (!best || item.stats[statKey] > best.stats[statKey]) {
+        best = item;
+        bestIdx = idx;
+      }
+    }
+  });
+  return bestIdx >= 0 ? { item: best, idx: bestIdx } : null;
+}
+
+// Poção automática: se a vida ou a mana caírem pra igual ou abaixo da % configurada
+// pelo jogador, usa a maior poção disponível daquele tipo — igual clicar "USAR" na
+// mochila, só que sozinho. Checado depois de qualquer coisa que reduza vida/mana
+// (ataque do monstro, gasto de mana em magia) e também no tick de regeneração como
+// rede de segurança.
+function autoUsePotions(char, stats, log) {
+  const auto = char.autoPotion;
+  let inventory = char.inventory;
+  let currentHealth = char.currentHealth;
+  let currentMana = char.currentMana;
+  if (!auto?.enabled || currentHealth <= 0) return { inventory, currentHealth, currentMana, log };
+
+  if (stats.health > 0 && (currentHealth / stats.health) * 100 <= auto.healthPct) {
+    const found = findBestPotion(inventory, 'health');
+    if (found) {
+      currentHealth = Math.min(stats.health, currentHealth + found.item.stats.health);
+      inventory = inventory
+        .map((i, idx) => (idx === found.idx ? { ...i, quantity: i.quantity - 1 } : i))
+        .filter((i) => i.quantity > 0);
+      log = pushLog(log, `Poção automática: você usou ${found.item.name} e recuperou ${found.item.stats.health} de vida.`);
+    }
+  }
+
+  if (stats.mana > 0 && (currentMana / stats.mana) * 100 <= auto.manaPct) {
+    const found = findBestPotion(inventory, 'mana');
+    if (found) {
+      currentMana = Math.min(stats.mana, currentMana + found.item.stats.mana);
+      inventory = inventory
+        .map((i, idx) => (idx === found.idx ? { ...i, quantity: i.quantity - 1 } : i))
+        .filter((i) => i.quantity > 0);
+      log = pushLog(log, `Poção automática: você usou ${found.item.name} e recuperou ${found.item.stats.mana} de mana.`);
+    }
+  }
+
+  return { inventory, currentHealth, currentMana, log };
 }
 
 const MONSTER_TRANSITION_MS = 2000;
@@ -416,6 +471,12 @@ function reducer(state, action) {
       return { ...state, character: { ...char, autoEat: action.enabled, inventory, satiety }, log };
     }
 
+    case 'SET_AUTO_POTION': {
+      const char = state.character;
+      if (!char) return state;
+      return { ...state, character: { ...char, autoPotion: { ...char.autoPotion, ...action.settings } } };
+    }
+
     // Ler um livro de magia ensina o feitiço PRA SEMPRE (consome 1 unidade do livro,
     // igual ao jogo real) — não precisa manter o livro guardado depois disso.
     case 'LEARN_SPELL': {
@@ -536,6 +597,12 @@ function reducer(state, action) {
         return state;
       }
 
+      // Gasto de mana/HP em magia é o outro grande motivo de precisar de poção
+      // automática além do dano do monstro — checa de novo aqui no final do cast.
+      const potionResult = autoUsePotions(workingChar, charStats, log);
+      workingChar = { ...workingChar, inventory: potionResult.inventory, currentHealth: potionResult.currentHealth, currentMana: potionResult.currentMana };
+      log = potionResult.log;
+
       return { ...state, character: workingChar, monster: workingMonster, log, combatPauseUntil, spellCooldowns };
     }
 
@@ -651,6 +718,8 @@ function reducer(state, action) {
       let autoCombat = state.autoCombat;
       let deaths = char.deaths;
       let newHealth = newHealthRaw;
+      let inventory = char.inventory;
+      let currentMana = char.currentMana;
       if (newHealthRaw <= 0) {
         deaths += 1;
         autoCombat = false;
@@ -658,11 +727,17 @@ function reducer(state, action) {
         // ficava travado com 0 de vida pra sempre, já que o regen não age em vida 0.
         newHealth = charStats.health;
         log = pushLog(log, 'Você foi derrotado! Reviveu com a vida cheia. Combate automático interrompido.');
+      } else {
+        const potionResult = autoUsePotions({ ...char, currentHealth: newHealthRaw }, charStats, log);
+        inventory = potionResult.inventory;
+        newHealth = potionResult.currentHealth;
+        currentMana = potionResult.currentMana;
+        log = potionResult.log;
       }
 
       return {
         ...state,
-        character: { ...char, currentHealth: newHealth, deaths, autoCombat },
+        character: { ...char, currentHealth: newHealth, currentMana, deaths, autoCombat, inventory },
         log,
         autoCombat,
       };
@@ -710,15 +785,24 @@ function reducer(state, action) {
         }
       }
 
+      // Rede de segurança da poção automática: cobre qualquer queda de vida/mana que
+      // não passou pelos outros pontos de checagem (ex: dano verdadeiro que você
+      // recebe de volta do Dark Blade).
+      const potionResult = autoUsePotions({ ...char, currentHealth, currentMana, inventory }, s, log);
+      inventory = potionResult.inventory;
+      currentHealth = potionResult.currentHealth;
+      const currentManaAfterPotion = potionResult.currentMana;
+      log = potionResult.log;
+
       if (
         currentHealth === char.currentHealth &&
-        currentMana === char.currentMana &&
+        currentManaAfterPotion === char.currentMana &&
         inventory === char.inventory &&
         satiety === char.satiety
       ) {
         return state;
       }
-      return { ...state, character: { ...char, currentHealth, currentMana, inventory, satiety }, log };
+      return { ...state, character: { ...char, currentHealth, currentMana: currentManaAfterPotion, inventory, satiety }, log };
     }
 
     case 'CONSUME_ITEM': {
@@ -1323,6 +1407,7 @@ export function useGameState() {
   }, []);
   const setAutoCombat = useCallback((valueOrFn) => dispatch({ type: 'SET_AUTO_COMBAT', valueOrFn }), []);
   const setAutoEat = useCallback((enabled) => dispatch({ type: 'SET_AUTO_EAT', enabled }), []);
+  const setAutoPotion = useCallback((settings) => dispatch({ type: 'SET_AUTO_POTION', settings }), []);
   const consumeItem = useCallback((itemId) => dispatch({ type: 'CONSUME_ITEM', itemId }), []);
   const sellItem = useCallback((itemId, all) => dispatch({ type: 'SELL_ITEM', itemId, all }), []);
   const discardItem = useCallback((itemId) => dispatch({ type: 'DISCARD_ITEM', itemId }), []);
@@ -1358,6 +1443,7 @@ export function useGameState() {
     autoCombat: state.autoCombat,
     setAutoCombat,
     setAutoEat,
+    setAutoPotion,
     createNewCharacter,
     chooseVocation,
     vocationCost: VOCATION_COST,

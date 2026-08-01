@@ -43,6 +43,7 @@ export default function App() {
     autoCombat,
     setAutoCombat,
     setAutoEat,
+    setAutoPotion,
     createNewCharacter,
     chooseVocation,
     vocationCost,
@@ -209,6 +210,7 @@ export default function App() {
             autoCombat={autoCombat}
             addToBlacklist={addToBlacklist}
             setAutoEat={setAutoEat}
+            setAutoPotion={setAutoPotion}
             learnSpell={learnSpell}
           />
         )}

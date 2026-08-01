@@ -37,6 +37,7 @@ export default function Personagem({
   autoCombat,
   addToBlacklist,
   setAutoEat,
+  setAutoPotion,
   learnSpell,
 }) {
   const isSquire = character.class === 'Squire';
@@ -202,6 +203,50 @@ export default function Personagem({
               className="shrink-0 w-5 h-5 accent-gold cursor-pointer"
             />
           </label>
+        </div>
+
+        <div className="bg-wood-light border border-wood-lighter rounded-lg p-4">
+          <label className="flex items-center justify-between gap-2 cursor-pointer mb-2">
+            <span>
+              <span className="text-gold font-semibold tracking-wide">◆ POÇÃO AUTOMÁTICA</span>
+              <p className="text-[11px] text-neutral-500 mt-0.5">
+                Usa a maior poção de vida/mana disponível na mochila assim que vida ou mana
+                caírem pra igual ou abaixo da % que você definir.
+              </p>
+            </span>
+            <input
+              type="checkbox"
+              checked={character.autoPotion?.enabled ?? false}
+              onChange={(e) => setAutoPotion({ enabled: e.target.checked })}
+              className="shrink-0 w-5 h-5 accent-gold cursor-pointer"
+            />
+          </label>
+          <div className="flex gap-4 text-xs text-neutral-300">
+            <label className="flex items-center gap-1.5">
+              Vida ≤
+              <input
+                type="number"
+                min={1}
+                max={99}
+                value={character.autoPotion?.healthPct ?? 30}
+                onChange={(e) => setAutoPotion({ healthPct: Math.min(99, Math.max(1, Number(e.target.value) || 0)) })}
+                className="w-14 bg-wood border border-wood-lighter rounded px-1.5 py-1 text-neutral-100 focus:outline-none focus:border-gold"
+              />
+              %
+            </label>
+            <label className="flex items-center gap-1.5">
+              Mana ≤
+              <input
+                type="number"
+                min={1}
+                max={99}
+                value={character.autoPotion?.manaPct ?? 30}
+                onChange={(e) => setAutoPotion({ manaPct: Math.min(99, Math.max(1, Number(e.target.value) || 0)) })}
+                className="w-14 bg-wood border border-wood-lighter rounded px-1.5 py-1 text-neutral-100 focus:outline-none focus:border-gold"
+              />
+              %
+            </label>
+          </div>
         </div>
 
         <div className="bg-wood-light border border-wood-lighter rounded-lg p-4">
