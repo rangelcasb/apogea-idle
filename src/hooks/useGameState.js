@@ -31,6 +31,7 @@ import {
   SPELLS_BY_ID,
   SPELL_SLOTS,
   DEFAULT_HEAL_THRESHOLD_PCT,
+  ELEMENTAL_SPELL_TYPES,
   computeSpellEffect,
   canCastSpell,
 } from '../data/gameData';
@@ -178,6 +179,8 @@ function createCharacter(name) {
     autoCastSpells: false,
     autoPotion: { enabled: false, healthPct: 30, manaPct: 30 },
     spellHealThresholds: {},
+    staffChargeBuff: 0,
+    franticConjuryBuff: false,
     updatedAt: Date.now(),
   };
   const stats = computeFinalStats(raw);
@@ -221,6 +224,8 @@ function migrateCharacter(char) {
     autoCastSpells: char.autoCastSpells ?? false,
     autoPotion: char.autoPotion ?? { enabled: false, healthPct: 30, manaPct: 30 },
     spellHealThresholds: char.spellHealThresholds ?? {},
+    staffChargeBuff: char.staffChargeBuff ?? 0,
+    franticConjuryBuff: char.franticConjuryBuff ?? false,
     updatedAt: char.updatedAt ?? 0,
   };
 }
@@ -576,7 +581,20 @@ function reducer(state, action) {
           if (healthPct > threshold) continue;
         }
 
-        spellCooldowns = { ...spellCooldowns, [spellId]: now + spell.cooldownMs };
+        // Electric Nature (todas) + Conflagrated Mind/Sacred Stick/Gallop's Fall
+        // (Fogo/Holy/Água) reduzem o cooldown real daquela magia — somam entre si, até
+        // um teto de 90% pra nunca zerar o cooldown de verdade.
+        let cdReductionPct = charStats.spellCooldownReductionPercent ?? 0;
+        if (spell.type === 'Fire') cdReductionPct += charStats.fireCooldownReductionPercent ?? 0;
+        if (spell.type === 'Holy') cdReductionPct += charStats.holyCooldownReductionPercent ?? 0;
+        if (spell.type === 'Water') cdReductionPct += charStats.waterCooldownReductionPercent ?? 0;
+        cdReductionPct = Math.min(90, cdReductionPct);
+        spellCooldowns = { ...spellCooldowns, [spellId]: now + spell.cooldownMs * (1 - cdReductionPct / 100) };
+
+        // Staff Mastery: chance de conjurar sem gastar mana (não afeta magias que
+        // custam HP em vez de mana).
+        const freeCast = !spell.hpCast && charStats.staffFreeCastChance > 0 && Math.random() < charStats.staffFreeCastChance;
+        if (freeCast) log = pushLog(log, `Staff Mastery: ${spell.id} não gastou mana!`);
 
         if (spell.kind === 'heal') {
           const missingHealth = charStats.health - workingChar.currentHealth;
@@ -584,7 +602,7 @@ function reducer(state, action) {
           const currentHealth = spell.hpCast
             ? Math.max(1, workingChar.currentHealth - spell.manaCost)
             : workingChar.currentHealth;
-          const currentMana = spell.hpCast ? workingChar.currentMana : workingChar.currentMana - spell.manaCost;
+          const currentMana = spell.hpCast || freeCast ? workingChar.currentMana : workingChar.currentMana - spell.manaCost;
           workingChar = {
             ...workingChar,
             currentHealth: Math.min(charStats.health, currentHealth + healAmount),
@@ -594,14 +612,33 @@ function reducer(state, action) {
           continue;
         }
 
+        // Warlock (Energia/Fogo) e Steering Insight (Energia/Arco) prometem área de
+        // efeito e ricochete que esse jogo não simula (1 monstro por vez) — aproximados
+        // como bônus fixo de dano nessas escolas de magia.
+        let dmgBonusPct = 0;
+        if (['Fire', 'Energy'].includes(spell.type)) dmgBonusPct += charStats.fireEnergyDamageBonusPercent ?? 0;
+        if (['Energy', 'Arrow'].includes(spell.type)) dmgBonusPct += charStats.energyArrowDamageBonusPercent ?? 0;
+
         const { avg: avgWeaponDamage } = computeDamageRoll(charStats);
-        const rawDamage = computeSpellEffect(spell, charStats, avgWeaponDamage);
+        const rawDamage = computeSpellEffect(spell, charStats, avgWeaponDamage) * (1 + dmgBonusPct / 100);
         const effectiveArmor = Math.max(0, workingMonster.armor * (1 - (charStats.armorPenPercent ?? 0) / 100));
         const spellDamage = Math.max(1, (rawDamage - effectiveArmor / 2) / (1 + effectiveArmor / 100));
 
         const currentHealth = spell.hpCast ? Math.max(1, workingChar.currentHealth - spell.manaCost) : workingChar.currentHealth;
-        const currentMana = spell.hpCast ? workingChar.currentMana : workingChar.currentMana - spell.manaCost;
+        const currentMana = spell.hpCast || freeCast ? workingChar.currentMana : workingChar.currentMana - spell.manaCost;
         workingChar = { ...workingChar, currentHealth, currentMana };
+
+        // Charge the Staff: cast Elemental (Fogo/Energia/Água/Terra) carrega o PRÓXIMO
+        // golpe físico com dano verdadeiro extra (Magic / divisor do rank).
+        if (ELEMENTAL_SPELL_TYPES.includes(spell.type) && charStats.staffChargeTrueDamage > 0) {
+          workingChar = { ...workingChar, staffChargeBuff: charStats.staffChargeTrueDamage };
+        }
+        // Frantic Conjury: cast de Fogo tem chance de fazer o PRÓXIMO golpe conjurar
+        // Conjure Fire de graça.
+        if (spell.type === 'Fire' && charStats.franticConjuryChance > 0 && Math.random() < charStats.franticConjuryChance) {
+          workingChar = { ...workingChar, franticConjuryBuff: true };
+          log = pushLog(log, 'Frantic Conjury: seu próximo golpe vai conjurar Conjure Fire de graça!');
+        }
 
         log = pushLog(log, `Você conjurou ${spell.id} e causou ${spellDamage.toFixed(1)} de dano em ${workingMonster.name}.`);
 
@@ -686,7 +723,23 @@ function reducer(state, action) {
       const isCrit = hits.some((h) => h.isCrit);
       const totalTrueDamage = hits.reduce((sum, h) => sum + h.trueDamage, 0);
       const totalSelfDamage = hits.reduce((sum, h) => sum + h.selfTrueDamage, 0);
-      const playerDamage = hits.reduce((sum, h) => sum + h.damage, 0) + totalTrueDamage;
+
+      // Charge the Staff: se um cast Elemental recente carregou o próximo golpe, esse
+      // ataque soma dano verdadeiro extra (Magic / divisor do rank) e consome o buff.
+      const staffChargeDamage = char.staffChargeBuff > 0 ? char.staffChargeBuff : 0;
+
+      // Frantic Conjury: se um cast de Fogo ativou a chance, esse golpe também conjura
+      // Conjure Fire de graça (mesma fórmula da magia) contra o monstro atual.
+      let franticConjuryDamage = 0;
+      if (char.franticConjuryBuff) {
+        const conjureFireSpell = SPELLS_BY_ID.ConjureFire;
+        const { avg: avgWeaponDamage } = computeDamageRoll(charStats);
+        const rawConjureDamage = computeSpellEffect(conjureFireSpell, charStats, avgWeaponDamage);
+        const effectiveArmorForConjure = Math.max(0, currentMonster.armor * (1 - (charStats.armorPenPercent ?? 0) / 100));
+        franticConjuryDamage = Math.max(1, (rawConjureDamage - effectiveArmorForConjure / 2) / (1 + effectiveArmorForConjure / 100));
+      }
+
+      const playerDamage = hits.reduce((sum, h) => sum + h.damage, 0) + totalTrueDamage + staffChargeDamage + franticConjuryDamage;
       const monsterHealth = Math.max(0, currentMonster.currentHealth - playerDamage);
 
       const lifestealHeal = playerDamage * ((charStats.lifestealPercent ?? 0) / 100);
@@ -698,6 +751,12 @@ function reducer(state, action) {
       if (totalTrueDamage > 0) {
         log = pushLog(log, `Dano verdadeiro: +${totalTrueDamage.toFixed(1)} (ignora armadura).`);
       }
+      if (staffChargeDamage > 0) {
+        log = pushLog(log, `Charge the Staff: +${staffChargeDamage.toFixed(1)} de dano verdadeiro.`);
+      }
+      if (franticConjuryDamage > 0) {
+        log = pushLog(log, `Frantic Conjury: Conjure Fire de graça causou +${franticConjuryDamage.toFixed(1)}.`);
+      }
       if (lifestealHeal > 0) {
         log = pushLog(log, `Lifesteal: +${lifestealHeal.toFixed(1)} de vida.`);
       }
@@ -705,8 +764,15 @@ function reducer(state, action) {
         log = pushLog(log, `Dark Blade: você recebeu ${totalSelfDamage.toFixed(1)} de dano verdadeiro.`);
       }
 
+      // Os dois buffs do Cajado são de 1 uso só — consumidos nesse golpe, independente
+      // do resultado (matou o monstro ou não).
+      const charWithBuffsConsumed = { ...char, staffChargeBuff: 0, franticConjuryBuff: false };
+
       if (monsterHealth <= 0) {
-        return { ...state, ...defeatMonster(char, currentMonster, log, { lifestealHeal, selfDamage: totalSelfDamage }) };
+        return {
+          ...state,
+          ...defeatMonster(charWithBuffsConsumed, currentMonster, log, { lifestealHeal, selfDamage: totalSelfDamage }),
+        };
       }
 
       const healthAfterLifesteal = Math.max(
@@ -716,7 +782,7 @@ function reducer(state, action) {
 
       return {
         ...state,
-        character: { ...char, currentHealth: healthAfterLifesteal },
+        character: { ...charWithBuffsConsumed, currentHealth: healthAfterLifesteal },
         monster: { ...currentMonster, currentHealth: monsterHealth },
         log,
       };

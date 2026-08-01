@@ -104,7 +104,39 @@ const MECHANICS = {
   67: 'trueDamageChance', // Jagged Rhythm — dagger, 50% chance of extra (Ability/4) True Damage
   68: 'doubleAttack', // Luck Foreseen II — Ability/6 = % chance of attacking twice
   69: 'trueDamageDouble', // Dark Blade — doubles True Damage dealt, but you take that too
+
+  // Ramo Cajado — agora que o jogo tem magias de verdade (aba Magias, cooldown real),
+  // dá pra implementar essas mecânicas de verdade em vez do bônus genérico de Ability.
+  1: 'staffFreeCast', // Staff Mastery — chance de conjurar sem gastar mana
+  2: 'staffCharge', // Charge the Staff — magia Elemental carrega o próximo golpe com dano verdadeiro extra
+  3: 'franticConjury', // Frantic Conjury — magia de Fogo tem chance de conjurar Conjure Fire de graça no próximo golpe
+  62: 'spellCooldownReduction', // Electric Nature — reduz cooldown de TODAS as magias
+  64: 'fireCooldownReduction', // Conflagrated Mind — reduz cooldown de magias de Fogo (25%, sem área de efeito nesse jogo)
+  65: 'holyCooldownReduction', // Sacred Stick — reduz cooldown de magias Holy (25%, sem área de efeito nesse jogo)
+  66: 'waterCooldownReduction', // Gallop's Fall — reduz cooldown de magias de Água (35%)
+  4: 'elementalAoeBonus', // Warlock — sem sistema de área de efeito (1 monstro por vez), aproximado como +dano em Energia/Fogo
+  63: 'projectileBounceBonus', // Steering Insight — sem sistema de ricochete, aproximado como +dano em Energia/Arco
 };
+
+// Valores fixos dos talentos de 1 ponto só do ramo Cajado que dependem de cooldown ou
+// bônus aproximado — não escalam por rank (a fonte real não documenta um valor
+// diferente, é a % citada na própria descrição do talento).
+const FIRE_CD_REDUCTION_PCT = 25;
+const HOLY_CD_REDUCTION_PCT = 25;
+const WATER_CD_REDUCTION_PCT = 35;
+// Warlock e Steering Insight prometem "área de efeito extra" / "ricochete e explosão"
+// — esse jogo só tem 1 monstro por combate, então não existe como simular isso de
+// verdade. Aproximei como um bônus fixo de dano nas escolas de magia certas, deixando
+// claro que NÃO é a mecânica real (não tem multi-alvo aqui).
+const WARLOCK_DAMAGE_BONUS_PCT = 15;
+const STEERING_INSIGHT_DAMAGE_BONUS_PCT = 20;
+
+// "ML/5", "ML/4", "ML/2" (Charge the Staff) — ML = Magic Level, ou seja, o divisor que
+// aplica sobre o stat Magic final pra achar o dano verdadeiro extra daquele rank.
+function parseMagicDivisor(str) {
+  const m = /ML\/(\d+(?:\.\d+)?)/.exec(str || '');
+  return m ? parseFloat(m[1]) : NaN;
+}
 
 // Valores fixos das 3 mecânicas de dano-verdadeiro/ataque-duplo da adaga (não escalam
 // por rank — são talentos de 1 ponto só, o valor real vem direto da descrição).
@@ -300,6 +332,15 @@ export function computeTalentModifiers(talentPoints, equipment) {
     trueDamageAbilityDivisor: 0,
     doubleAttackAbilityDivisor: 0,
     trueDamageDoubled: false,
+    staffFreeCastChance: 0,
+    staffChargeDivisor: 0,
+    franticConjuryChance: 0,
+    spellCooldownReductionPercent: 0,
+    fireCooldownReductionPercent: 0,
+    holyCooldownReductionPercent: 0,
+    waterCooldownReductionPercent: 0,
+    fireEnergyDamageBonusPercent: 0,
+    energyArrowDamageBonusPercent: 0,
   };
 
   for (const [idStr, points] of Object.entries(talentPoints ?? {})) {
@@ -337,6 +378,35 @@ export function computeTalentModifiers(talentPoints, equipment) {
         break;
       case 'trueDamageDouble':
         mods.trueDamageDoubled = true;
+        break;
+      case 'staffFreeCast':
+        if (!Number.isNaN(rankValue)) mods.staffFreeCastChance = rankValue / 100;
+        break;
+      case 'staffCharge': {
+        const divisor = parseMagicDivisor(talent.ranks[Math.min(points, talent.maxPoints) - 1]);
+        if (!Number.isNaN(divisor)) mods.staffChargeDivisor = divisor;
+        break;
+      }
+      case 'franticConjury':
+        if (!Number.isNaN(rankValue)) mods.franticConjuryChance = rankValue / 100;
+        break;
+      case 'spellCooldownReduction':
+        if (!Number.isNaN(rankValue)) mods.spellCooldownReductionPercent = rankValue;
+        break;
+      case 'fireCooldownReduction':
+        mods.fireCooldownReductionPercent = FIRE_CD_REDUCTION_PCT;
+        break;
+      case 'holyCooldownReduction':
+        mods.holyCooldownReductionPercent = HOLY_CD_REDUCTION_PCT;
+        break;
+      case 'waterCooldownReduction':
+        mods.waterCooldownReductionPercent = WATER_CD_REDUCTION_PCT;
+        break;
+      case 'elementalAoeBonus':
+        mods.fireEnergyDamageBonusPercent = WARLOCK_DAMAGE_BONUS_PCT;
+        break;
+      case 'projectileBounceBonus':
+        mods.energyArrowDamageBonusPercent = STEERING_INSIGHT_DAMAGE_BONUS_PCT;
         break;
       default: {
         if (!talent.effect) break;
@@ -376,5 +446,17 @@ export function applyTalentEffects(stats, character) {
   next.doubleAttackChance = mods.doubleAttackAbilityDivisor
     ? Math.min(1, next.ability / mods.doubleAttackAbilityDivisor / 100)
     : 0;
+
+  // Ramo Cajado: dependem do Magic final (staffChargeTrueDamage) ou só são flags/%
+  // repassadas direto pro combate/SPELL_CAST usarem.
+  next.staffFreeCastChance = mods.staffFreeCastChance;
+  next.staffChargeTrueDamage = mods.staffChargeDivisor ? next.magic / mods.staffChargeDivisor : 0;
+  next.franticConjuryChance = mods.franticConjuryChance;
+  next.spellCooldownReductionPercent = mods.spellCooldownReductionPercent;
+  next.fireCooldownReductionPercent = mods.fireCooldownReductionPercent;
+  next.holyCooldownReductionPercent = mods.holyCooldownReductionPercent;
+  next.waterCooldownReductionPercent = mods.waterCooldownReductionPercent;
+  next.fireEnergyDamageBonusPercent = mods.fireEnergyDamageBonusPercent;
+  next.energyArrowDamageBonusPercent = mods.energyArrowDamageBonusPercent;
   return next;
 }
