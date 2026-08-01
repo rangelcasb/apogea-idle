@@ -10,6 +10,7 @@ import Banco from './components/Banco';
 import Bestiario from './components/Bestiario';
 import Blacklist from './components/Blacklist';
 import Magias from './components/Magias';
+import Leilao from './components/Leilao';
 import Ranking from './components/Ranking';
 import Sidebar from './components/Sidebar';
 
@@ -22,6 +23,7 @@ const TABS = [
   { id: 'banco', label: '🏦 Banco', implemented: true },
   { id: 'blacklist', label: '🚫 Blacklist', implemented: true },
   { id: 'magias', label: '🔮 Magias', implemented: true },
+  { id: 'leilao', label: '🔨 Leilão', implemented: true },
   { id: 'house', label: '🏠 House', implemented: false },
   { id: 'bestiario', label: '📖 Bestiário', implemented: true },
   { id: 'ranking', label: '🏆 Ranking', implemented: true },
@@ -76,6 +78,10 @@ export default function App() {
     setAutoCastSpells,
     setSpellHealThreshold,
     spellCooldowns,
+    fetchAuctions,
+    listItemForAuction,
+    placeBidOnAuction,
+    reconcileAuctions,
     offlineReport,
     dismissOfflineReport,
     syncStatus,
@@ -251,6 +257,16 @@ export default function App() {
             unequipSpell={unequipSpell}
             setAutoCastSpells={setAutoCastSpells}
             setSpellHealThreshold={setSpellHealThreshold}
+          />
+        )}
+        {activeTab === 'leilao' && (
+          <Leilao
+            character={character}
+            user={user}
+            fetchAuctions={fetchAuctions}
+            listItemForAuction={listItemForAuction}
+            placeBidOnAuction={placeBidOnAuction}
+            reconcileAuctions={reconcileAuctions}
           />
         )}
         {activeTab === 'ranking' && <Ranking />}
