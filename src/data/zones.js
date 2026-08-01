@@ -26,6 +26,15 @@ const REAL_ZONES = [
     xpPerHour: 1959, goldPerHour: 306,
     monsterNames: ['Skeleton', 'Wolf', 'Occultist Apprentice', 'Bandit'],
   },
+  // Zona custom a pedido do usuário — não é uma zona da imagem oficial do jogo, é um
+  // "meio-termo" entre Fazendas (nível 1) e Esgotos (nível 3), só com Rat e Skeleton
+  // (os dois já usados nas zonas vizinhas). xp/h e gold/h interpolados entre as duas.
+  {
+    id: 'becos-de-basile', name: 'Becos de Basile', region: 'Basile', minLevel: 2,
+    description: 'A transição entre os campos e os esgotos — vielas estreitas onde só ratos e esqueletos rondam.',
+    xpPerHour: 1200, goldPerHour: 150,
+    monsterNames: ['Rat', 'Skeleton'],
+  },
   {
     id: 'floresta-de-basile', name: 'Floresta de Basile', region: 'Basile', minLevel: 5,
     description: 'A mata fecha e cavernas escondem aranhas. Goblins e ocultistas iniciantes rondam as trilhas.',
