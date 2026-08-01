@@ -14,6 +14,76 @@ const LIFESTEAL_RE = /^Lifesteal: \+([\d.]+) de vida\./;
 const KILL_XP_RE = /derrotado! \+(\d+) XP/;
 const GOLD_RE = /^\+(\d+) gold\./;
 
+// Padrões usados só pelo contador de estatísticas da sessão (dano/dano verdadeiro/
+// cura/escudo) — casam com as mensagens exatas que o reducer já escreve no log.
+const SPELL_DAMAGE_RE = /^Você conjurou .+ e causou ([\d.]+) de dano em .+?\./;
+const TRUE_DAMAGE_RE = /^Dano verdadeiro: \+([\d.]+) /;
+const STAFF_CHARGE_TRUE_DAMAGE_RE = /^Charge the Staff: \+([\d.]+) de dano verdadeiro\./;
+const UNSTABLE_AEGIS_RE = /^Unstable Aegis: estourou ([\d.]+) de dano verdadeiro/;
+const FRANTIC_CONJURY_DAMAGE_RE = /^Frantic Conjury: Conjure Fire de graça causou \+([\d.]+)\./;
+const SPELL_LIFESTEAL_RE = /: lifesteal \+([\d.]+) de vida\./;
+const SPELL_HEAL_RE = /^Você conjurou .+ e recuperou ([\d.]+) de vida\./;
+const SHIELD_RE = /^Diamond Skin: \+([\d.]+) de escudo/;
+
+// Soma dano causado (físico + magia + bônus de talento), dano verdadeiro, cura
+// (lifesteal + Heal) e escudo ganho DESDE que o combate automático ligou — reinicia
+// toda vez que a caçada é retomada. Processa TODAS as entradas novas do log a cada
+// atualização (não só a mais recente), porque um único golpe pode gerar várias linhas
+// de log de uma vez (dano + crítico + lifesteal + dano verdadeiro, por exemplo).
+function useCombatStats(log, autoCombat) {
+  const [stats, setStats] = useState({ damageDealt: 0, trueDamage: 0, healing: 0, shield: 0 });
+  const lastIdRef = useRef(null);
+  const wasActiveRef = useRef(autoCombat);
+
+  useEffect(() => {
+    if (autoCombat && !wasActiveRef.current) {
+      setStats({ damageDealt: 0, trueDamage: 0, healing: 0, shield: 0 });
+      lastIdRef.current = null;
+    }
+    wasActiveRef.current = autoCombat;
+  }, [autoCombat]);
+
+  useEffect(() => {
+    if (log.length === 0) return;
+    const lastIndex = lastIdRef.current ? log.findIndex((e) => e.id === lastIdRef.current) : -1;
+    const newEntries = lastIndex === -1 ? log.slice(0, 1) : log.slice(0, lastIndex);
+    lastIdRef.current = log[0].id;
+    if (newEntries.length === 0) return;
+
+    let addDamage = 0;
+    let addTrue = 0;
+    let addHeal = 0;
+    let addShield = 0;
+    for (const entry of newEntries) {
+      const msg = entry.message;
+      let m;
+      if ((m = PLAYER_DAMAGE_RE.exec(msg)) || (m = SPELL_DAMAGE_RE.exec(msg)) || (m = FRANTIC_CONJURY_DAMAGE_RE.exec(msg))) {
+        addDamage += parseFloat(m[1]);
+      } else if (
+        (m = TRUE_DAMAGE_RE.exec(msg)) ||
+        (m = STAFF_CHARGE_TRUE_DAMAGE_RE.exec(msg)) ||
+        (m = UNSTABLE_AEGIS_RE.exec(msg))
+      ) {
+        addTrue += parseFloat(m[1]);
+      } else if ((m = LIFESTEAL_RE.exec(msg)) || (m = SPELL_LIFESTEAL_RE.exec(msg)) || (m = SPELL_HEAL_RE.exec(msg))) {
+        addHeal += parseFloat(m[1]);
+      } else if ((m = SHIELD_RE.exec(msg))) {
+        addShield += parseFloat(m[1]);
+      }
+    }
+    if (addDamage || addTrue || addHeal || addShield) {
+      setStats((prev) => ({
+        damageDealt: prev.damageDealt + addDamage,
+        trueDamage: prev.trueDamage + addTrue,
+        healing: prev.healing + addHeal,
+        shield: prev.shield + addShield,
+      }));
+    }
+  }, [log]);
+
+  return stats;
+}
+
 // Observa o log e devolve um "contador de tremida" pra cada lado — cada vez que o
 // personagem ou o monstro leva um hit, o contador sobe, o que remonta o ícone (via
 // key) e reinicia a animação de tremida do zero.
@@ -123,6 +193,7 @@ export default function Cacada({ character, monster, log, autoCombat, setAutoCom
   const isDead = character.currentHealth <= 0;
   const floaters = useFloatingNumbers(log);
   const { playerHitId, monsterHitId } = useAttackShake(log);
+  const combatStats = useCombatStats(log, autoCombat);
   const { displayed: displayedMonster, phase: monsterPhase } = useMonsterTransition(monster, character.kills);
 
   // Enquanto está caçando (combate automático ligado), mostra o painel de combate ao
@@ -255,7 +326,7 @@ export default function Cacada({ character, monster, log, autoCombat, setAutoCom
           </div>
         </div>
 
-        <div className="flex items-center gap-2 text-xs">
+        <div className="flex items-center gap-2 text-xs flex-wrap">
           <span className="bg-wood-light border border-wood-lighter rounded px-2.5 py-1 text-neutral-300">
             {killsPerHour.toLocaleString('pt-BR')} abates/h
           </span>
@@ -264,6 +335,18 @@ export default function Cacada({ character, monster, log, autoCombat, setAutoCom
           </span>
           <span className="bg-wood-light border border-wood-lighter rounded px-2.5 py-1 text-green-500">
             {zone?.goldPerHour.toLocaleString('pt-BR')} gold/h
+          </span>
+          <span className="bg-wood-light border border-wood-lighter rounded px-2.5 py-1 text-neutral-100">
+            ⚔ {Math.round(combatStats.damageDealt).toLocaleString('pt-BR')} dano causado
+          </span>
+          <span className="bg-wood-light border border-wood-lighter rounded px-2.5 py-1 text-purple-300">
+            ✦ {Math.round(combatStats.trueDamage).toLocaleString('pt-BR')} dano verdadeiro
+          </span>
+          <span className="bg-wood-light border border-wood-lighter rounded px-2.5 py-1 text-green-400">
+            ✚ {Math.round(combatStats.healing).toLocaleString('pt-BR')} cura
+          </span>
+          <span className="bg-wood-light border border-wood-lighter rounded px-2.5 py-1 text-cyan-300">
+            🛡 {Math.round(combatStats.shield).toLocaleString('pt-BR')} escudo
           </span>
         </div>
 
