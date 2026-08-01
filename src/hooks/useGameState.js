@@ -51,6 +51,10 @@ const TURN_MS = 2000;
 // Regen and MP Regen stats each time."
 const REGEN_TICK_MS = 10000;
 const STORAGE_KEY = 'apogea-idle-character';
+// Custo de mana do ataque básico com cajado — não documentado num valor exato pela
+// fonte real, só confirmado que existe (daí o talento "Staff Mastery": chance de
+// atirar sem esse custo). Fixo e moderado, pra não esvaziar a mana rápido demais.
+const STAFF_BASIC_ATTACK_MANA_COST = 3;
 const RESPEC_COST = 200;
 const TALENT_RESET_BASE_COST = 200;
 // Progresso offline: no máximo 8h de recompensa, e só XP/gold (nada de item — não
@@ -591,18 +595,13 @@ function reducer(state, action) {
         cdReductionPct = Math.min(90, cdReductionPct);
         spellCooldowns = { ...spellCooldowns, [spellId]: now + spell.cooldownMs * (1 - cdReductionPct / 100) };
 
-        // Staff Mastery: chance de conjurar sem gastar mana (não afeta magias que
-        // custam HP em vez de mana).
-        const freeCast = !spell.hpCast && charStats.staffFreeCastChance > 0 && Math.random() < charStats.staffFreeCastChance;
-        if (freeCast) log = pushLog(log, `Staff Mastery: ${spell.id} não gastou mana!`);
-
         if (spell.kind === 'heal') {
           const missingHealth = charStats.health - workingChar.currentHealth;
           const healAmount = missingHealth * ((spell.missingHealthPct ?? 0) / 100);
           const currentHealth = spell.hpCast
             ? Math.max(1, workingChar.currentHealth - spell.manaCost)
             : workingChar.currentHealth;
-          const currentMana = spell.hpCast || freeCast ? workingChar.currentMana : workingChar.currentMana - spell.manaCost;
+          const currentMana = spell.hpCast ? workingChar.currentMana : workingChar.currentMana - spell.manaCost;
           workingChar = {
             ...workingChar,
             currentHealth: Math.min(charStats.health, currentHealth + healAmount),
@@ -625,7 +624,7 @@ function reducer(state, action) {
         const spellDamage = Math.max(1, (rawDamage - effectiveArmor / 2) / (1 + effectiveArmor / 100));
 
         const currentHealth = spell.hpCast ? Math.max(1, workingChar.currentHealth - spell.manaCost) : workingChar.currentHealth;
-        const currentMana = spell.hpCast || freeCast ? workingChar.currentMana : workingChar.currentMana - spell.manaCost;
+        const currentMana = spell.hpCast ? workingChar.currentMana : workingChar.currentMana - spell.manaCost;
         workingChar = { ...workingChar, currentHealth, currentMana };
 
         // Charge the Staff: cast Elemental (Fogo/Energia/Água/Terra) carrega o PRÓXIMO
@@ -680,6 +679,14 @@ function reducer(state, action) {
       if (state.combatPauseUntil && Date.now() < state.combatPauseUntil) return state;
 
       const charStats = computeFinalStats(char);
+
+      // Ataque básico com cajado (ou na mão secundária) consome mana — a fonte real
+      // não documenta o valor exato, então usamos um custo fixo homebrew moderado.
+      // Staff Mastery é justamente "chance de atirar sem custo": aqui é onde ela
+      // realmente se aplica (não no cast de magia, que já tem custo próprio real).
+      const staffEquipped = char.equipment?.weapon?.category === 'staff' || char.equipment?.offhand?.category === 'staff';
+      const freeShot = staffEquipped && charStats.staffFreeCastChance > 0 && Math.random() < charStats.staffFreeCastChance;
+      const staffManaCost = staffEquipped && !freeShot ? Math.min(char.currentMana, STAFF_BASIC_ATTACK_MANA_COST) : 0;
 
       // Um golpe: dano físico normal (com crítico e mitigação de armadura) + a chance
       // de dano-verdadeiro da adaga (Jagged Rhythm), que ignora armadura por completo
@@ -764,9 +771,19 @@ function reducer(state, action) {
         log = pushLog(log, `Dark Blade: você recebeu ${totalSelfDamage.toFixed(1)} de dano verdadeiro.`);
       }
 
+      if (staffManaCost > 0) {
+        log = pushLog(log, `Ataque com cajado consumiu ${staffManaCost} de mana.`);
+      }
+
       // Os dois buffs do Cajado são de 1 uso só — consumidos nesse golpe, independente
-      // do resultado (matou o monstro ou não).
-      const charWithBuffsConsumed = { ...char, staffChargeBuff: 0, franticConjuryBuff: false };
+      // do resultado (matou o monstro ou não). O custo de mana do tiro também é
+      // debitado aqui, junto.
+      const charWithBuffsConsumed = {
+        ...char,
+        staffChargeBuff: 0,
+        franticConjuryBuff: false,
+        currentMana: char.currentMana - staffManaCost,
+      };
 
       if (monsterHealth <= 0) {
         return {

@@ -107,7 +107,7 @@ const MECHANICS = {
 
   // Ramo Cajado — agora que o jogo tem magias de verdade (aba Magias, cooldown real),
   // dá pra implementar essas mecânicas de verdade em vez do bônus genérico de Ability.
-  1: 'staffFreeCast', // Staff Mastery — chance de conjurar sem gastar mana
+  1: 'staffFreeCast', // Staff Mastery — chance do ATAQUE BÁSICO com cajado não gastar mana
   2: 'staffCharge', // Charge the Staff — magia Elemental carrega o próximo golpe com dano verdadeiro extra
   3: 'franticConjury', // Frantic Conjury — magia de Fogo tem chance de conjurar Conjure Fire de graça no próximo golpe
   62: 'spellCooldownReduction', // Electric Nature — reduz cooldown de TODAS as magias

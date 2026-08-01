@@ -163,15 +163,24 @@ export function computeFinalStats(character) {
     stats.damage = Math.round((stats.damage + stats.magic / 5) * 100) / 100;
   }
   const talented = applyTalentEffects(stats, character);
-  return applySatietyBonus(talented, character.satiety);
+  const withSatiety = applySatietyBonus(talented, character.satiety);
+  // Balanceamento nosso, não é fórmula real do jogo: o Mage tem -25% de Ability por
+  // design de classe (é o "preço" de ganhar 2x Magic/Mana), então o ataque básico
+  // dele — que normalmente escala com Ability — ficava sem graça nenhuma mesmo com
+  // Magic alto, já que só o cajado (Magic/5) usava esse stat. A pedido do usuário,
+  // pro Mage o ataque básico escala com Magic em vez de Ability.
+  withSatiety.damageScalingStat = character.class === 'Mage' ? withSatiety.magic : withSatiety.ability;
+  return withSatiety;
 }
 
 // Fórmula real de dano por golpe (também do calc.html): não é um número fixo, é um
-// intervalo min-max. max = Damage × (1 + Ability×1.25/100); min = max/5; o "dano
+// intervalo min-max. max = Damage × (1 + Fator×1.25/100); min = max/5; o "dano
 // médio" usado pro DPS é a média dos dois (equivale a 60% do máximo). É por isso que
-// a tela real mostra um range tipo "30.6-152.8" em vez de um valor só.
+// a tela real mostra um range tipo "30.6-152.8" em vez de um valor só. O "Fator" é
+// Ability pra todo mundo, EXCETO Mage, que usa Magic (ver computeFinalStats).
 export function computeDamageRoll(stats) {
-  const abilityFactor = 1 + (stats.ability * 1.25) / 100;
+  const scalingStat = stats.damageScalingStat ?? stats.ability;
+  const abilityFactor = 1 + (scalingStat * 1.25) / 100;
   const max = Math.round(stats.damage * abilityFactor * 100) / 100;
   const min = Math.round((max / 5) * 100) / 100;
   const avg = Math.round(((min + max) / 2) * 100) / 100;
