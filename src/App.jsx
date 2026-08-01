@@ -10,7 +10,7 @@ import Banco from './components/Banco';
 import Bestiario from './components/Bestiario';
 import Blacklist from './components/Blacklist';
 import Magias from './components/Magias';
-import Leilao from './components/Leilao';
+import ComercioJogadores from './components/ComercioJogadores';
 import Ranking from './components/Ranking';
 import Sidebar from './components/Sidebar';
 
@@ -23,7 +23,7 @@ const TABS = [
   { id: 'banco', label: '🏦 Banco', implemented: true },
   { id: 'blacklist', label: '🚫 Blacklist', implemented: true },
   { id: 'magias', label: '🔮 Magias', implemented: true },
-  { id: 'leilao', label: '🔨 Leilão', implemented: true },
+  { id: 'comercio', label: '🤝 Comércio', implemented: true },
   { id: 'house', label: '🏠 House', implemented: false },
   { id: 'bestiario', label: '📖 Bestiário', implemented: true },
   { id: 'ranking', label: '🏆 Ranking', implemented: true },
@@ -78,10 +78,11 @@ export default function App() {
     setAutoCastSpells,
     setSpellHealThreshold,
     spellCooldowns,
-    fetchAuctions,
-    listItemForAuction,
-    placeBidOnAuction,
-    reconcileAuctions,
+    fetchListings,
+    listItemOnMarket,
+    buyMarketListing,
+    cancelMarketListing,
+    reconcileMarketPayouts,
     offlineReport,
     dismissOfflineReport,
     syncStatus,
@@ -259,14 +260,15 @@ export default function App() {
             setSpellHealThreshold={setSpellHealThreshold}
           />
         )}
-        {activeTab === 'leilao' && (
-          <Leilao
+        {activeTab === 'comercio' && (
+          <ComercioJogadores
             character={character}
             user={user}
-            fetchAuctions={fetchAuctions}
-            listItemForAuction={listItemForAuction}
-            placeBidOnAuction={placeBidOnAuction}
-            reconcileAuctions={reconcileAuctions}
+            fetchListings={fetchListings}
+            listItemOnMarket={listItemOnMarket}
+            buyMarketListing={buyMarketListing}
+            cancelMarketListing={cancelMarketListing}
+            reconcileMarketPayouts={reconcileMarketPayouts}
           />
         )}
         {activeTab === 'ranking' && <Ranking />}

@@ -48,12 +48,11 @@ import {
   logout,
   saveGameState,
   loadGameState,
-  createAuction,
-  loadAuctions,
-  placeBid as placeBidFirestore,
-  claimAuctionRefunds,
-  settleAuction as settleAuctionFirestore,
-  claimWonItem,
+  createListing,
+  loadListings,
+  buyListing as buyListingFirestore,
+  claimSellerPayout,
+  cancelListing as cancelListingFirestore,
 } from '../services/firebase';
 
 const SYNC_DEBOUNCE_MS = 1500;
@@ -67,8 +66,6 @@ const STORAGE_KEY = 'apogea-idle-character';
 // fonte real, só confirmado que existe (daí o talento "Staff Mastery": chance de
 // atirar sem esse custo). Fixo e moderado, pra não esvaziar a mana rápido demais.
 const STAFF_BASIC_ATTACK_MANA_COST = 3;
-// Leilão: item fica exposto 2h recebendo lances até ser liquidado (a pedido do usuário).
-const AUCTION_DURATION_MS = 2 * 60 * 60 * 1000;
 const RESPEC_COST = 200;
 const TALENT_RESET_BASE_COST = 200;
 // Progresso offline: no máximo 8h de recompensa, e só XP/gold (nada de item — não
@@ -1230,10 +1227,10 @@ function reducer(state, action) {
       };
     }
 
-    // As 4 ações a seguir são o lado LOCAL do leilão — sempre disparadas DEPOIS que a
-    // operação no Firestore compartilhado (services/firebase.js) já deu certo. Cada
-    // jogador só mexe no PRÓPRIO gold/banco, nunca no de outra conta.
-    case 'AUCTION_LIST_ITEM': {
+    // As 4 ações a seguir são o lado LOCAL do comércio entre jogadores — sempre
+    // disparadas DEPOIS que a operação no Firestore compartilhado (services/firebase.js)
+    // já deu certo. Cada jogador só mexe no PRÓPRIO gold/banco, nunca no de outra conta.
+    case 'MARKET_LIST_ITEM': {
       const char = state.character;
       if (!char) return state;
       const item = char.bank.find((i) => i.id === action.itemId);
@@ -1244,31 +1241,31 @@ function reducer(state, action) {
       return {
         ...state,
         character: { ...char, bank },
-        log: pushLog(state.log, `Você colocou ${item.name} no leilão.`),
+        log: pushLog(state.log, `Você anunciou ${item.name} no mercado.`),
       };
     }
 
-    case 'AUCTION_DEDUCT_GOLD': {
+    case 'MARKET_DEDUCT_GOLD': {
       const char = state.character;
       if (!char) return state;
       return {
         ...state,
         character: { ...char, gold: char.gold - action.amount },
-        log: pushLog(state.log, action.message ?? `Lance de ${action.amount}g descontado.`),
+        log: pushLog(state.log, action.message ?? `${action.amount}g descontado.`),
       };
     }
 
-    case 'AUCTION_ADD_GOLD': {
+    case 'MARKET_ADD_GOLD': {
       const char = state.character;
       if (!char) return state;
       return {
         ...state,
         character: { ...char, gold: char.gold + action.amount, totalGoldEarned: char.totalGoldEarned + action.amount },
-        log: pushLog(state.log, action.message ?? `+${action.amount}g do leilão.`),
+        log: pushLog(state.log, action.message ?? `+${action.amount}g do mercado.`),
       };
     }
 
-    case 'AUCTION_ADD_BANK_ITEM': {
+    case 'MARKET_ADD_BANK_ITEM': {
       const char = state.character;
       if (!char) return state;
       const item = action.item;
@@ -1685,85 +1682,69 @@ export function useGameState() {
     [],
   );
 
-  // ── Leilão ──────────────────────────────────────────────────────────────
-  // Cada função só mexe no PRÓPRIO gold/banco (via dispatch) depois que a parte
-  // compartilhada já foi aceita no Firestore — nunca escreve no personagem de outra
-  // conta. Ver services/firebase.js pros detalhes de cada trava.
-  const fetchAuctions = useCallback(() => loadAuctions(), []);
+  // ── Comércio entre jogadores ──────────────────────────────────────────────
+  // Mercado de preço fixo, tipo NPC: sem lance, sem espera — o comprador paga o preço
+  // que o vendedor pediu e leva o item na hora. Cada função só mexe no PRÓPRIO
+  // gold/banco (via dispatch) depois que a parte compartilhada já foi aceita no
+  // Firestore — nunca escreve no personagem de outra conta. Ver services/firebase.js.
+  const fetchListings = useCallback(() => loadListings(), []);
 
-  const listItemForAuction = useCallback(async (bankItemId, startPrice) => {
+  const listItemOnMarket = useCallback(async (bankItemId, price) => {
     const char = characterRef.current;
     const uid = userRef.current?.uid;
     if (!char || !uid) return;
     const item = char.bank.find((i) => i.id === bankItemId);
     if (!item || item.quantity <= 0) throw new Error('Item não encontrado no banco.');
 
-    const now = Date.now();
-    const auction = {
+    const listing = {
       item: { ...item, quantity: 1 },
       sellerUid: uid,
       sellerName: char.name,
-      startPrice,
-      currentBid: null,
-      currentBidderUid: null,
-      currentBidderName: null,
-      pendingRefunds: [],
-      createdAt: now,
-      expiresAt: now + AUCTION_DURATION_MS,
+      price,
       status: 'active',
+      createdAt: Date.now(),
     };
-    // Tira o item do banco só depois que o leilão foi criado com sucesso no Firestore
+    // Tira o item do banco só depois que o anúncio foi criado com sucesso no Firestore
     // — se a criação falhar (sem internet etc.), o item continua no banco.
-    await createAuction(auction);
-    dispatch({ type: 'AUCTION_LIST_ITEM', itemId: bankItemId });
+    await createListing(listing);
+    dispatch({ type: 'MARKET_LIST_ITEM', itemId: bankItemId });
   }, []);
 
-  const placeBidOnAuction = useCallback(async (auctionId, amount) => {
+  const buyMarketListing = useCallback(async (listingId) => {
     const char = characterRef.current;
     const uid = userRef.current?.uid;
     if (!char || !uid) return;
-    if (char.gold < amount) throw new Error(`Gold insuficiente: você tem ${char.gold}g.`);
-    // A transação no Firestore é quem decide de verdade se esse lance ainda vale
-    // (protege contra dois jogadores dando lance no mesmo instante) — só desconta o
-    // gold localmente DEPOIS que ela confirmar.
-    await placeBidFirestore(auctionId, { uid, name: char.name, amount });
-    dispatch({ type: 'AUCTION_DEDUCT_GOLD', amount, message: `Lance de ${amount}g enviado ao leilão.` });
+    // A checagem de gold suficiente é feita ANTES da transação — a transação em si só
+    // decide se o item ainda tá disponível (protege contra dois jogadores comprando o
+    // mesmo item ao mesmo tempo). Só desconta o gold e entrega o item localmente
+    // DEPOIS que ela confirmar a compra.
+    const listing = (await loadListings()).find((l) => l.id === listingId);
+    if (listing && char.gold < listing.price) throw new Error(`Gold insuficiente: você tem ${char.gold}g, precisa de ${listing.price}g.`);
+
+    const result = await buyListingFirestore(listingId, { uid, name: char.name });
+    dispatch({ type: 'MARKET_DEDUCT_GOLD', amount: result.price, message: `Você comprou ${result.item.name} por ${result.price}g.` });
+    dispatch({ type: 'MARKET_ADD_BANK_ITEM', item: result.item });
   }, []);
 
-  // Roda sempre que a aba Leilão é aberta: resgata reembolsos de lances perdidos,
-  // fecha os PRÓPRIOS leilões vencidos (recebe o gold ou reaver o item) e recolhe
-  // itens que você ganhou em leilões de outras pessoas. Cada passo só toca no que é
-  // seu — é assim que "só o dono fecha ao logar" funciona sem precisar de servidor.
-  const reconcileAuctions = useCallback(async (auctions) => {
-    const char = characterRef.current;
+  const cancelMarketListing = useCallback(async (listingId) => {
     const uid = userRef.current?.uid;
-    if (!char || !uid) return;
-    const now = Date.now();
+    if (!uid) return;
+    const item = await cancelListingFirestore(listingId, uid);
+    if (item) {
+      dispatch({ type: 'MARKET_ADD_BANK_ITEM', item, message: `Anúncio de ${item.name} cancelado — item de volta ao banco.` });
+    }
+  }, []);
 
-    for (const auction of auctions) {
-      // 1) Reembolso de lances em que fui superado.
-      if ((auction.pendingRefunds ?? []).some((r) => r.uid === uid)) {
-        const refunded = await claimAuctionRefunds(auction.id, uid);
-        if (refunded > 0) {
-          dispatch({ type: 'AUCTION_ADD_GOLD', amount: refunded, message: `Reembolso de lance superado: +${refunded}g.` });
-        }
-      }
-
-      // 2) Fechar meu próprio leilão vencido.
-      if (auction.status === 'active' && auction.sellerUid === uid && now >= auction.expiresAt) {
-        const result = await settleAuctionFirestore(auction.id, uid);
-        if (result?.sold) {
-          dispatch({ type: 'AUCTION_ADD_GOLD', amount: result.amount, message: `Seu leilão de ${auction.item.name} vendeu por ${result.amount}g!` });
-        } else if (result && !result.sold) {
-          dispatch({ type: 'AUCTION_ADD_BANK_ITEM', item: auction.item, message: `Seu leilão de ${auction.item.name} encerrou sem lances — item de volta ao banco.` });
-        }
-      }
-
-      // 3) Recolher item que eu ganhei em leilão de outra pessoa.
-      if (auction.status === 'settled' && auction.winnerUid === uid && !auction.claimedByWinner) {
-        const item = await claimWonItem(auction.id, uid);
-        if (item) {
-          dispatch({ type: 'AUCTION_ADD_BANK_ITEM', item, message: `Você arrematou ${item.name} no leilão!` });
+  // Roda sempre que a aba de Comércio é aberta: recebe o gold de tudo que você já
+  // vendeu (ninguém mais pode mexer no seu gold além de você mesmo).
+  const reconcileMarketPayouts = useCallback(async (listings) => {
+    const uid = userRef.current?.uid;
+    if (!uid) return;
+    for (const listing of listings) {
+      if (listing.status === 'sold' && listing.sellerUid === uid && !listing.sellerPaid) {
+        const amount = await claimSellerPayout(listing.id, uid);
+        if (amount > 0) {
+          dispatch({ type: 'MARKET_ADD_GOLD', amount, message: `${listing.item.name} vendido! +${amount}g.` });
         }
       }
     }
@@ -1811,10 +1792,11 @@ export function useGameState() {
     setAutoCastSpells,
     setSpellHealThreshold,
     spellCooldowns: state.spellCooldowns,
-    fetchAuctions,
-    listItemForAuction,
-    placeBidOnAuction,
-    reconcileAuctions,
+    fetchListings,
+    listItemOnMarket,
+    buyMarketListing,
+    cancelMarketListing,
+    reconcileMarketPayouts,
     offlineReport,
     dismissOfflineReport,
     syncStatus,
