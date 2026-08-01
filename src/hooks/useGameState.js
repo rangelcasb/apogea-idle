@@ -627,6 +627,14 @@ function reducer(state, action) {
         const currentMana = spell.hpCast ? workingChar.currentMana : workingChar.currentMana - spell.manaCost;
         workingChar = { ...workingChar, currentHealth, currentMana };
 
+        // Vampiric Bite ("leeching life", % não documentada pela fonte — estimativa
+        // nossa): cura parte do dano causado, igual ao lifesteal de arma.
+        if (spell.lifestealPercent) {
+          const spellLifesteal = spellDamage * (spell.lifestealPercent / 100);
+          workingChar = { ...workingChar, currentHealth: Math.min(charStats.health, workingChar.currentHealth + spellLifesteal) };
+          log = pushLog(log, `${spell.id}: lifesteal +${spellLifesteal.toFixed(1)} de vida.`);
+        }
+
         // Charge the Staff: cast Elemental (Fogo/Energia/Água/Terra) carrega o PRÓXIMO
         // golpe físico com dano verdadeiro extra (Magic / divisor do rank).
         if (ELEMENTAL_SPELL_TYPES.includes(spell.type) && charStats.staffChargeTrueDamage > 0) {

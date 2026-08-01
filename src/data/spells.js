@@ -23,9 +23,18 @@ export const DEFAULT_HEAL_THRESHOLD_PCT = 80;
 // Death/Conjure/Heal/Defense), também extraída de apogean.eu/lists/spells — usado pelos
 // talentos do ramo Cajado que dependem da ESCOLA da magia (ex: "Fire spells", "Water
 // spells", "Elemental spell") e não só de causar dano.
+// Evil Spellbook: ConjureDeath e DarkBind — a fonte real (apogean.eu) confirma que
+// essas 2 magias existem e dão a descrição do efeito, mas o campo "formula" delas vem
+// VAZIO (sem número documentado), diferente de todas as outras. Aproximamos com base
+// no custo/cooldown relativo às magias vizinhas do mesmo livro (Vampiric Bite), igual
+// fizemos com os talentos sem mecânica simulável — deixado claro que não é o valor
+// oficial. VampiricBite também ganhou o lifesteal que a descrição real menciona
+// ("leeching life") mas não documenta a porcentagem — 30% é estimativa nossa também.
 export const SPELLS = [
   { id: 'Thrash', bookName: 'Thrash', book: 'Red Spellbook: Thrash', color: 'Red', type: 'Physical', magicReq: 0, abilityReq: 0, manaCost: 40, cooldownMs: 7000, hpCast: true, kind: 'damage', base: 10, damagePct: 5 },
-  { id: 'VampiricBite', bookName: 'VampiricBite', book: 'Evil Spellbook: VampiricBite', color: 'Evil', type: 'Death', magicReq: 0, abilityReq: 0, manaCost: 200, cooldownMs: 7000, hpCast: true, kind: 'damage', base: 10, magicPct: 20 },
+  { id: 'VampiricBite', bookName: 'VampiricBite', book: 'Evil Spellbook: VampiricBite', color: 'Evil', type: 'Death', magicReq: 0, abilityReq: 0, manaCost: 200, cooldownMs: 7000, hpCast: true, kind: 'damage', base: 10, magicPct: 20, lifestealPercent: 30 },
+  { id: 'ConjureDeath', bookName: 'ConjureDeath', book: 'Evil Spellbook: ConjureDeath', color: 'Evil', type: 'Death', magicReq: 5, abilityReq: 0, manaCost: 200, cooldownMs: 2000, hpCast: true, kind: 'damage', base: 5, magicPct: 8 },
+  { id: 'DarkBind', bookName: 'DarkBind', book: 'Evil Spellbook: DarkBind', color: 'Evil', type: 'Death', magicReq: 15, abilityReq: 0, manaCost: 500, cooldownMs: 7000, hpCast: true, kind: 'damage', base: 50, magicPct: 50 },
   { id: 'Berserk', bookName: 'Berserk', book: 'Red Spellbook: Berserk', color: 'Red', type: 'Blade', magicReq: 1, abilityReq: 20, manaCost: 35, cooldownMs: 7000, hpCast: true, kind: 'damage', base: 15, damagePct: 35 },
   { id: 'Taunt', bookName: 'Taunt', book: 'Green Spellbook: Taunt', color: 'Green', type: 'Conjure', magicReq: 1, abilityReq: 0, manaCost: 25, cooldownMs: DEFAULT_COOLDOWN_MS, hpCast: true, kind: 'damage', base: 10, damagePct: 5 },
   { id: 'Heal', bookName: 'Heal', book: 'Blue Spellbook: Heal', color: 'Blue', type: 'Heal', magicReq: 2, abilityReq: 0, manaCost: 25, cooldownMs: 1500, hpCast: false, kind: 'heal', missingHealthPct: 5 },
