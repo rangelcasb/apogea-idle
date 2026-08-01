@@ -341,8 +341,10 @@ function reducer(state, action) {
         // +5% de dano só contra ela.
         dmg *= monsterDamageMultiplier(char.monsterKills?.[currentMonster.name] ?? 0);
 
+        // Fórmula real de Armadura (apogean.eu/lists/formulae): (Dano - Armadura/2) /
+        // (1 + Armadura/100) — tem uma parte flat ANTES da percentual, não só a %.
         const effectiveArmor = Math.max(0, currentMonster.armor * (1 - (charStats.armorPenPercent ?? 0) / 100));
-        const damage = Math.max(1, dmg / (1 + effectiveArmor / 100));
+        const damage = Math.max(1, (dmg - effectiveArmor / 2) / (1 + effectiveArmor / 100));
 
         // Jagged Rhythm: 50% de chance de causar (Ability/4) de dano verdadeiro extra,
         // ignorando a armadura. Dark Blade dobra esse dano verdadeiro, mas você recebe
@@ -493,12 +495,11 @@ function reducer(state, action) {
       if (state.combatPauseUntil && Date.now() < state.combatPauseUntil) return state;
 
       const charStats = computeFinalStats(char);
-      // Mesma fórmula real, do lado do monstro: monstro não tem Ability, personagem
-      // mitiga com Defense (flat) e Armor (percentual com diminishing returns).
-      const monsterDamage = Math.max(
-        1,
-        (currentMonster.damage - charStats.defense) / (1 + charStats.armor / 100),
-      );
+      // Duas mitigações reais aplicadas em sequência (apogean.eu/lists/formulae):
+      // Defense primeiro — (DanoDoAtacante - Defesa) / NúmeroDeAtacantes (sempre 1
+      // atacante aqui) — depois Armor — (Resultado - Armadura/2) / (1 + Armadura/100).
+      const afterDefense = Math.max(0, currentMonster.damage - charStats.defense);
+      const monsterDamage = Math.max(1, (afterDefense - charStats.armor / 2) / (1 + charStats.armor / 100));
       let log = pushLog(
         state.log,
         `${currentMonster.name} causou ${monsterDamage.toFixed(1)} de dano em você.`,
