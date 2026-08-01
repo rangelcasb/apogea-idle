@@ -244,6 +244,7 @@ export default function App() {
             depositItem={depositItem}
             withdrawItem={withdrawItem}
             autoCombat={autoCombat}
+            learnSpell={learnSpell}
           />
         )}
         {activeTab === 'bestiario' && <Bestiario character={character} />}

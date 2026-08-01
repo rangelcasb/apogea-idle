@@ -541,18 +541,35 @@ function reducer(state, action) {
       if (!char) return state;
       const spell = SPELLS_BY_ID[action.spellId];
       if (!spell || char.learnedSpells.includes(action.spellId)) return state;
+
+      // Procura o livro na Mochila PRIMEIRO, e no Banco como alternativa — o jogador
+      // pode ter guardado o livro no banco antes de perceber que precisava aprender
+      // com ele, e isso fazia "aprender" recusar mesmo com o item na conta.
       const bookIdx = char.inventory.findIndex((i) => i.name === spell.book && i.quantity > 0);
-      if (bookIdx < 0) {
-        return { ...state, log: pushLog(state.log, `Você precisa ter ${spell.book} na mochila pra aprender essa magia.`) };
+      if (bookIdx >= 0) {
+        const inventory = char.inventory
+          .map((i, idx) => (idx === bookIdx ? { ...i, quantity: i.quantity - 1 } : i))
+          .filter((i) => i.quantity > 0);
+        return {
+          ...state,
+          character: { ...char, inventory, learnedSpells: [...char.learnedSpells, action.spellId] },
+          log: pushLog(state.log, `Você aprendeu a magia ${spell.id}!`),
+        };
       }
-      const inventory = char.inventory
-        .map((i, idx) => (idx === bookIdx ? { ...i, quantity: i.quantity - 1 } : i))
-        .filter((i) => i.quantity > 0);
-      return {
-        ...state,
-        character: { ...char, inventory, learnedSpells: [...char.learnedSpells, action.spellId] },
-        log: pushLog(state.log, `Você aprendeu a magia ${spell.id}!`),
-      };
+
+      const bankIdx = char.bank.findIndex((i) => i.name === spell.book && i.quantity > 0);
+      if (bankIdx >= 0) {
+        const bank = char.bank
+          .map((i, idx) => (idx === bankIdx ? { ...i, quantity: i.quantity - 1 } : i))
+          .filter((i) => i.quantity > 0);
+        return {
+          ...state,
+          character: { ...char, bank, learnedSpells: [...char.learnedSpells, action.spellId] },
+          log: pushLog(state.log, `Você aprendeu a magia ${spell.id}! (livro estava no banco)`),
+        };
+      }
+
+      return { ...state, log: pushLog(state.log, `Você precisa ter ${spell.book} na mochila ou no banco pra aprender essa magia.`) };
     }
 
     case 'EQUIP_SPELL': {
