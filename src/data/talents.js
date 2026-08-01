@@ -88,6 +88,42 @@ function parseRankValue(str) {
   return Number.isNaN(n) ? NaN : n;
 }
 
+// Helpers de equipamento usados pelos talentos de Escudo/Armadura/Espada/Arma Grande
+// que dependem de combinações específicas (peça+peça, peso, tamanho) além do requisito
+// básico do ramo.
+const ARMOR_SLOTS = ['head', 'chest', 'legs', 'boots'];
+function countArmorPieces(equipment, prefix) {
+  return ARMOR_SLOTS.filter((slot) => equipment?.[slot]?.category?.startsWith(prefix)).length;
+}
+function hasArmorPieceWeightCondition(equipment, prefix, comparator, threshold) {
+  return ARMOR_SLOTS.some((slot) => {
+    const item = equipment?.[slot];
+    if (!item?.category?.startsWith(prefix)) return false;
+    const w = item.weight ?? 0;
+    return comparator === 'under' ? w < threshold : w > threshold;
+  });
+}
+const SHIELD_CATEGORIES = ['shield', 'lightshield', 'heavyshield', 'largeshield'];
+function isDualWieldCategory(equipment, category) {
+  return equipment?.weapon?.category === category && equipment?.offhand?.category === category;
+}
+function hasSwordAndShield(equipment) {
+  return equipment?.weapon?.category === 'sword' && SHIELD_CATEGORIES.includes(equipment?.offhand?.category);
+}
+function hasBigSwordNoShield(equipment) {
+  return equipment?.weapon?.category === 'sword' && (equipment.weapon.equipSize ?? 0) >= 6 && !SHIELD_CATEGORIES.includes(equipment?.offhand?.category);
+}
+function hasBothHandsFree(equipment) {
+  return !!equipment?.weapon && !equipment?.offhand;
+}
+// Escudo equipado dá uma chance BASE de bloquear ataques do monstro — não é um valor
+// documentado por nenhuma fonte real (nenhum talento CRIA o bloqueio, todos só
+// melhoram um bloqueio que a wiki assume já existir por padrão), então é homebrew.
+export const SHIELD_BASE_BLOCK_CHANCE = 0.15;
+export function hasShieldEquipped(equipment) {
+  return SHIELD_CATEGORIES.includes(equipment?.offhand?.category);
+}
+
 // Mecânicas REAIS implementadas de verdade (não é o bônus genérico) — cada uma lê o
 // valor do rank atual (não é linear por ponto, é o valor real daquele rank específico).
 // Os demais talentos (a maioria, presos a magias/efeitos que não existem aqui) caem no
@@ -125,6 +161,73 @@ const MECHANICS = {
   91: 'healPowerBonus', // Magic Touch — com Orbe, magias de Cura curam 25% mais
   92: 'healManaDiscount', // Apogea's Ardor — com Orbe, magias de Cura custam 50% menos mana
   93: 'standby', // Child's Channel — combo complexo demais (cura em outros, etc.) — em standby por enquanto, sem efeito
+
+  // ── Adaga (3 restantes) ──────────────────────────────────────────────────
+  13: 'doubleAttackAlt', // Luck Foreseen — Ability/7 = % de ataque duplo (soma com Luck Foreseen II, que usa /6)
+  14: 'castAttackBurst', // Gaff Hack — sem magia Mystic/Time nesse jogo: qualquer cast tem chance de dar 1 golpe extra grátis
+  15: 'dualDaggerDamage', // Double Danger — duas adagas equipadas dobram o Dano
+
+  // ── Arco ──────────────────────────────────────────────────────────────────
+  17: 'bowCritChance', // Good Technique — sem Range nesse jogo: aproximado como chance de crítico extra
+  18: 'bowFlatDamage', // Artisanal Arsenal — +7 de Dano fixo com arco equipado
+  19: 'bowExplosiveChance', // Explosive Ammo — sem área de efeito: chance de dano bônus no golpe
+  20: 'arrowCooldownReduction', // Shineshooter — reduz cooldown de magias tipo Arrow
+  21: 'arrowBladeDamageBonus', // Bullseye — bônus de dano em magias Arrow/Blade (sem "alvo focado" real)
+  70: 'flatAttackSpeed10', // Tunnelvision — +10 Attackspeed (sem a trava de não poder se mover, N/A no idle)
+
+  // ── Luva ─────────────────────────────────────────────────────────────────
+  71: 'gloveRegen', // Glove Passion — +10 MP Regen com luvas (simplificado: sempre mana, a fonte deixa a critério do item na outra mão)
+  72: 'attackManaRegen', // True Grip — atacar regenera mana (com luvas)
+  73: 'globalManaDiscountGlove', // Elvish Practice — magias custam menos mana (com luvas)
+  74: 'castBlockBuff', // Arcane Trickster — sem magia Mystic/Time: qualquer cast tem chance de bloquear o próximo golpe do monstro
+  75: 'manaToTrueDamage', // Battle Mage — cada 50 de Mana máxima vira 1 de Dano Verdadeiro fixo por golpe
+  76: 'standby', // One With Apogea — combo de risco/troca complexo demais — em standby
+
+  // ── Armadura Leve ────────────────────────────────────────────────────────
+  25: 'lightArmorMana', // Cozy and Useful — Armadura Leve dá mana extra (valor real do rank, não o genérico)
+  26: 'noHelmetAttackSpeed', // Breeze in Your Hair — sem elmo, ganha Attackspeed (era Movespeed)
+  27: 'freeCapacityAttackSpeed', // Lightfoot — capacidade livre vira Attackspeed (era Movespeed)
+  28: 'battleBootsCrit', // Battle Boots — chance extra de crítico (era conversão de Movespeed)
+  29: 'lightArmorWeightMagic', // Dressing Wizardly — peça leve <35oz dá Magic extra
+  30: 'freeCapacityMagicPercent', // Powerful Space — capacidade livre vira % de Magic
+  31: 'lightArmorCountMagicPercent', // Clothes of the Damned — % de Magic por peça de Armadura Leve equipada
+  35: 'darknessEmbrace', // Darkness Embrace — magias de Death custam 10x menos, Heal/Light/Holy custam 10x mais
+
+  // ── Escudo (Block Efficacy=32 e armorPercent já reais) ──────────────────────
+  33: 'swordShieldDamage', // Bread and Butter — espada + escudo dá dano extra
+  37: 'blockStagger', // Shieldslam — bloquear tem chance de atordoar o monstro (pula o próximo ataque dele)
+  77: 'blockHeal', // Rooted Guard — bloquear regenera vida fixa
+  78: 'defenseCooldownReduction', // Royal Shield — reduz cooldown de magias Defense
+  79: 'monsterCandy', // Monster Candy — Conjure/Defense custam 50% menos mana, mas -99 de Dano
+  38: 'blockEmpower', // Hex Parry — bloquear fortalece a próxima magia Arrow/Blade em 50%
+  34: 'blockReflect', // Deflect — bloquear com Escudo Mágico ativo reflete dano verdadeiro no monstro
+  36: 'physicalCastDoubleShield', // Bulwark Leap — conjurar magia Physical dobra o Escudo Mágico (cap 200)
+
+  // ── Armadura Pesada ──────────────────────────────────────────────────────
+  39: 'heavyArmorHealth', // Well Protected — Armadura Pesada dá vida extra (valor real do rank)
+  40: 'heavyArmorCountHealth', // Bulking Up — vida extra por peça de Armadura Pesada equipada
+  41: 'heavyArmorWeightAbility', // Heavy Metal — peça pesada >35oz dá Ability extra
+  42: 'capacityToArmor', // Carry Your Might — capacidade máxima vira Armor (cap 8)
+  98: 'heavyArmorCountAbilityPercent', // Juggernaut — % de Ability por peça de Armadura Pesada equipada
+  43: 'healCooldownReduction', // Royal Banner — reduz cooldown de magias Heal (Time não existe nesse jogo)
+  44: 'healCastShield', // Magic Steel — conjurar Heal dá Escudo Mágico (% da Armor, cap 100)
+  45: 'heavyArmorFlatStats', // Blessed Plate — Armadura Pesada dá Magic e Mana fixos
+  46: 'bothHandsBonus', // Endowed in Steel — usar as duas mãos livres (arma sem offhand) dá bônus de stats
+
+  // ── Espada ───────────────────────────────────────────────────────────────
+  51: 'abilityToAttackSpeed', // Hand Finesse — Ability vira Attackspeed (cap 5)
+  52: 'bladeCooldownReductionBigSword', // Blade Prowess — espada tamanho 6 sem escudo reduz cooldown de magias Blade
+  53: 'dualSwordPenalty', // Dual-Wielding — duas espadas tamanho 6 reduzem Dano (a troca de equipSize não é simulável)
+  55: 'bladeManaDiscount', // Fencing Classes — magias Blade custam menos mana
+  90: 'highlander', // Highlander — magias Blade custam 50% menos mana + Attackspeed vira Dano (sem desativar o ataque básico, por segurança)
+  54: 'ninjaExtraHit', // To Be Ninja — chance de golpe extra (era boost de Movespeed)
+
+  // ── Arma Grande ──────────────────────────────────────────────────────────
+  81: 'berserkerLowHealth', // Berserker — abaixo de 66% de vida, dano extra
+  82: 'overwhelmingForceChance', // Overwhelming Force — sem área de efeito: chance de dano bônus no golpe
+  83: 'wreckingIt', // Wrecking It — conjurar Blade/Physical carrega o próximo golpe com Dano Verdadeiro extra
+  84: 'manaLeech', // Magic Blade — Manaleech: recupera mana baseado no dano causado
+  85: 'unfathomableRage', // Unfathomable Rage — dano recebido vira mana, mas dobra o custo de todas as magias
 };
 
 // Ramo Orbe: valores fixos dos talentos de 1 ponto só (fonte real não documenta rank
@@ -156,6 +259,39 @@ function parseMagicDivisor(str) {
   const m = /ML\/(\d+(?:\.\d+)?)/.exec(str || '');
   return m ? parseFloat(m[1]) : NaN;
 }
+
+// Valores fixos dos talentos de 1 ponto só (ou com mecânica sem % na fonte) dos ramos
+// Adaga/Arco/Luva/Escudo/Armadura/Espada/Arma Grande implementados nessa leva.
+const DAGGER_DOUBLE_ATTACK_ALT_DIVISOR = 7; // Luck Foreseen: Ability/7 = % ataque duplo
+const BOW_EXPLOSIVE_CHANCE = 0.25; // Explosive Ammo: 25% de chance (real)
+const ARROW_BLADE_DAMAGE_BONUS_PCT = 20; // Bullseye: sem "alvo focado", bônus fixo homebrew
+const BATTLE_BOOTS_CRIT_BONUS = 0.05; // Battle Boots: crítico extra homebrew (era conversão de Movespeed)
+const CAPACITY_TO_ARMOR_DIVISOR = 100; // Carry Your Might: 100 Capacidade = 1 Armor
+const CAPACITY_TO_ARMOR_CAP = 8;
+const FREE_CAPACITY_ATTACK_SPEED_DIVISOR = 10; // Lightfoot: 10 capacidade livre = 1 Attackspeed
+const FREE_CAPACITY_ATTACK_SPEED_CAP = 3;
+export const DARKNESS_EMBRACE_DEATH_DISCOUNT_PCT = 90; // "10x mais barato" = -90% de custo
+export const DARKNESS_EMBRACE_HEAL_SURCHARGE_PCT = 900; // "10x mais caro" = +900% de custo
+const MONSTER_CANDY_DAMAGE_PENALTY = 99; // Monster Candy: "lose 99 damage" (real)
+export const MONSTER_CANDY_MANA_DISCOUNT_PCT = 50; // real
+export const BLOCK_EMPOWER_PCT = 50; // Hex Parry (real)
+export const BLOCK_REFLECT_PCT = 35; // Deflect (real)
+export const BULWARK_LEAP_SHIELD_CAP = 200; // real
+const HEAVY_ARMOR_WEIGHT_ABILITY = 1; // Heavy Metal (real, peça >35oz)
+const HEAVY_ARMOR_COUNT_ABILITY_PCT = 5; // Juggernaut (real, % por peça)
+const HEAVY_ARMOR_FLAT_MAGIC = 1; // Blessed Plate (real)
+const HEAVY_ARMOR_FLAT_MANA = 25; // Blessed Plate (real)
+export const MAGIC_STEEL_SHIELD_CAP = 100; // real
+const BOTH_HANDS_BONUS = 2; // Endowed in Steel: "múltiplos bônus de stats" — homebrew, +2 flat em Dano/Armor/Ability
+const HAND_FINESSE_AS_CAP = 5; // real
+export const HIGHLANDER_MANA_DISCOUNT_PCT = 50; // real
+const HIGHLANDER_AS_TO_DAMAGE_DIVISOR = 2; // real: 2 Attackspeed = 1 Dano
+const NINJA_EXTRA_HIT_CHANCE = 0.25; // To Be Ninja (real % — era boost de Movespeed)
+export const BERSERKER_HEALTH_THRESHOLD_PCT = 66; // real
+const OVERWHELMING_FORCE_CHANCE = 0.35; // real (sem área de efeito)
+const MANA_TO_TRUE_DAMAGE_DIVISOR = 50; // Battle Mage (real: 50 mana = 1 dano verdadeiro)
+export const UNFATHOMABLE_RAGE_DAMAGE_TO_MANA_DIVISOR = 2; // real: 2 dano recebido = 1 mana
+export const UNFATHOMABLE_RAGE_SPELL_COST_MULTIPLIER = 2; // real: dobra custo das magias
 
 // Valores fixos das 3 mecânicas de dano-verdadeiro/ataque-duplo da adaga (não escalam
 // por rank — são talentos de 1 ponto só, o valor real vem direto da descrição).
@@ -366,6 +502,51 @@ export function computeTalentModifiers(talentPoints, equipment) {
     unstableAegisActive: false,
     healPowerBonusPercent: 0,
     healManaDiscountPercent: 0,
+
+    // Adaga (restante)
+    doubleAttackAltDivisor: 0,
+    castAttackBurstChance: 0,
+    // Arco
+    bowFlatDamage: 0,
+    bowExplosiveChance: 0,
+    arrowCooldownReductionPercent: 0,
+    arrowBladeDamageBonusPercent: 0,
+    // Luva
+    gloveRegenFlat: 0,
+    attackManaRegenFlat: 0,
+    globalManaDiscountPercent: 0,
+    castBlockChance: 0,
+    manaToTrueDamageDivisor: 0,
+    // Armadura Leve
+    freeCapacityAttackSpeedActive: false,
+    freeCapacityMagicThresholdDivisor: 0,
+    magicPercent: 0,
+    darknessEmbraceActive: false,
+    // Escudo
+    blockStaggerChance: 0,
+    blockHealFlat: 0,
+    defenseCooldownReductionPercent: 0,
+    monsterCandyActive: false,
+    blockEmpowerActive: false,
+    blockReflectActive: false,
+    physicalCastDoubleShieldActive: false,
+    // Armadura Pesada
+    capacityToArmorActive: false,
+    abilityPercent: 0,
+    healCooldownReductionPercent: 0,
+    healCastShieldPercent: 0,
+    // Espada
+    abilityToAttackSpeedDivisor: 0,
+    bladeCooldownReductionBigSwordActive: false,
+    bladeManaDiscountPercent: 0,
+    highlanderActive: false,
+    ninjaExtraHitChance: 0,
+    // Arma Grande
+    berserkerBonusDamage: 0,
+    overwhelmingForceChance: 0,
+    wreckingItBonus: 0,
+    manaLeechPercent: 0,
+    unfathomableRageActive: false,
   };
 
   for (const [idStr, points] of Object.entries(talentPoints ?? {})) {
@@ -453,6 +634,189 @@ export function computeTalentModifiers(talentPoints, equipment) {
         break;
       case 'standby':
         break;
+
+      // ── Adaga ────────────────────────────────────────────────────────────
+      case 'doubleAttackAlt':
+        mods.doubleAttackAltDivisor = DAGGER_DOUBLE_ATTACK_ALT_DIVISOR;
+        break;
+      case 'castAttackBurst':
+        if (!Number.isNaN(rankValue)) mods.castAttackBurstChance = rankValue / 100;
+        break;
+      case 'dualDaggerDamage':
+        if (isDualWieldCategory(equipment, 'dagger')) mods.damagePercent += 100;
+        break;
+
+      // ── Arco ─────────────────────────────────────────────────────────────
+      case 'bowCritChance':
+        if (!Number.isNaN(rankValue)) mods.critChance += rankValue / 100;
+        break;
+      case 'bowFlatDamage':
+        mods.statBonuses.damage = (mods.statBonuses.damage ?? 0) + (points > 0 ? 7 : 0);
+        break;
+      case 'bowExplosiveChance':
+        mods.bowExplosiveChance = BOW_EXPLOSIVE_CHANCE;
+        break;
+      case 'arrowCooldownReduction':
+        if (!Number.isNaN(rankValue)) mods.arrowCooldownReductionPercent = rankValue;
+        break;
+      case 'arrowBladeDamageBonus':
+        mods.arrowBladeDamageBonusPercent = ARROW_BLADE_DAMAGE_BONUS_PCT;
+        break;
+      case 'flatAttackSpeed10':
+        mods.statBonuses.attackSpeed = (mods.statBonuses.attackSpeed ?? 0) + 10;
+        break;
+
+      // ── Luva ─────────────────────────────────────────────────────────────
+      case 'gloveRegen':
+        mods.statBonuses.mpRegen = (mods.statBonuses.mpRegen ?? 0) + 10;
+        break;
+      case 'attackManaRegen':
+        if (!Number.isNaN(rankValue)) mods.attackManaRegenFlat = rankValue;
+        break;
+      case 'globalManaDiscountGlove':
+        if (!Number.isNaN(rankValue)) mods.globalManaDiscountPercent += rankValue;
+        break;
+      case 'castBlockBuff':
+        mods.castBlockChance = 0.5;
+        break;
+      case 'manaToTrueDamage':
+        mods.manaToTrueDamageDivisor = MANA_TO_TRUE_DAMAGE_DIVISOR;
+        break;
+
+      // ── Armadura Leve ────────────────────────────────────────────────────
+      case 'lightArmorMana':
+        if (!Number.isNaN(rankValue)) mods.statBonuses.mana = (mods.statBonuses.mana ?? 0) + rankValue;
+        break;
+      case 'noHelmetAttackSpeed':
+        if (!Number.isNaN(rankValue) && !equipment?.head) {
+          mods.statBonuses.attackSpeed = (mods.statBonuses.attackSpeed ?? 0) + rankValue;
+        }
+        break;
+      case 'freeCapacityAttackSpeed':
+        mods.freeCapacityAttackSpeedActive = true;
+        break;
+      case 'battleBootsCrit':
+        mods.critChance += BATTLE_BOOTS_CRIT_BONUS;
+        break;
+      case 'lightArmorWeightMagic':
+        if (hasArmorPieceWeightCondition(equipment, 'light', 'under', 35)) {
+          mods.statBonuses.magic = (mods.statBonuses.magic ?? 0) + 1;
+        }
+        break;
+      case 'freeCapacityMagicPercent':
+        if (!Number.isNaN(rankValue)) mods.freeCapacityMagicThresholdDivisor = rankValue;
+        break;
+      case 'lightArmorCountMagicPercent':
+        mods.magicPercent += countArmorPieces(equipment, 'light') * 5;
+        break;
+      case 'darknessEmbrace':
+        mods.darknessEmbraceActive = true;
+        break;
+
+      // ── Escudo ───────────────────────────────────────────────────────────
+      case 'swordShieldDamage':
+        if (!Number.isNaN(rankValue) && hasSwordAndShield(equipment)) {
+          mods.statBonuses.damage = (mods.statBonuses.damage ?? 0) + rankValue;
+        }
+        break;
+      case 'blockStagger':
+        if (!Number.isNaN(rankValue)) mods.blockStaggerChance = rankValue / 100;
+        break;
+      case 'blockHeal':
+        mods.blockHealFlat = 5;
+        break;
+      case 'defenseCooldownReduction':
+        if (!Number.isNaN(rankValue)) mods.defenseCooldownReductionPercent = rankValue;
+        break;
+      case 'monsterCandy':
+        mods.monsterCandyActive = true;
+        mods.statBonuses.damage = (mods.statBonuses.damage ?? 0) - MONSTER_CANDY_DAMAGE_PENALTY;
+        break;
+      case 'blockEmpower':
+        mods.blockEmpowerActive = true;
+        break;
+      case 'blockReflect':
+        mods.blockReflectActive = true;
+        break;
+      case 'physicalCastDoubleShield':
+        mods.physicalCastDoubleShieldActive = true;
+        break;
+
+      // ── Armadura Pesada ──────────────────────────────────────────────────
+      case 'heavyArmorHealth':
+        if (!Number.isNaN(rankValue)) mods.statBonuses.health = (mods.statBonuses.health ?? 0) + rankValue;
+        break;
+      case 'heavyArmorCountHealth':
+        if (!Number.isNaN(rankValue)) {
+          mods.statBonuses.health = (mods.statBonuses.health ?? 0) + rankValue * countArmorPieces(equipment, 'heavy');
+        }
+        break;
+      case 'heavyArmorWeightAbility':
+        if (hasArmorPieceWeightCondition(equipment, 'heavy', 'over', 35)) {
+          mods.statBonuses.ability = (mods.statBonuses.ability ?? 0) + HEAVY_ARMOR_WEIGHT_ABILITY;
+        }
+        break;
+      case 'capacityToArmor':
+        mods.capacityToArmorActive = true;
+        break;
+      case 'heavyArmorCountAbilityPercent':
+        mods.abilityPercent += countArmorPieces(equipment, 'heavy') * HEAVY_ARMOR_COUNT_ABILITY_PCT;
+        break;
+      case 'healCooldownReduction':
+        if (!Number.isNaN(rankValue)) mods.healCooldownReductionPercent = rankValue;
+        break;
+      case 'healCastShield':
+        if (!Number.isNaN(rankValue)) mods.healCastShieldPercent = rankValue;
+        break;
+      case 'heavyArmorFlatStats':
+        mods.statBonuses.magic = (mods.statBonuses.magic ?? 0) + HEAVY_ARMOR_FLAT_MAGIC;
+        mods.statBonuses.mana = (mods.statBonuses.mana ?? 0) + HEAVY_ARMOR_FLAT_MANA;
+        break;
+      case 'bothHandsBonus':
+        if (hasBothHandsFree(equipment)) {
+          mods.statBonuses.damage = (mods.statBonuses.damage ?? 0) + BOTH_HANDS_BONUS;
+          mods.statBonuses.armor = (mods.statBonuses.armor ?? 0) + BOTH_HANDS_BONUS;
+          mods.statBonuses.ability = (mods.statBonuses.ability ?? 0) + BOTH_HANDS_BONUS;
+        }
+        break;
+
+      // ── Espada ───────────────────────────────────────────────────────────
+      case 'abilityToAttackSpeed':
+        if (!Number.isNaN(rankValue)) mods.abilityToAttackSpeedDivisor = rankValue;
+        break;
+      case 'bladeCooldownReductionBigSword':
+        if (hasBigSwordNoShield(equipment)) mods.bladeCooldownReductionBigSwordActive = true;
+        break;
+      case 'dualSwordPenalty':
+        if (!Number.isNaN(rankValue) && isDualWieldCategory(equipment, 'sword')) mods.damagePercent -= rankValue;
+        break;
+      case 'bladeManaDiscount':
+        mods.bladeManaDiscountPercent += 15;
+        break;
+      case 'highlander':
+        mods.highlanderActive = true;
+        break;
+      case 'ninjaExtraHit':
+        mods.ninjaExtraHitChance = NINJA_EXTRA_HIT_CHANCE;
+        break;
+
+      // ── Arma Grande ──────────────────────────────────────────────────────
+      case 'berserkerLowHealth':
+        if (!Number.isNaN(rankValue)) mods.berserkerBonusDamage = rankValue;
+        break;
+      case 'overwhelmingForceChance':
+        mods.overwhelmingForceChance = OVERWHELMING_FORCE_CHANCE;
+        break;
+      case 'wreckingIt':
+        if (!Number.isNaN(rankValue)) mods.wreckingItBonus = rankValue;
+        break;
+      case 'manaLeech':
+        mods.manaLeechPercent = 10;
+        break;
+      case 'unfathomableRage':
+        mods.unfathomableRageActive = true;
+        break;
+
       default: {
         if (!talent.effect) break;
         const { stat, perRank } = talent.effect;
@@ -470,12 +834,24 @@ export function computeTalentModifiers(talentPoints, equipment) {
 export function applyTalentEffects(stats, character) {
   const mods = computeTalentModifiers(character?.talentPoints, character?.equipment);
   const next = { ...stats };
+  const equipment = character?.equipment;
+
+  // Powerful Space (Armadura Leve): % de Magic escalado pela capacidade LIVRE (Capacity
+  // final - peso carregado na mochila) — precisa do stat final de Capacity, por isso é
+  // resolvido aqui e somado no mods.magicPercent antes de aplicar o multiplicador.
+  if (mods.freeCapacityMagicThresholdDivisor) {
+    const invWeight = (character?.inventory ?? []).reduce((sum, i) => sum + (i.weight ?? 1) * i.quantity, 0);
+    const freeCapacity = Math.max(0, next.capacity - invWeight);
+    mods.magicPercent += Math.min(20, Math.floor(freeCapacity / mods.freeCapacityMagicThresholdDivisor) * 5);
+  }
 
   for (const [key, val] of Object.entries(mods.statBonuses)) {
     next[key] = Math.round(((next[key] ?? 0) + val) * 100) / 100;
   }
   if (mods.damagePercent) next.damage = Math.round(next.damage * (1 + mods.damagePercent / 100) * 100) / 100;
   if (mods.armorPercent) next.armor = Math.round(next.armor * (1 + mods.armorPercent / 100) * 100) / 100;
+  if (mods.magicPercent) next.magic = Math.round(next.magic * (1 + mods.magicPercent / 100) * 100) / 100;
+  if (mods.abilityPercent) next.ability = Math.round(next.ability * (1 + mods.abilityPercent / 100) * 100) / 100;
 
   next.lifestealPercent = mods.lifestealPercent;
   next.armorPenPercent = mods.armorPenPercent;
@@ -488,9 +864,12 @@ export function applyTalentEffects(stats, character) {
   next.trueDamageChance = mods.trueDamageChance;
   next.trueDamagePerHit = mods.trueDamageAbilityDivisor ? next.ability / mods.trueDamageAbilityDivisor : 0;
   next.trueDamageDoubled = mods.trueDamageDoubled;
-  next.doubleAttackChance = mods.doubleAttackAbilityDivisor
-    ? Math.min(1, next.ability / mods.doubleAttackAbilityDivisor / 100)
-    : 0;
+  // Luck Foreseen (13, /7) e Luck Foreseen II (68, /6) são caminhos PARALELOS do mesmo
+  // ramo — se o jogador investiu nos dois, as chances somam (cada Ability conta pras
+  // duas fontes independentemente).
+  const doubleAttackFromMain = mods.doubleAttackAbilityDivisor ? next.ability / mods.doubleAttackAbilityDivisor / 100 : 0;
+  const doubleAttackFromAlt = mods.doubleAttackAltDivisor ? next.ability / mods.doubleAttackAltDivisor / 100 : 0;
+  next.doubleAttackChance = Math.min(1, doubleAttackFromMain + doubleAttackFromAlt);
 
   // Ramo Cajado: dependem do Magic final (staffChargeTrueDamage) ou só são flags/%
   // repassadas direto pro combate/SPELL_CAST usarem.
@@ -511,5 +890,70 @@ export function applyTalentEffects(stats, character) {
   next.unstableAegisActive = mods.unstableAegisActive;
   next.healPowerBonusPercent = mods.healPowerBonusPercent;
   next.healManaDiscountPercent = mods.healManaDiscountPercent;
+
+  // ── Adaga (restante) ─────────────────────────────────────────────────────
+  next.castAttackBurstChance = mods.castAttackBurstChance;
+
+  // ── Arco ─────────────────────────────────────────────────────────────────
+  next.bowExplosiveChance = mods.bowExplosiveChance;
+  next.arrowCooldownReductionPercent = mods.arrowCooldownReductionPercent;
+  next.arrowBladeDamageBonusPercent = mods.arrowBladeDamageBonusPercent;
+
+  // ── Luva ─────────────────────────────────────────────────────────────────
+  next.attackManaRegenFlat = mods.attackManaRegenFlat;
+  next.globalManaDiscountPercent = mods.globalManaDiscountPercent;
+  next.castBlockChance = mods.castBlockChance;
+  // Battle Mage: cada 50 de Mana MÁXIMA final vira 1 de Dano Verdadeiro fixo por golpe.
+  next.manaToTrueDamage = mods.manaToTrueDamageDivisor ? Math.floor(next.mana / mods.manaToTrueDamageDivisor) : 0;
+
+  // ── Armadura Leve ────────────────────────────────────────────────────────
+  if (mods.freeCapacityAttackSpeedActive) {
+    const invWeight = (character?.inventory ?? []).reduce((sum, i) => sum + (i.weight ?? 1) * i.quantity, 0);
+    const freeCapacity = Math.max(0, next.capacity - invWeight);
+    next.attackSpeed = Math.round(
+      (next.attackSpeed + Math.min(FREE_CAPACITY_ATTACK_SPEED_CAP, Math.floor(freeCapacity / FREE_CAPACITY_ATTACK_SPEED_DIVISOR))) * 100,
+    ) / 100;
+  }
+  next.darknessEmbraceActive = mods.darknessEmbraceActive;
+
+  // ── Escudo ───────────────────────────────────────────────────────────────
+  next.hasShieldEquipped = hasShieldEquipped(equipment);
+  next.blockChance = next.hasShieldEquipped ? SHIELD_BASE_BLOCK_CHANCE : 0;
+  next.blockStaggerChance = mods.blockStaggerChance;
+  next.blockHealFlat = mods.blockHealFlat;
+  next.defenseCooldownReductionPercent = mods.defenseCooldownReductionPercent;
+  next.monsterCandyActive = mods.monsterCandyActive;
+  next.blockEmpowerActive = mods.blockEmpowerActive;
+  next.blockReflectActive = mods.blockReflectActive;
+  next.physicalCastDoubleShieldActive = mods.physicalCastDoubleShieldActive;
+
+  // ── Armadura Pesada ──────────────────────────────────────────────────────
+  if (mods.capacityToArmorActive) {
+    next.armor = Math.round((next.armor + Math.min(CAPACITY_TO_ARMOR_CAP, Math.floor(next.capacity / CAPACITY_TO_ARMOR_DIVISOR))) * 100) / 100;
+  }
+  next.healCooldownReductionPercent = mods.healCooldownReductionPercent;
+  next.healCastShieldPercent = mods.healCastShieldPercent;
+
+  // ── Espada ───────────────────────────────────────────────────────────────
+  if (mods.abilityToAttackSpeedDivisor) {
+    next.attackSpeed = Math.round(
+      (next.attackSpeed + Math.min(HAND_FINESSE_AS_CAP, Math.floor(next.ability / mods.abilityToAttackSpeedDivisor))) * 100,
+    ) / 100;
+  }
+  next.bladeCooldownReductionBigSwordActive = mods.bladeCooldownReductionBigSwordActive;
+  next.bladeManaDiscountPercent = mods.bladeManaDiscountPercent;
+  next.highlanderActive = mods.highlanderActive;
+  if (mods.highlanderActive) {
+    next.damage = Math.round((next.damage + Math.floor(next.attackSpeed / HIGHLANDER_AS_TO_DAMAGE_DIVISOR)) * 100) / 100;
+  }
+  next.ninjaExtraHitChance = mods.ninjaExtraHitChance;
+
+  // ── Arma Grande ──────────────────────────────────────────────────────────
+  next.berserkerBonusDamage = mods.berserkerBonusDamage;
+  next.overwhelmingForceChance = mods.overwhelmingForceChance;
+  next.wreckingItBonus = mods.wreckingItBonus;
+  next.manaLeechPercent = mods.manaLeechPercent;
+  next.unfathomableRageActive = mods.unfathomableRageActive;
+
   return next;
 }

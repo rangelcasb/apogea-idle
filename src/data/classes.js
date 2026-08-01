@@ -164,6 +164,10 @@ export function computeFinalStats(character) {
   }
   const talented = applyTalentEffects(stats, character);
   const withSatiety = applySatietyBonus(talented, character.satiety);
+  // Piso de segurança: talentos com penalidade fixa de Dano (ex: Monster Candy, -99)
+  // são pensados pra personagens de nível alto com Damage bem maior — em nível baixo
+  // isso podia deixar o stat negativo e quebrar o range de dano exibido.
+  withSatiety.damage = Math.max(1, withSatiety.damage);
   // Balanceamento nosso, não é fórmula real do jogo: o Mage tem -25% de Ability por
   // design de classe (é o "preço" de ganhar 2x Magic/Mana), então o ataque básico
   // dele — que normalmente escala com Ability — ficava sem graça nenhuma mesmo com

@@ -41,6 +41,17 @@ import {
   canInvestTalent,
   DIAMOND_SKIN_MAX_STACKS,
   UNSTABLE_AEGIS_MAGIC_DIVISOR,
+  BULWARK_LEAP_SHIELD_CAP,
+  MAGIC_STEEL_SHIELD_CAP,
+  MONSTER_CANDY_MANA_DISCOUNT_PCT,
+  BLOCK_EMPOWER_PCT,
+  BLOCK_REFLECT_PCT,
+  HIGHLANDER_MANA_DISCOUNT_PCT,
+  DARKNESS_EMBRACE_DEATH_DISCOUNT_PCT,
+  DARKNESS_EMBRACE_HEAL_SURCHARGE_PCT,
+  UNFATHOMABLE_RAGE_DAMAGE_TO_MANA_DIVISOR,
+  UNFATHOMABLE_RAGE_SPELL_COST_MULTIPLIER,
+  BERSERKER_HEALTH_THRESHOLD_PCT,
 } from '../data/talents';
 import {
   onAuthChange,
@@ -200,6 +211,9 @@ function createCharacter(name) {
     staffChargeBuff: 0,
     franticConjuryBuff: false,
     shieldPoints: 0,
+    castAttackBurstBuff: false,
+    castBlockBuff: false,
+    blockEmpowerBuff: false,
     updatedAt: Date.now(),
   };
   const stats = computeFinalStats(raw);
@@ -246,6 +260,9 @@ function migrateCharacter(char) {
     staffChargeBuff: char.staffChargeBuff ?? 0,
     franticConjuryBuff: char.franticConjuryBuff ?? false,
     shieldPoints: char.shieldPoints ?? 0,
+    castAttackBurstBuff: char.castAttackBurstBuff ?? false,
+    castBlockBuff: char.castBlockBuff ?? false,
+    blockEmpowerBuff: char.blockEmpowerBuff ?? false,
     updatedAt: char.updatedAt ?? 0,
   };
 }
@@ -590,10 +607,28 @@ function reducer(state, action) {
         if ((spellCooldowns[spellId] ?? 0) > now) continue;
         if (!canCastSpell(spell, charStats)) continue;
 
-        // Apogea's Ardor (Orbe): magias de Cura custam 50% menos mana.
-        const effectiveManaCost = spell.kind === 'heal' && !spell.hpCast
-          ? spell.manaCost * (1 - (charStats.healManaDiscountPercent ?? 0) / 100)
-          : spell.manaCost;
+        // Custo de mana final: soma todos os descontos que se aplicam à ESCOLA dessa
+        // magia (Cura/Blade/Conjure-Defense/Death/Heal-Light-Holy) + desconto global de
+        // luvas, depois aplica o dobro do Unfathomable Rage por cima (multiplicativo,
+        // sempre por último — é uma penalidade, não deveria ser cancelada por desconto).
+        let manaCostMultiplier = 1;
+        if (spell.kind === 'heal' && !spell.hpCast) {
+          manaCostMultiplier -= (charStats.healManaDiscountPercent ?? 0) / 100;
+        }
+        if (spell.type === 'Blade') {
+          manaCostMultiplier -= ((charStats.bladeManaDiscountPercent ?? 0) + (charStats.highlanderActive ? HIGHLANDER_MANA_DISCOUNT_PCT : 0)) / 100;
+        }
+        if (['Conjure', 'Defense'].includes(spell.type) && charStats.monsterCandyActive) {
+          manaCostMultiplier -= MONSTER_CANDY_MANA_DISCOUNT_PCT / 100;
+        }
+        if (charStats.darknessEmbraceActive) {
+          if (spell.type === 'Death') manaCostMultiplier -= DARKNESS_EMBRACE_DEATH_DISCOUNT_PCT / 100;
+          if (['Heal', 'Light', 'Holy'].includes(spell.type)) manaCostMultiplier += DARKNESS_EMBRACE_HEAL_SURCHARGE_PCT / 100;
+        }
+        manaCostMultiplier -= (charStats.globalManaDiscountPercent ?? 0) / 100;
+        manaCostMultiplier = Math.max(0.05, manaCostMultiplier);
+        if (charStats.unfathomableRageActive) manaCostMultiplier *= UNFATHOMABLE_RAGE_SPELL_COST_MULTIPLIER;
+        const effectiveManaCost = spell.manaCost * manaCostMultiplier;
 
         const costPool = spell.hpCast ? workingChar.currentHealth : workingChar.currentMana;
         if (costPool < effectiveManaCost) continue;
@@ -614,8 +649,22 @@ function reducer(state, action) {
         if (spell.type === 'Fire') cdReductionPct += charStats.fireCooldownReductionPercent ?? 0;
         if (spell.type === 'Holy') cdReductionPct += charStats.holyCooldownReductionPercent ?? 0;
         if (spell.type === 'Water') cdReductionPct += charStats.waterCooldownReductionPercent ?? 0;
+        if (spell.type === 'Arrow') cdReductionPct += charStats.arrowCooldownReductionPercent ?? 0;
+        if (spell.type === 'Defense') cdReductionPct += charStats.defenseCooldownReductionPercent ?? 0;
+        if (spell.type === 'Heal') cdReductionPct += charStats.healCooldownReductionPercent ?? 0;
+        if (spell.type === 'Blade' && charStats.bladeCooldownReductionBigSwordActive) cdReductionPct += 50;
         cdReductionPct = Math.min(90, cdReductionPct);
         spellCooldowns = { ...spellCooldowns, [spellId]: now + spell.cooldownMs * (1 - cdReductionPct / 100) };
+
+        // Gaff Hack (Adaga) / Arcane Trickster (Luva): sem magia Mystic/Time nesse
+        // jogo, então qualquer cast tem chance de ativar o buff de 1 uso pro próximo
+        // golpe (extra hit) ou pro próximo ataque do monstro (bloqueio garantido).
+        if (charStats.castAttackBurstChance > 0 && Math.random() < charStats.castAttackBurstChance) {
+          workingChar = { ...workingChar, castAttackBurstBuff: true };
+        }
+        if (charStats.castBlockChance > 0 && Math.random() < charStats.castBlockChance) {
+          workingChar = { ...workingChar, castBlockBuff: true };
+        }
 
         if (spell.kind === 'heal') {
           const missingHealth = charStats.health - workingChar.currentHealth;
@@ -634,15 +683,28 @@ function reducer(state, action) {
             currentMana,
           };
           log = pushLog(log, `Você conjurou ${spell.id} e recuperou ${healAmount.toFixed(1)} de vida.`);
+          // Magic Steel (Armadura Pesada): conjurar Heal dá Escudo Mágico (% da Armor).
+          if (charStats.healCastShieldPercent > 0) {
+            const shieldGain = Math.min(MAGIC_STEEL_SHIELD_CAP, charStats.armor * (charStats.healCastShieldPercent / 100));
+            workingChar = { ...workingChar, shieldPoints: Math.min(MAGIC_STEEL_SHIELD_CAP, (workingChar.shieldPoints ?? 0) + shieldGain) };
+            log = pushLog(log, `Magic Steel: +${shieldGain.toFixed(1)} de escudo.`);
+          }
           continue;
         }
 
-        // Warlock (Energia/Fogo) e Steering Insight (Energia/Arco) prometem área de
-        // efeito e ricochete que esse jogo não simula (1 monstro por vez) — aproximados
-        // como bônus fixo de dano nessas escolas de magia.
+        // Warlock (Energia/Fogo), Steering Insight (Energia/Arco) e Bullseye
+        // (Arrow/Blade) prometem área de efeito / alvo focado que esse jogo não
+        // simula (1 monstro por vez) — aproximados como bônus fixo de dano.
         let dmgBonusPct = 0;
         if (['Fire', 'Energy'].includes(spell.type)) dmgBonusPct += charStats.fireEnergyDamageBonusPercent ?? 0;
         if (['Energy', 'Arrow'].includes(spell.type)) dmgBonusPct += charStats.energyArrowDamageBonusPercent ?? 0;
+        if (['Arrow', 'Blade'].includes(spell.type)) dmgBonusPct += charStats.arrowBladeDamageBonusPercent ?? 0;
+        // Hex Parry: buff de bloqueio de 1 uso fortalece a próxima magia Arrow/Blade.
+        const hexParryTriggered = ['Arrow', 'Blade'].includes(spell.type) && workingChar.blockEmpowerBuff;
+        if (hexParryTriggered) {
+          dmgBonusPct += BLOCK_EMPOWER_PCT;
+          workingChar = { ...workingChar, blockEmpowerBuff: false };
+        }
 
         const { avg: avgWeaponDamage } = computeDamageRoll(charStats);
         // Unnatural Flow (Orbe): soma um bônus fixo (4/7/12) na Base Damage da magia
@@ -654,6 +716,19 @@ function reducer(state, action) {
         const currentHealth = spell.hpCast ? Math.max(1, workingChar.currentHealth - effectiveManaCost) : workingChar.currentHealth;
         const currentMana = spell.hpCast ? workingChar.currentMana : workingChar.currentMana - effectiveManaCost;
         workingChar = { ...workingChar, currentHealth, currentMana };
+        if (hexParryTriggered) log = pushLog(log, 'Hex Parry: magia fortalecida pelo bloqueio!');
+
+        // Wrecking It (Arma Grande): cast Blade/Physical carrega o PRÓXIMO golpe com
+        // Dano Verdadeiro extra — mesmo buff do Charge the Staff, as fontes somam.
+        if (['Blade', 'Physical'].includes(spell.type) && charStats.wreckingItBonus > 0) {
+          workingChar = { ...workingChar, staffChargeBuff: (workingChar.staffChargeBuff ?? 0) + charStats.wreckingItBonus };
+        }
+        // Bulwark Leap (Escudo): cast Physical dobra o Escudo Mágico atual (cap 200).
+        if (spell.type === 'Physical' && charStats.physicalCastDoubleShieldActive && (workingChar.shieldPoints ?? 0) > 0) {
+          const doubled = Math.min(BULWARK_LEAP_SHIELD_CAP, workingChar.shieldPoints * 2);
+          workingChar = { ...workingChar, shieldPoints: doubled };
+          log = pushLog(log, `Bulwark Leap: escudo dobrado pra ${doubled.toFixed(1)}.`);
+        }
 
         // Lifesteal de magia: Vampiric Bite (própria magia, % não documentada, nossa
         // estimativa) + Pondering It (Orbe, Spellvamp real por rank) — somam.
@@ -740,6 +815,10 @@ function reducer(state, action) {
       // de dano-verdadeiro da adaga (Jagged Rhythm), que ignora armadura por completo
       // e não é afetado por crítico. Talentos de arma/armadura só entram se o requisito
       // ainda estiver ativo agora mesmo — troque a arma e eles ligam/desligam na hora.
+      // Berserker (Arma Grande): abaixo de 66% de vida, cada golpe ganha dano fixo extra.
+      const isBerserking = charStats.berserkerBonusDamage > 0
+        && (char.currentHealth / charStats.health) * 100 < BERSERKER_HEALTH_THRESHOLD_PCT;
+
       function rollHit() {
         const isCrit = Math.random() < (charStats.critChance ?? 0);
         // Cada golpe sorteia um valor dentro do range min-máx real (igual a barra
@@ -748,6 +827,7 @@ function reducer(state, action) {
         const { min: minDamage, max: maxDamage } = computeDamageRoll(charStats);
         let dmg = minDamage + Math.random() * (maxDamage - minDamage);
         if (isCrit) dmg *= charStats.critMultiplier ?? 1;
+        if (isBerserking) dmg += charStats.berserkerBonusDamage;
         // Bestiário: cada estrela ganha nessa criatura específica (marcos de abates) dá
         // +5% de dano só contra ela.
         dmg *= monsterDamageMultiplier(char.monsterKills?.[currentMonster.name] ?? 0);
@@ -765,16 +845,27 @@ function reducer(state, action) {
           trueDamage = charStats.trueDamagePerHit ?? 0;
           if (charStats.trueDamageDoubled) trueDamage *= 2;
         }
+        // Explosive Ammo (Arco) / Overwhelming Force (Arma Grande): sem área de efeito
+        // nesse jogo, aproximados como chance de dano bônus (dano verdadeiro) no golpe.
+        if (charStats.bowExplosiveChance && Math.random() < charStats.bowExplosiveChance) {
+          trueDamage += (maxDamage - minDamage) * 0.5;
+        }
+        if (charStats.overwhelmingForceChance && Math.random() < charStats.overwhelmingForceChance) {
+          trueDamage += (maxDamage - minDamage) * 0.5;
+        }
         const selfTrueDamage = charStats.trueDamageDoubled && trueDamage > 0 ? trueDamage : 0;
 
         return { damage, isCrit, trueDamage, selfTrueDamage };
       }
 
-      // Luck Foreseen II: Ability/6 = % de chance de atacar duas vezes no mesmo golpe.
+      // Luck Foreseen/Luck Foreseen II (soma) + To Be Ninja (25%, era boost de
+      // Movespeed) + Gaff Hack (buff de 1 uso consumido aqui) — todas as fontes de
+      // "golpe extra" desse personagem, cada uma rolada independente.
       const hits = [rollHit()];
-      if (charStats.doubleAttackChance && Math.random() < charStats.doubleAttackChance) {
-        hits.push(rollHit());
-      }
+      if (charStats.doubleAttackChance && Math.random() < charStats.doubleAttackChance) hits.push(rollHit());
+      if (charStats.ninjaExtraHitChance && Math.random() < charStats.ninjaExtraHitChance) hits.push(rollHit());
+      const gaffHackTriggered = char.castAttackBurstBuff;
+      if (gaffHackTriggered) hits.push(rollHit());
       const isCrit = hits.some((h) => h.isCrit);
       const totalTrueDamage = hits.reduce((sum, h) => sum + h.trueDamage, 0);
       const totalSelfDamage = hits.reduce((sum, h) => sum + h.selfTrueDamage, 0);
@@ -794,10 +885,17 @@ function reducer(state, action) {
         franticConjuryDamage = Math.max(1, (rawConjureDamage - effectiveArmorForConjure / 2) / (1 + effectiveArmorForConjure / 100));
       }
 
-      const playerDamage = hits.reduce((sum, h) => sum + h.damage, 0) + totalTrueDamage + staffChargeDamage + franticConjuryDamage;
+      // Battle Mage (Luva): cada 50 de Mana máxima vira 1 de Dano Verdadeiro fixo, todo golpe.
+      const battleMageDamage = charStats.manaToTrueDamage ?? 0;
+
+      const playerDamage = hits.reduce((sum, h) => sum + h.damage, 0) + totalTrueDamage + staffChargeDamage + franticConjuryDamage + battleMageDamage;
       const monsterHealth = Math.max(0, currentMonster.currentHealth - playerDamage);
 
       const lifestealHeal = playerDamage * ((charStats.lifestealPercent ?? 0) / 100);
+      // Magic Blade (Arma Grande): Manaleech — recupera mana baseado no dano causado.
+      const manaLeechGain = playerDamage * ((charStats.manaLeechPercent ?? 0) / 100);
+      // True Grip (Luva): atacar regenera mana fixa (por golpe, incluindo golpes extras).
+      const trueGripManaGain = (charStats.attackManaRegenFlat ?? 0) * hits.length;
 
       let log = pushLog(
         state.log,
@@ -812,25 +910,37 @@ function reducer(state, action) {
       if (franticConjuryDamage > 0) {
         log = pushLog(log, `Frantic Conjury: Conjure Fire de graça causou +${franticConjuryDamage.toFixed(1)}.`);
       }
+      if (battleMageDamage > 0) {
+        log = pushLog(log, `Battle Mage: +${battleMageDamage.toFixed(1)} de dano verdadeiro.`);
+      }
+      if (gaffHackTriggered) {
+        log = pushLog(log, 'Gaff Hack: golpe extra!');
+      }
       if (lifestealHeal > 0) {
         log = pushLog(log, `Lifesteal: +${lifestealHeal.toFixed(1)} de vida.`);
       }
       if (totalSelfDamage > 0) {
         log = pushLog(log, `Dark Blade: você recebeu ${totalSelfDamage.toFixed(1)} de dano verdadeiro.`);
       }
+      if (manaLeechGain > 0) {
+        log = pushLog(log, `Manaleech: +${manaLeechGain.toFixed(1)} de mana.`);
+      }
 
       if (staffManaCost > 0) {
         log = pushLog(log, `Ataque com cajado consumiu ${staffManaCost} de mana.`);
       }
 
-      // Os dois buffs do Cajado são de 1 uso só — consumidos nesse golpe, independente
-      // do resultado (matou o monstro ou não). O custo de mana do tiro também é
-      // debitado aqui, junto.
+      // Buffs de 1 uso do golpe são consumidos aqui, independente do resultado (matou
+      // o monstro ou não). Mana: custo do cajado sai, leech/regen entram.
       const charWithBuffsConsumed = {
         ...char,
         staffChargeBuff: 0,
         franticConjuryBuff: false,
-        currentMana: char.currentMana - staffManaCost,
+        castAttackBurstBuff: false,
+        currentMana: Math.min(
+          charStats.mana,
+          char.currentMana - staffManaCost + manaLeechGain + trueGripManaGain,
+        ),
       };
 
       if (monsterHealth <= 0) {
@@ -863,23 +973,79 @@ function reducer(state, action) {
       // Defense primeiro — (DanoDoAtacante - Defesa) / NúmeroDeAtacantes (sempre 1
       // atacante aqui) — depois Armor — (Resultado - Armadura/2) / (1 + Armadura/100).
       const afterDefense = Math.max(0, currentMonster.damage - charStats.defense);
-      const monsterDamage = Math.max(1, (afterDefense - charStats.armor / 2) / (1 + charStats.armor / 100));
+      let monsterDamage = Math.max(1, (afterDefense - charStats.armor / 2) / (1 + charStats.armor / 100));
+
+      let workingChar = { ...char };
+      let workingMonster = currentMonster;
+      let combatPauseUntil = state.combatPauseUntil;
+      let log = state.log;
+
+      // Bloqueio: Arcane Trickster (Luva, buff de 1 cast) OU escudo equipado (chance
+      // base homebrew — nenhuma fonte real documenta o valor, só que talentos
+      // "melhoram" um bloqueio que já existiria). Bloqueio anula o golpe inteiro.
+      const castBlocked = workingChar.castBlockBuff;
+      const shieldBlocked = !castBlocked && charStats.hasShieldEquipped && Math.random() < (charStats.blockChance ?? 0);
+      const blocked = castBlocked || shieldBlocked;
+      if (castBlocked) workingChar = { ...workingChar, castBlockBuff: false };
+
+      if (blocked) {
+        log = pushLog(log, `Você bloqueou o ataque de ${currentMonster.name}!${castBlocked ? ' (Arcane Trickster)' : ''}`);
+        monsterDamage = 0;
+
+        if (charStats.blockStaggerChance && Math.random() < charStats.blockStaggerChance) {
+          // Shieldslam: atordoa o atacante — pula o próximo ataque dele.
+          combatPauseUntil = Date.now() + MONSTER_TRANSITION_MS;
+          log = pushLog(log, 'Shieldslam: você atordoou o atacante!');
+        }
+        if (charStats.blockHealFlat > 0) {
+          workingChar = { ...workingChar, currentHealth: Math.min(charStats.health, workingChar.currentHealth + charStats.blockHealFlat) };
+          log = pushLog(log, `Rooted Guard: +${charStats.blockHealFlat} de vida.`);
+        }
+        if (charStats.blockEmpowerActive) {
+          workingChar = { ...workingChar, blockEmpowerBuff: true };
+          log = pushLog(log, 'Hex Parry: sua próxima magia Arrow/Blade vai vir fortalecida!');
+        }
+        if (charStats.blockReflectActive && (workingChar.shieldPoints ?? 0) > 0) {
+          // Deflect: reflete % do dano que TERIA tomado (dano bruto pré-bloqueio) como
+          // dano verdadeiro no monstro — só funciona com Escudo Mágico (Diamond Skin) ativo.
+          const preBlockDamage = Math.max(1, (afterDefense - charStats.armor / 2) / (1 + charStats.armor / 100));
+          const reflected = preBlockDamage * (BLOCK_REFLECT_PCT / 100);
+          log = pushLog(log, `Deflect: refletiu ${reflected.toFixed(1)} de dano verdadeiro em ${workingMonster.name}.`);
+          const monsterHealthAfterReflect = Math.max(0, workingMonster.currentHealth - reflected);
+          if (monsterHealthAfterReflect <= 0) {
+            const result = defeatMonster(workingChar, workingMonster, log);
+            workingChar = result.character;
+            workingMonster = result.monster;
+            log = result.log;
+            combatPauseUntil = result.combatPauseUntil;
+          } else {
+            workingMonster = { ...workingMonster, currentHealth: monsterHealthAfterReflect };
+          }
+        }
+      }
 
       // Diamond Skin (Orbe): escudo acumulado por conjurar magia de Energia absorve
-      // esse dano ANTES da vida.
-      const shieldBefore = char.shieldPoints ?? 0;
+      // esse dano ANTES da vida (só relevante se não bloqueou — bloqueio já zerou tudo).
+      const shieldBefore = workingChar.shieldPoints ?? 0;
       const absorbed = Math.min(shieldBefore, monsterDamage);
       const damageToHealth = monsterDamage - absorbed;
       const shieldAfter = shieldBefore - absorbed;
 
-      let log = pushLog(
-        state.log,
-        `${currentMonster.name} causou ${monsterDamage.toFixed(1)} de dano em você.${absorbed > 0 ? ` Escudo absorveu ${absorbed.toFixed(1)}.` : ''}`,
-      );
+      if (!blocked) {
+        log = pushLog(
+          log,
+          `${currentMonster.name} causou ${monsterDamage.toFixed(1)} de dano em você.${absorbed > 0 ? ` Escudo absorveu ${absorbed.toFixed(1)}.` : ''}`,
+        );
+      }
+      workingChar = { ...workingChar, shieldPoints: shieldAfter };
 
-      let workingChar = { ...char, shieldPoints: shieldAfter };
-      let workingMonster = currentMonster;
-      let combatPauseUntil = state.combatPauseUntil;
+      // Unfathomable Rage (Arma Grande): converte dano recebido (o que realmente
+      // chegou na vida) em mana.
+      if (charStats.unfathomableRageActive && damageToHealth > 0) {
+        const manaGain = damageToHealth / UNFATHOMABLE_RAGE_DAMAGE_TO_MANA_DIVISOR;
+        workingChar = { ...workingChar, currentMana: Math.min(charStats.mana, workingChar.currentMana + manaGain) };
+        log = pushLog(log, `Unfathomable Rage: +${manaGain.toFixed(1)} de mana.`);
+      }
 
       // Unstable Aegis (Orbe): toda vez que o escudo absorve dano, estoura um
       // "Unstable Berserk" homebrew (dano verdadeiro baseado em Magic) no monstro —
