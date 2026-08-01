@@ -9,6 +9,7 @@ import Mercador from './components/Mercador';
 import Banco from './components/Banco';
 import Bestiario from './components/Bestiario';
 import Blacklist from './components/Blacklist';
+import Magias from './components/Magias';
 import Ranking from './components/Ranking';
 import Sidebar from './components/Sidebar';
 
@@ -20,6 +21,7 @@ const TABS = [
   { id: 'mercador', label: '💱 Mercador', implemented: true },
   { id: 'banco', label: '🏦 Banco', implemented: true },
   { id: 'blacklist', label: '🚫 Blacklist', implemented: true },
+  { id: 'magias', label: '🔮 Magias', implemented: true },
   { id: 'house', label: '🏠 House', implemented: false },
   { id: 'bestiario', label: '📖 Bestiário', implemented: true },
   { id: 'ranking', label: '🏆 Ranking', implemented: true },
@@ -67,6 +69,11 @@ export default function App() {
     claimQuest,
     buyItem,
     sellToMerchant,
+    learnSpell,
+    equipSpell,
+    unequipSpell,
+    setAutoCastSpells,
+    spellCooldowns,
     offlineReport,
     dismissOfflineReport,
     syncStatus,
@@ -231,6 +238,16 @@ export default function App() {
         {activeTab === 'bestiario' && <Bestiario character={character} />}
         {activeTab === 'blacklist' && (
           <Blacklist character={character} addToBlacklist={addToBlacklist} removeFromBlacklist={removeFromBlacklist} />
+        )}
+        {activeTab === 'magias' && (
+          <Magias
+            character={character}
+            spellCooldowns={spellCooldowns}
+            learnSpell={learnSpell}
+            equipSpell={equipSpell}
+            unequipSpell={unequipSpell}
+            setAutoCastSpells={setAutoCastSpells}
+          />
         )}
         {activeTab === 'ranking' && <Ranking />}
         {!TABS.find((t) => t.id === activeTab)?.implemented && (

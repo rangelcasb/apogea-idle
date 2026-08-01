@@ -10,3 +10,4 @@ export * from './quests.js';
 export * from './merchants.js';
 export * from './items.js';
 export * from './lootTables.js';
+export * from './spells.js';

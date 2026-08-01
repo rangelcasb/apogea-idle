@@ -28,6 +28,10 @@ import {
   monsterDamageMultiplier,
   rarityAtLeast,
   RARITY_LABELS,
+  SPELLS_BY_ID,
+  SPELL_SLOTS,
+  computeSpellEffect,
+  canCastSpell,
 } from '../data/gameData';
 import { talentPointsForLevel, spentTalentPoints, canInvestTalent } from '../data/talents';
 import {
@@ -168,6 +172,9 @@ function createCharacter(name) {
     claimedQuests: [],
     autoCombat: false,
     autoEat: false,
+    learnedSpells: [],
+    equippedSpells: Array(SPELL_SLOTS).fill(null),
+    autoCastSpells: false,
     updatedAt: Date.now(),
   };
   const stats = computeFinalStats(raw);
@@ -206,6 +213,9 @@ function migrateCharacter(char) {
     autoCombat: char.autoCombat ?? false,
     autoEat: char.autoEat ?? false,
     talentResetCount: char.talentResetCount ?? 0,
+    learnedSpells: char.learnedSpells ?? [],
+    equippedSpells: char.equippedSpells ?? Array(SPELL_SLOTS).fill(null),
+    autoCastSpells: char.autoCastSpells ?? false,
     updatedAt: char.updatedAt ?? 0,
   };
 }
@@ -231,10 +241,105 @@ function init() {
     // fechou (e não morreu), continua caçando ao reabrir.
     autoCombat: character?.autoCombat && character.currentHealth > 0,
     combatPauseUntil: 0,
+    spellCooldowns: {},
   };
 }
 
 const MONSTER_TRANSITION_MS = 2000;
+
+// Derrota de um monstro: XP, gold, drops (respeitando blacklist), auto-come comida e
+// sobe de nível — usado tanto por PLAYER_ATTACK (golpe normal) quanto por SPELL_CAST
+// (magia matando o monstro), pra não duplicar essa lógica toda em dois lugares.
+function defeatMonster(char, currentMonster, log, { lifestealHeal = 0, selfDamage = 0 } = {}) {
+  const boosted = getDailyBoostedMonster().name === currentMonster.name;
+  const boostMult = boosted ? BOOSTED_MULTIPLIER : 1;
+  const { gold: rawGold, items: rawItemDrops } = rollLoot(currentMonster);
+  const goldDrop = Math.round(rawGold * boostMult);
+  const xpGain = Math.round(currentMonster.xp * boostMult);
+
+  log = pushLog(log, `${currentMonster.name} derrotado! +${xpGain} XP.${boosted ? ' (boosted do dia!)' : ''}`);
+  if (goldDrop > 0) log = pushLog(log, `+${goldDrop} gold.`);
+
+  // Itens na blacklist simplesmente não são pegos — nem entram na checagem de
+  // peso/mochila cheia, como se o item nunca tivesse caído. Uma entrada pode
+  // ter raridade mínima (ex: "Torch" só é bloqueada abaixo de épico).
+  const blacklistMap = new Map((char.itemBlacklist ?? []).map((e) => [e.name, e.minRarity]));
+  const itemDrops = rawItemDrops.filter((item) => {
+    if (!blacklistMap.has(item.name)) return true;
+    const minRarity = blacklistMap.get(item.name);
+    return minRarity ? rarityAtLeast(item.rarity, minRarity) : false;
+  });
+
+  const charStats = computeFinalStats(char);
+
+  // Com comer automático ligado, comida nem entra na checagem de peso — ela é
+  // comida na hora, nunca fica ocupando espaço, então "mochila cheia" não deve
+  // bloquear um alimento que nem vai ficar guardado.
+  const foodDrops = char.autoEat ? itemDrops.filter((i) => FOOD_CATEGORIES.has(i.category)) : [];
+  const nonFoodDrops = char.autoEat ? itemDrops.filter((i) => !FOOD_CATEGORIES.has(i.category)) : itemDrops;
+
+  const { inventory: mergedInventory, rejected } = mergeLoot(char.inventory, nonFoodDrops, charStats.capacity);
+  for (const item of nonFoodDrops) {
+    const wasRejected = rejected.includes(item);
+    log = pushLog(
+      log,
+      wasRejected
+        ? `Mochila cheia! Você deixou ${item.name} x${item.quantity} para trás.`
+        : `Você encontrou: ${item.name} x${item.quantity}.`,
+    );
+  }
+
+  let inventoryAfterLoot = mergedInventory;
+  let satiety = char.satiety;
+  for (const food of foodDrops) {
+    for (let i = 0; i < food.quantity; i++) satiety = eatFood(satiety, food.category);
+    satiety.foodName = satiety.foodName ?? food.name;
+    log = pushLog(
+      log,
+      `Você comeu ${food.name} x${food.quantity} automaticamente. Saciado por ${Math.round(satiety.remainingMs / 60000)}min.`,
+    );
+  }
+
+  const { xp, level, levelBatches, log: logAfterXp, leveledUp } = applyXpGain(char, xpGain, log);
+  log = logAfterXp;
+
+  const zoneKills = { ...char.zoneKills, [char.zoneId]: (char.zoneKills[char.zoneId] ?? 0) + 1 };
+  const monsterKills = {
+    ...char.monsterKills,
+    [currentMonster.name]: (char.monsterKills?.[currentMonster.name] ?? 0) + 1,
+  };
+
+  const updatedChar = {
+    ...char,
+    xp,
+    level,
+    levelBatches,
+    gold: char.gold + goldDrop,
+    kills: char.kills + 1,
+    zoneKills,
+    monsterKills,
+    totalGoldEarned: char.totalGoldEarned + goldDrop,
+    totalXpEarned: char.totalXpEarned + xpGain,
+    inventory: inventoryAfterLoot,
+    satiety,
+  };
+  const newStats = computeFinalStats(updatedChar);
+  // Subir de nível enche vida e mana por completo — igual ao jogo real.
+  // Dark Blade / feitiços com custo de HP podem causar dano em você mesmo — não
+  // deixamos matar nessa hora pra não duplicar a lógica de morte/respawn do
+  // MONSTER_ATTACK, só reduz até o mínimo de 1 de vida.
+  updatedChar.currentHealth = leveledUp
+    ? newStats.health
+    : Math.max(1, Math.min(newStats.health, char.currentHealth + lifestealHeal) - selfDamage);
+  updatedChar.currentMana = leveledUp ? newStats.mana : Math.min(newStats.mana, char.currentMana);
+
+  return {
+    character: updatedChar,
+    monster: pickMonster(char.zoneId),
+    log,
+    combatPauseUntil: Date.now() + MONSTER_TRANSITION_MS,
+  };
+}
 
 // Todo o combate roda num único reducer, então "dano no monstro + spawn do próximo"
 // acontece como UMA transição de estado atômica — não há como um tick ler um monstro
@@ -309,6 +414,129 @@ function reducer(state, action) {
         log = eaten.log;
       }
       return { ...state, character: { ...char, autoEat: action.enabled, inventory, satiety }, log };
+    }
+
+    // Ler um livro de magia ensina o feitiço PRA SEMPRE (consome 1 unidade do livro,
+    // igual ao jogo real) — não precisa manter o livro guardado depois disso.
+    case 'LEARN_SPELL': {
+      const char = state.character;
+      if (!char) return state;
+      const spell = SPELLS_BY_ID[action.spellId];
+      if (!spell || char.learnedSpells.includes(action.spellId)) return state;
+      const bookIdx = char.inventory.findIndex((i) => i.name === spell.book && i.quantity > 0);
+      if (bookIdx < 0) {
+        return { ...state, log: pushLog(state.log, `Você precisa ter ${spell.book} na mochila pra aprender essa magia.`) };
+      }
+      const inventory = char.inventory
+        .map((i, idx) => (idx === bookIdx ? { ...i, quantity: i.quantity - 1 } : i))
+        .filter((i) => i.quantity > 0);
+      return {
+        ...state,
+        character: { ...char, inventory, learnedSpells: [...char.learnedSpells, action.spellId] },
+        log: pushLog(state.log, `Você aprendeu a magia ${spell.id}!`),
+      };
+    }
+
+    case 'EQUIP_SPELL': {
+      const char = state.character;
+      if (!char) return state;
+      if (!char.learnedSpells.includes(action.spellId)) return state;
+      if (action.slotIndex < 0 || action.slotIndex >= SPELL_SLOTS) return state;
+      // Uma magia só pode ocupar um slot por vez — se já tava equipada em outro, tira de lá.
+      const equippedSpells = char.equippedSpells.map((s, idx) => {
+        if (idx === action.slotIndex) return action.spellId;
+        return s === action.spellId ? null : s;
+      });
+      return { ...state, character: { ...char, equippedSpells } };
+    }
+
+    case 'UNEQUIP_SPELL': {
+      const char = state.character;
+      if (!char) return state;
+      const equippedSpells = char.equippedSpells.map((s, idx) => (idx === action.slotIndex ? null : s));
+      return { ...state, character: { ...char, equippedSpells } };
+    }
+
+    case 'SET_AUTO_CAST_SPELLS': {
+      const char = state.character;
+      if (!char) return state;
+      return { ...state, character: { ...char, autoCastSpells: action.enabled } };
+    }
+
+    // Roda num relógio próprio (ver useGameState() mais abaixo), independente do
+    // ataque físico — cada magia equipada tem seu próprio cooldown (spellCooldowns,
+    // fora do personagem: é estado de combate efêmero, não precisa ser salvo).
+    case 'SPELL_CAST': {
+      const { character: char, monster: currentMonster } = state;
+      if (!char || !currentMonster || char.currentHealth <= 0 || !char.autoCastSpells) return state;
+      if (state.combatPauseUntil && Date.now() < state.combatPauseUntil) return state;
+
+      const charStats = computeFinalStats(char);
+      const now = Date.now();
+      const equipped = char.equippedSpells.filter(Boolean);
+      if (equipped.length === 0) return state;
+
+      let spellCooldowns = state.spellCooldowns;
+      let workingChar = char;
+      let workingMonster = currentMonster;
+      let log = state.log;
+      let combatPauseUntil = state.combatPauseUntil;
+
+      for (const spellId of equipped) {
+        const spell = SPELLS_BY_ID[spellId];
+        if (!spell) continue;
+        if (!workingMonster || workingChar.currentHealth <= 0) break;
+        if ((spellCooldowns[spellId] ?? 0) > now) continue;
+        if (!canCastSpell(spell, charStats)) continue;
+        const costPool = spell.hpCast ? workingChar.currentHealth : workingChar.currentMana;
+        if (costPool < spell.manaCost) continue;
+
+        spellCooldowns = { ...spellCooldowns, [spellId]: now + spell.cooldownMs };
+
+        if (spell.kind === 'heal') {
+          const missingHealth = charStats.health - workingChar.currentHealth;
+          const healAmount = missingHealth * ((spell.missingHealthPct ?? 0) / 100);
+          const currentHealth = spell.hpCast
+            ? Math.max(1, workingChar.currentHealth - spell.manaCost)
+            : workingChar.currentHealth;
+          const currentMana = spell.hpCast ? workingChar.currentMana : workingChar.currentMana - spell.manaCost;
+          workingChar = {
+            ...workingChar,
+            currentHealth: Math.min(charStats.health, currentHealth + healAmount),
+            currentMana,
+          };
+          log = pushLog(log, `Você conjurou ${spell.id} e recuperou ${healAmount.toFixed(1)} de vida.`);
+          continue;
+        }
+
+        const { avg: avgWeaponDamage } = computeDamageRoll(charStats);
+        const rawDamage = computeSpellEffect(spell, charStats, avgWeaponDamage);
+        const effectiveArmor = Math.max(0, workingMonster.armor * (1 - (charStats.armorPenPercent ?? 0) / 100));
+        const spellDamage = Math.max(1, (rawDamage - effectiveArmor / 2) / (1 + effectiveArmor / 100));
+
+        const currentHealth = spell.hpCast ? Math.max(1, workingChar.currentHealth - spell.manaCost) : workingChar.currentHealth;
+        const currentMana = spell.hpCast ? workingChar.currentMana : workingChar.currentMana - spell.manaCost;
+        workingChar = { ...workingChar, currentHealth, currentMana };
+
+        log = pushLog(log, `Você conjurou ${spell.id} e causou ${spellDamage.toFixed(1)} de dano em ${workingMonster.name}.`);
+
+        const monsterHealth = Math.max(0, workingMonster.currentHealth - spellDamage);
+        if (monsterHealth <= 0) {
+          const result = defeatMonster(workingChar, workingMonster, log);
+          workingChar = result.character;
+          workingMonster = result.monster;
+          log = result.log;
+          combatPauseUntil = result.combatPauseUntil;
+        } else {
+          workingMonster = { ...workingMonster, currentHealth: monsterHealth };
+        }
+      }
+
+      if (workingChar === char && workingMonster === currentMonster && spellCooldowns === state.spellCooldowns) {
+        return state;
+      }
+
+      return { ...state, character: workingChar, monster: workingMonster, log, combatPauseUntil, spellCooldowns };
     }
 
     // Ataque do jogador e ataque do monstro rodam em RELÓGIOS INDEPENDENTES (ver
@@ -387,93 +615,7 @@ function reducer(state, action) {
       }
 
       if (monsterHealth <= 0) {
-        const boosted = getDailyBoostedMonster().name === currentMonster.name;
-        const boostMult = boosted ? BOOSTED_MULTIPLIER : 1;
-        const { gold: rawGold, items: rawItemDrops } = rollLoot(currentMonster);
-        const goldDrop = Math.round(rawGold * boostMult);
-        const xpGain = Math.round(currentMonster.xp * boostMult);
-
-        log = pushLog(log, `${currentMonster.name} derrotado! +${xpGain} XP.${boosted ? ' (boosted do dia!)' : ''}`);
-        if (goldDrop > 0) log = pushLog(log, `+${goldDrop} gold.`);
-
-        // Itens na blacklist simplesmente não são pegos — nem entram na checagem de
-        // peso/mochila cheia, como se o item nunca tivesse caído. Uma entrada pode
-        // ter raridade mínima (ex: "Torch" só é bloqueada abaixo de épico).
-        const blacklistMap = new Map((char.itemBlacklist ?? []).map((e) => [e.name, e.minRarity]));
-        const itemDrops = rawItemDrops.filter((item) => {
-          if (!blacklistMap.has(item.name)) return true;
-          const minRarity = blacklistMap.get(item.name);
-          return minRarity ? rarityAtLeast(item.rarity, minRarity) : false;
-        });
-
-        // Com comer automático ligado, comida nem entra na checagem de peso — ela é
-        // comida na hora, nunca fica ocupando espaço, então "mochila cheia" não deve
-        // bloquear um alimento que nem vai ficar guardado.
-        const foodDrops = char.autoEat ? itemDrops.filter((i) => FOOD_CATEGORIES.has(i.category)) : [];
-        const nonFoodDrops = char.autoEat ? itemDrops.filter((i) => !FOOD_CATEGORIES.has(i.category)) : itemDrops;
-
-        const { inventory: mergedInventory, rejected } = mergeLoot(char.inventory, nonFoodDrops, charStats.capacity);
-        for (const item of nonFoodDrops) {
-          const wasRejected = rejected.includes(item);
-          log = pushLog(
-            log,
-            wasRejected
-              ? `Mochila cheia! Você deixou ${item.name} x${item.quantity} para trás.`
-              : `Você encontrou: ${item.name} x${item.quantity}.`,
-          );
-        }
-
-        let inventoryAfterLoot = mergedInventory;
-        let satiety = char.satiety;
-        for (const food of foodDrops) {
-          for (let i = 0; i < food.quantity; i++) satiety = eatFood(satiety, food.category);
-          satiety.foodName = satiety.foodName ?? food.name;
-          log = pushLog(
-            log,
-            `Você comeu ${food.name} x${food.quantity} automaticamente. Saciado por ${Math.round(satiety.remainingMs / 60000)}min.`,
-          );
-        }
-
-        const { xp, level, levelBatches, log: logAfterXp, leveledUp } = applyXpGain(char, xpGain, log);
-        log = logAfterXp;
-
-        const zoneKills = { ...char.zoneKills, [char.zoneId]: (char.zoneKills[char.zoneId] ?? 0) + 1 };
-        const monsterKills = {
-          ...char.monsterKills,
-          [currentMonster.name]: (char.monsterKills?.[currentMonster.name] ?? 0) + 1,
-        };
-
-        const updatedChar = {
-          ...char,
-          xp,
-          level,
-          levelBatches,
-          gold: char.gold + goldDrop,
-          kills: char.kills + 1,
-          zoneKills,
-          monsterKills,
-          totalGoldEarned: char.totalGoldEarned + goldDrop,
-          totalXpEarned: char.totalXpEarned + xpGain,
-          inventory: inventoryAfterLoot,
-          satiety,
-        };
-        const newStats = computeFinalStats(updatedChar);
-        // Subir de nível enche vida e mana por completo — igual ao jogo real.
-        // Dark Blade pode causar dano em você mesmo (dano verdadeiro dobrado que
-        // recebe de volta) — não deixamos matar nessa hora pra não duplicar a lógica
-        // de morte/respawn do MONSTER_ATTACK, só reduz até o mínimo de 1 de vida.
-        updatedChar.currentHealth = leveledUp
-          ? newStats.health
-          : Math.max(1, Math.min(newStats.health, char.currentHealth + lifestealHeal) - totalSelfDamage);
-        updatedChar.currentMana = leveledUp ? newStats.mana : Math.min(newStats.mana, char.currentMana);
-
-        return {
-          ...state,
-          character: updatedChar,
-          monster: pickMonster(char.zoneId),
-          log,
-          combatPauseUntil: Date.now() + MONSTER_TRANSITION_MS,
-        };
+        return { ...state, ...defeatMonster(char, currentMonster, log, { lifestealHeal, selfDamage: totalSelfDamage }) };
       }
 
       const healthAfterLifesteal = Math.max(
@@ -1153,6 +1295,15 @@ export function useGameState() {
     return () => clearInterval(id);
   }, [hasCharacter, isDead]);
 
+  // Relógio próprio pra tentar conjurar as magias equipadas — roda mais rápido que o
+  // cooldown de qualquer magia (a mais curta é 1.5s) só pra não deixar o cast atrasar
+  // depois que o cooldown já liberou. O reducer já ignora se autoCastSpells tá desligado.
+  useEffect(() => {
+    if (!state.autoCombat || !hasCharacter || isDead) return;
+    const id = setInterval(() => dispatch({ type: 'SPELL_CAST' }), 500);
+    return () => clearInterval(id);
+  }, [state.autoCombat, hasCharacter, isDead]);
+
   const stats = useMemo(
     () => (state.character ? computeFinalStats(state.character) : null),
     [state.character],
@@ -1195,6 +1346,10 @@ export function useGameState() {
     (merchantName, itemId) => dispatch({ type: 'SELL_TO_MERCHANT', merchantName, itemId }),
     [],
   );
+  const learnSpell = useCallback((spellId) => dispatch({ type: 'LEARN_SPELL', spellId }), []);
+  const equipSpell = useCallback((spellId, slotIndex) => dispatch({ type: 'EQUIP_SPELL', spellId, slotIndex }), []);
+  const unequipSpell = useCallback((slotIndex) => dispatch({ type: 'UNEQUIP_SPELL', slotIndex }), []);
+  const setAutoCastSpells = useCallback((enabled) => dispatch({ type: 'SET_AUTO_CAST_SPELLS', enabled }), []);
 
   return {
     character,
@@ -1231,6 +1386,11 @@ export function useGameState() {
     claimQuest,
     buyItem,
     sellToMerchant,
+    learnSpell,
+    equipSpell,
+    unequipSpell,
+    setAutoCastSpells,
+    spellCooldowns: state.spellCooldowns,
     offlineReport,
     dismissOfflineReport,
     syncStatus,
