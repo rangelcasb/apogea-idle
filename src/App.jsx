@@ -74,6 +74,7 @@ export default function App() {
     equipSpell,
     unequipSpell,
     setAutoCastSpells,
+    setSpellHealThreshold,
     spellCooldowns,
     offlineReport,
     dismissOfflineReport,
@@ -249,6 +250,7 @@ export default function App() {
             equipSpell={equipSpell}
             unequipSpell={unequipSpell}
             setAutoCastSpells={setAutoCastSpells}
+            setSpellHealThreshold={setSpellHealThreshold}
           />
         )}
         {activeTab === 'ranking' && <Ranking />}

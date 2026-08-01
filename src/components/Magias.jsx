@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { SPELLS, SPELL_SLOTS, canCastSpell } from '../data/gameData';
+import { SPELLS, SPELL_SLOTS, DEFAULT_HEAL_THRESHOLD_PCT, canCastSpell } from '../data/gameData';
 import { computeFinalStats } from '../data/gameData';
 import ItemIcon from './ItemIcon';
 
@@ -20,7 +20,14 @@ function useNow(intervalMs) {
   return now;
 }
 
-export default function Magias({ character, spellCooldowns, equipSpell, unequipSpell, setAutoCastSpells }) {
+export default function Magias({
+  character,
+  spellCooldowns,
+  equipSpell,
+  unequipSpell,
+  setAutoCastSpells,
+  setSpellHealThreshold,
+}) {
   const now = useNow(250);
   const stats = computeFinalStats(character);
   const learned = character.learnedSpells ?? [];
@@ -114,6 +121,23 @@ export default function Magias({ character, spellCooldowns, equipSpell, unequipS
                     </p>
                   </div>
                 </div>
+
+                {isLearned && spell.kind === 'heal' && (
+                  <label className="flex items-center gap-1.5 text-[11px] text-neutral-300">
+                    Ativar com vida ≤
+                    <input
+                      type="number"
+                      min={1}
+                      max={99}
+                      value={character.spellHealThresholds?.[spell.id] ?? DEFAULT_HEAL_THRESHOLD_PCT}
+                      onChange={(e) =>
+                        setSpellHealThreshold(spell.id, Math.min(99, Math.max(1, Number(e.target.value) || 0)))
+                      }
+                      className="w-14 bg-wood border border-wood-lighter rounded px-1.5 py-0.5 text-neutral-100 focus:outline-none focus:border-gold"
+                    />
+                    %
+                  </label>
+                )}
 
                 {!isLearned ? (
                   <p className="text-[11px] text-neutral-500">

@@ -14,6 +14,10 @@
 // é só pra manter esses feitiços utilizáveis no auto-cast sem deixá-los infinitos.
 export const DEFAULT_COOLDOWN_MS = 6000;
 export const SPELL_SLOTS = 3;
+// Limiar padrão de vida (%) em que uma magia de cura entra em ação no auto-cast, até
+// o jogador configurar o dele na aba Magias — 80% evita gastar mana curando 5% de
+// pouca coisa quando a vida já tá quase cheia.
+export const DEFAULT_HEAL_THRESHOLD_PCT = 80;
 
 export const SPELLS = [
   { id: 'Thrash', bookName: 'Thrash', book: 'Red Spellbook: Thrash', color: 'Red', magicReq: 0, abilityReq: 0, manaCost: 40, cooldownMs: 7000, hpCast: true, kind: 'damage', base: 10, damagePct: 5 },

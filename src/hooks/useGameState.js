@@ -30,6 +30,7 @@ import {
   RARITY_LABELS,
   SPELLS_BY_ID,
   SPELL_SLOTS,
+  DEFAULT_HEAL_THRESHOLD_PCT,
   computeSpellEffect,
   canCastSpell,
 } from '../data/gameData';
@@ -176,6 +177,7 @@ function createCharacter(name) {
     equippedSpells: Array(SPELL_SLOTS).fill(null),
     autoCastSpells: false,
     autoPotion: { enabled: false, healthPct: 30, manaPct: 30 },
+    spellHealThresholds: {},
     updatedAt: Date.now(),
   };
   const stats = computeFinalStats(raw);
@@ -218,6 +220,7 @@ function migrateCharacter(char) {
     equippedSpells: char.equippedSpells ?? Array(SPELL_SLOTS).fill(null),
     autoCastSpells: char.autoCastSpells ?? false,
     autoPotion: char.autoPotion ?? { enabled: false, healthPct: 30, manaPct: 30 },
+    spellHealThresholds: char.spellHealThresholds ?? {},
     updatedAt: char.updatedAt ?? 0,
   };
 }
@@ -477,6 +480,18 @@ function reducer(state, action) {
       return { ...state, character: { ...char, autoPotion: { ...char.autoPotion, ...action.settings } } };
     }
 
+    // Cada magia de cura tem seu próprio limiar de vida (%) pra entrar em ação sozinha
+    // — sem isso, o auto-cast curaria toda vez que o cooldown liberasse, mesmo com a
+    // vida quase cheia, só pra recuperar 5% de quase nada.
+    case 'SET_SPELL_HEAL_THRESHOLD': {
+      const char = state.character;
+      if (!char) return state;
+      return {
+        ...state,
+        character: { ...char, spellHealThresholds: { ...char.spellHealThresholds, [action.spellId]: action.pct } },
+      };
+    }
+
     // Ler um livro de magia ensina o feitiço PRA SEMPRE (consome 1 unidade do livro,
     // igual ao jogo real) — não precisa manter o livro guardado depois disso.
     case 'LEARN_SPELL': {
@@ -551,6 +566,15 @@ function reducer(state, action) {
         if (!canCastSpell(spell, charStats)) continue;
         const costPool = spell.hpCast ? workingChar.currentHealth : workingChar.currentMana;
         if (costPool < spell.manaCost) continue;
+
+        // Magia de cura só entra em ação quando a vida cair pra igual ou abaixo do
+        // limiar configurado pelo jogador (senão ficaria curando 5% de quase nada toda
+        // vez que o cooldown liberasse, mesmo com a vida praticamente cheia).
+        if (spell.kind === 'heal') {
+          const healthPct = (workingChar.currentHealth / charStats.health) * 100;
+          const threshold = char.spellHealThresholds?.[spellId] ?? DEFAULT_HEAL_THRESHOLD_PCT;
+          if (healthPct > threshold) continue;
+        }
 
         spellCooldowns = { ...spellCooldowns, [spellId]: now + spell.cooldownMs };
 
@@ -1435,6 +1459,10 @@ export function useGameState() {
   const equipSpell = useCallback((spellId, slotIndex) => dispatch({ type: 'EQUIP_SPELL', spellId, slotIndex }), []);
   const unequipSpell = useCallback((slotIndex) => dispatch({ type: 'UNEQUIP_SPELL', slotIndex }), []);
   const setAutoCastSpells = useCallback((enabled) => dispatch({ type: 'SET_AUTO_CAST_SPELLS', enabled }), []);
+  const setSpellHealThreshold = useCallback(
+    (spellId, pct) => dispatch({ type: 'SET_SPELL_HEAL_THRESHOLD', spellId, pct }),
+    [],
+  );
 
   return {
     character,
@@ -1476,6 +1504,7 @@ export function useGameState() {
     equipSpell,
     unequipSpell,
     setAutoCastSpells,
+    setSpellHealThreshold,
     spellCooldowns: state.spellCooldowns,
     offlineReport,
     dismissOfflineReport,
