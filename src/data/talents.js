@@ -347,8 +347,12 @@ const RAW_TALENTS = [
 
   // ── Luva (NOVO ramo — não existia na fonte antiga) ──────────────────────────
   { id: 71, name: 'Glove Passion', parent: 0, branch: 'glove', description: "While wearing gloves, gain 10 Mana or Health Regen depending on the item you're holding", ranks: [] },
-  { id: 72, name: 'True Grip', parent: 71, branch: 'glove', description: 'While wearing Gloves, attacking regenerates Mana', ranks: ['1', '2', '4'] },
-  { id: 73, name: 'Elvish Practice', parent: 72, branch: 'glove', description: 'Spells cost 15% less mana', ranks: ['6%', '10%', '15%'] },
+  // True Grip e Elvish Practice tinham 3 ranks projetados, mas o pai (Glove Passion,
+  // id71) só tem 1 rank possível — a trava real (filho nunca ultrapassa o NÍVEL ATUAL
+  // do pai) prendia os dois pra sempre em 1/3, mesmo investindo tudo. Reduzido pra 1
+  // rank só (valor mais forte da curva antiga), que é o único nível alcançável de verdade.
+  { id: 72, name: 'True Grip', parent: 71, branch: 'glove', description: 'While wearing Gloves, attacking regenerates Mana', ranks: ['4'] },
+  { id: 73, name: 'Elvish Practice', parent: 72, branch: 'glove', description: 'Spells cost 15% less mana', ranks: ['15%'] },
   { id: 74, name: 'Arcane Trickster', parent: 73, branch: 'glove', description: 'While using Gloves, casting a Time or Mystic spell has a 50% chance of blocking all physical damage for 4 seconds', ranks: [] },
   { id: 75, name: 'Battle Mage', parent: 74, branch: 'glove', description: 'Converts 50 Max Mana into 1 extra True Damage', ranks: [] },
   { id: 76, name: 'One With Apogea', parent: 75, branch: 'glove', description: 'Mana damage is reduced in half, all spells cost 5 times more', ranks: [] },
@@ -359,7 +363,10 @@ const RAW_TALENTS = [
   { id: 28, name: 'Battle Boots', parent: 26, branch: 'lightarmor', description: 'Converts 1 Movespeed into 1% chance of dealing 1.5x Damage', ranks: [] },
   { id: 27, name: 'Lightfoot', parent: 25, branch: 'lightarmor', description: 'Converts 10 Free Capacity into 1 Movespeed, capping at 3', ranks: [] },
   { id: 29, name: 'Dressing Wizardly', parent: 27, branch: 'lightarmor', description: 'Light Armor that weighs less than 35oz has Magic extra', ranks: ['1'] },
-  { id: 30, name: 'Powerful Space', parent: 29, branch: 'lightarmor', description: 'Gain 5% Magic for each X Free Capacity you have, capping at 20%', ranks: ['50', '35', '15'] },
+  // Mesmo problema: Dressing Wizardly (id29, pai) só tem 1 rank, então Powerful Space
+  // nunca passava de 1/3 investindo tudo. Reduzido pro melhor valor (divisor menor =
+  // mais % de Magic por capacidade livre).
+  { id: 30, name: 'Powerful Space', parent: 29, branch: 'lightarmor', description: 'Gain 5% Magic for each X Free Capacity you have, capping at 20%', ranks: ['15'] },
   { id: 31, name: 'Clothes of the Damned', parent: 30, branch: 'lightarmor', description: 'Removes negative effects from Light Armor and gain 5% Magic for each equipped Light Armor', ranks: [] },
   { id: 35, name: 'Darkness Embrace', parent: 31, branch: 'lightarmor', description: 'Death spells are 10 times cheaper. Heal, Light and Holy spells are 10 times more expensive', ranks: [] },
 
@@ -368,7 +375,9 @@ const RAW_TALENTS = [
   { id: 33, name: 'Bread and Butter', parent: 32, branch: 'shield', description: 'Using a sword and shield gives you extra damage', ranks: ['2', '4', '8'] },
   { id: 37, name: 'Shieldslam', parent: 33, branch: 'shield', description: 'Blocking an attack has a chance of staggering the attacker', ranks: ['7%', '10%', '15%'] },
   { id: 77, name: 'Rooted Guard', parent: 32, branch: 'shield', description: 'Blocking an attack regenerates 5 health', ranks: [] },
-  { id: 78, name: 'Royal Shield', parent: 77, branch: 'shield', description: 'Reduces the cooldown of Defense spells by 35%', ranks: ['14%', '23%', '35%'] },
+  // Mesmo problema: Rooted Guard (id77, pai) só tem 1 rank, então Royal Shield nunca
+  // passava de 1/3 investindo tudo. Reduzido pro melhor valor.
+  { id: 78, name: 'Royal Shield', parent: 77, branch: 'shield', description: 'Reduces the cooldown of Defense spells by 35%', ranks: ['35%'] },
   { id: 79, name: 'Monster Candy', parent: 78, branch: 'shield', description: 'Taunt lasts 100% longer, Conjure and Defense spells cost 50% less mana, lose 99 damage', ranks: [] },
   { id: 38, name: 'Hex Parry', parent: 77, branch: 'shield', description: 'Successfully blocking an attack will empower your next Arrow or Blade spell by 50%', ranks: [] },
   { id: 34, name: 'Deflect', parent: 38, branch: 'shield', description: 'Blocking with a Magic Shield will reflect 35% of the damage taken, ignoring armor', ranks: ['35%'] },
@@ -418,10 +427,13 @@ const RAW_TALENTS = [
 // apliquei essa trava extra aos ramos novos/reorganizados (Luva, Arma Grande, Espada,
 // Orbe, Armadura) porque não tenho confirmação de que ainda vale — eles usam só a
 // trava básica (filho nunca ultrapassa o pai).
+// id 19 (Explosive Ammo) tinha uma trava aqui exigindo o pai (id18, Artisanal Arsenal)
+// no nível 3 — mas id18 só tem 1 rank possível, então essa trava tornava o talento
+// PERMANENTEMENTE inalcançável (bug real, achado por simulação). Removida — agora só
+// vale a trava básica (filho nunca ultrapassa o pai), que já é suficiente aqui.
 const EXTRA_REQUIREMENTS = {
   13: [[10, 5], [12, 3]],
   15: [[10, 5], [14, 3]],
-  19: [[16, 5], [18, 3]],
   21: [[16, 5], [20, 3]],
 };
 

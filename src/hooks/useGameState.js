@@ -1286,7 +1286,12 @@ function reducer(state, action) {
         return { ...state, character: { ...char, gold: char.gold - offer.price, satiety }, log };
       }
 
-      const id = `${slugify(action.itemName)}-${def.rarity}`;
+      // Mesma correção do loot de monstro: o nome anunciado pela loja às vezes é a
+      // grafia antiga (ex: alias em ITEM_NAME_ALIASES) — resolve pro nome canônico do
+      // catálogo antes de criar o item, senão ele nasce com nome errado igual o bug do
+      // loot que já foi corrigido.
+      const resolvedName = resolveRealItemName(action.itemName);
+      const id = `${slugify(resolvedName)}-${def.rarity}`;
       const addedWeight = def.weight ?? 1;
       const currentWeight = inventoryWeight(char.inventory);
       const stats = computeFinalStats(char);
@@ -1297,7 +1302,7 @@ function reducer(state, action) {
       const idx = char.inventory.findIndex((i) => i.id === id);
       const inventory = idx >= 0
         ? char.inventory.map((i, ix) => (ix === idx ? { ...i, quantity: i.quantity + 1 } : i))
-        : [...char.inventory, { id, name: action.itemName, quantity: 1, ...def }];
+        : [...char.inventory, { id, name: resolvedName, quantity: 1, ...def }];
 
       return {
         ...state,
