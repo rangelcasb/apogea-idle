@@ -229,7 +229,7 @@ function autoEatAllFood(inventory, satiety, log) {
   for (const item of inventory) {
     if (!FOOD_CATEGORIES.has(item.category) || item.quantity <= 0) continue;
     for (let i = 0; i < item.quantity; i++) {
-      nextSatiety = eatFood(nextSatiety, item.category);
+      nextSatiety = eatFood(nextSatiety, item);
     }
     nextSatiety.foodName = nextSatiety.foodName ?? item.name;
     nextInventory = nextInventory.filter((it) => it.id !== item.id);
@@ -479,7 +479,7 @@ function defeatMonster(char, currentMonster, log, { lifestealHeal = 0, selfDamag
   let inventoryAfterLoot = mergedInventory;
   let satiety = char.satiety;
   for (const food of foodDrops) {
-    for (let i = 0; i < food.quantity; i++) satiety = eatFood(satiety, food.category);
+    for (let i = 0; i < food.quantity; i++) satiety = eatFood(satiety, food);
     satiety.foodName = satiety.foodName ?? food.name;
     log = pushLog(
       log,
@@ -1413,7 +1413,7 @@ function reducer(state, action) {
         const foodIdx = inventory.findIndex((i) => FOOD_CATEGORIES.has(i.category) && i.quantity > 0);
         if (foodIdx >= 0) {
           const food = inventory[foodIdx];
-          satiety = eatFood(satiety, food.category);
+          satiety = eatFood(satiety, food);
           satiety.foodName = food.name;
           inventory = inventory
             .map((i, idx) => (idx === foodIdx ? { ...i, quantity: i.quantity - 1 } : i))
@@ -1465,7 +1465,7 @@ function reducer(state, action) {
         }
       } else if (FOOD_CATEGORIES.has(item.category)) {
         const wasSated = (char.satiety?.remainingMs ?? 0) > 0;
-        satiety = eatFood(char.satiety, item.category);
+        satiety = eatFood(char.satiety, item);
         satiety.foodName = wasSated ? char.satiety.foodName : item.name;
         const totalMin = Math.round(satiety.remainingMs / 60000);
         log = pushLog(
@@ -1530,7 +1530,7 @@ function reducer(state, action) {
       // Comida comprada com comer automático ligado é comida na hora — não depende de
       // espaço na mochila (nunca chega a ficar guardada).
       if (char.autoEat && FOOD_CATEGORIES.has(def.category)) {
-        satiety = eatFood(satiety, def.category);
+        satiety = eatFood(satiety, def);
         satiety.foodName = satiety.foodName ?? action.itemName;
         log = pushLog(log, `Você comeu ${action.itemName} automaticamente. Saciado por ${Math.round(satiety.remainingMs / 60000)}min.`);
         return { ...state, character: { ...char, gold: char.gold - offer.price, satiety }, log };

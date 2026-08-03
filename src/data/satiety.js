@@ -1,39 +1,45 @@
-// Sistema de saciedade: comidas "de refeição" (categorias reais RawFood/EdibleFood/
-// CookedFood/SpecialFood/Drinks) não têm efeito de cura instantânea nos dados reais
-// (itemdata.js) — a maioria são ingredientes ou pratos sem hp/mana. Em vez de ficarem
-// inúteis, cada uma dá um tempo de saciedade + um bônus passivo enquanto durar.
+// Sistema de saciedade: comer uma comida ("de refeição", categorias reais RawFood/
+// EdibleFood/CookedFood/SpecialFood/Drinks) dá um tempo de saciedade + o bônus passivo
+// de regeneração daquele item ESPECÍFICO (HP Regen / MP Regen), agora com o valor REAL
+// de cada item — vem de items.js (stats.hpRegen/stats.mpRegen), extraído da mesma fonte
+// autoritativa do cliente do jogo usada pra árvore de talentos e pros itens de
+// equipamento. Ingrediente cru (RawFood) e bebida (Drinks) não têm regen nenhum no jogo
+// real — só pratos prontos (Edible/Cooked/SpecialFood) dão bônus, o que faz sentido.
 //
-// Duração (minutos) e bônus por categoria são NOSSOS, o jogo real não documenta um
-// sistema de saciedade assim publicamente — pense nisso como uma mecânica própria
-// pra comida ter função no jogo idle.
+// A DURAÇÃO da saciedade continua sendo nossa (o jogo real não documenta publicamente
+// um sistema de saciedade assim) — pense nisso como o "tanque de comida" que esse jogo
+// idle precisava pra comida ter função, só que agora com o efeito de verdade.
 export const FOOD_CATEGORIES = new Set(['RawFood', 'EdibleFood', 'CookedFood', 'SpecialFood', 'Drinks']);
 
-const SATIETY_BY_CATEGORY = {
-  RawFood: { minutes: 3, bonus: { hpRegen: 2 } },
-  EdibleFood: { minutes: 4, bonus: { hpRegen: 2, mpRegen: 1 } },
-  CookedFood: { minutes: 6, bonus: { hpRegen: 4 } },
-  SpecialFood: { minutes: 8, bonus: { hpRegen: 3, mpRegen: 3 } },
-  Drinks: { minutes: 5, bonus: { mpRegen: 2 } },
+const SATIETY_MINUTES_BY_CATEGORY = {
+  RawFood: 3,
+  EdibleFood: 4,
+  CookedFood: 6,
+  SpecialFood: 8,
+  Drinks: 5,
 };
 
-export function getSatietyInfo(category) {
-  return SATIETY_BY_CATEGORY[category] ?? null;
+export function getSatietyMinutes(category) {
+  return SATIETY_MINUTES_BY_CATEGORY[category] ?? 0;
 }
 
-// Come um alimento: a duração sempre SOMA ao tempo restante (comer 2 alimentos
+// Come um item de comida: a duração sempre SOMA ao tempo restante (comer 2 alimentos
 // diferentes seguidos dá a duração dos dois somada). O BÔNUS só troca se a saciedade
 // atual já tiver zerado — se você já está saciado, o bônus de quem comeu primeiro
 // continua valendo, o novo alimento só estende o tempo.
-export function eatFood(currentSatiety, category) {
-  const info = getSatietyInfo(category);
-  if (!info) return currentSatiety;
+export function eatFood(currentSatiety, item) {
+  const minutes = getSatietyMinutes(item?.category);
+  if (!minutes) return currentSatiety;
 
-  const addedMs = info.minutes * 60000;
+  const addedMs = minutes * 60000;
   const stillSated = (currentSatiety?.remainingMs ?? 0) > 0;
+  const bonus = item.stats?.hpRegen || item.stats?.mpRegen
+    ? { hpRegen: item.stats.hpRegen ?? 0, mpRegen: item.stats.mpRegen ?? 0 }
+    : null;
 
   return {
     remainingMs: (currentSatiety?.remainingMs ?? 0) + addedMs,
-    bonus: stillSated ? currentSatiety.bonus : info.bonus,
+    bonus: stillSated ? currentSatiety.bonus : bonus,
     foodName: stillSated ? currentSatiety.foodName : null, // preenchido pelo chamador com o nome do item
   };
 }
