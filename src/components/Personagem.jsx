@@ -36,7 +36,9 @@ export default function Personagem({
   vocationCost,
   autoCombat,
   addToBlacklist,
-  setAutoEat,
+  setAutoEatDrops,
+  setAutoEatCookedInventory,
+  resetSatiety,
   setAutoPotion,
   learnSpell,
 }) {
@@ -187,22 +189,58 @@ export default function Personagem({
           )}
         </div>
 
-        <div className="bg-wood-light border border-wood-lighter rounded-lg p-4">
+        <div className="bg-wood-light border border-wood-lighter rounded-lg p-4 flex flex-col gap-3">
           <label className="flex items-center justify-between gap-2 cursor-pointer">
             <span>
-              <span className="text-gold font-semibold tracking-wide">◆ COMER AUTOMÁTICO</span>
+              <span className="text-gold font-semibold tracking-wide">◆ COMER DROP AUTOMÁTICO</span>
               <p className="text-[11px] text-neutral-500 mt-0.5">
-                Come qualquer comida assim que ela chega na mochila (loot ou compra), pra manter
-                a saciedade sempre ativa sem precisar voltar na tela.
+                Come na hora qualquer comida que dropar de monstro morto (não mexe em comida
+                comprada na loja, que sempre vai pra mochila).
               </p>
             </span>
             <input
               type="checkbox"
-              checked={character.autoEat ?? false}
-              onChange={(e) => setAutoEat(e.target.checked)}
+              checked={character.autoEatDrops ?? false}
+              onChange={(e) => setAutoEatDrops(e.target.checked)}
               className="shrink-0 w-5 h-5 accent-gold cursor-pointer"
             />
           </label>
+
+          <label className="flex items-center justify-between gap-2 cursor-pointer border-t border-wood-lighter pt-3">
+            <span>
+              <span className="text-gold font-semibold tracking-wide">◆ COMER PRATO PRONTO DA MOCHILA</span>
+              <p className="text-[11px] text-neutral-500 mt-0.5">
+                Quando a saciedade zerar, come sozinho o prato pronto (comida preparada, com
+                regen de verdade) que estiver guardado na mochila. Ingrediente cru e bebida não
+                entram aqui, já que não dão regen.
+              </p>
+            </span>
+            <input
+              type="checkbox"
+              checked={character.autoEatCookedInventory ?? false}
+              onChange={(e) => setAutoEatCookedInventory(e.target.checked)}
+              className="shrink-0 w-5 h-5 accent-gold cursor-pointer"
+            />
+          </label>
+
+          <div className="flex items-center justify-between gap-2 border-t border-wood-lighter pt-3">
+            <span>
+              <span className="text-gold font-semibold tracking-wide">◆ SACIEDADE</span>
+              <p className="text-[11px] text-neutral-500 mt-0.5">
+                {character.satiety?.remainingMs > 0
+                  ? `Saciado (${character.satiety.foodName}) por mais ${Math.ceil(character.satiety.remainingMs / 60000)}min.`
+                  : 'Sem saciedade ativa no momento.'}
+              </p>
+            </span>
+            <button
+              onClick={resetSatiety}
+              disabled={!(character.satiety?.remainingMs > 0)}
+              className="shrink-0 text-xs font-medium bg-wood border border-wood-lighter rounded px-3 py-1.5
+                         disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer hover:border-blood hover:text-blood"
+            >
+              ZERAR
+            </button>
+          </div>
         </div>
 
         <div className="bg-wood-light border border-wood-lighter rounded-lg p-4">

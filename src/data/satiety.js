@@ -10,6 +10,10 @@
 // um sistema de saciedade assim) — pense nisso como o "tanque de comida" que esse jogo
 // idle precisava pra comida ter função, só que agora com o efeito de verdade.
 export const FOOD_CATEGORIES = new Set(['RawFood', 'EdibleFood', 'CookedFood', 'SpecialFood', 'Drinks']);
+// Subconjunto "prato pronto" — as únicas categorias que dão regen de verdade (ver
+// items.js). Usado pelo comer automático de pratos guardados na mochila, pra não
+// desperdiçar ingrediente cru/bebida (sem bônus) quando a saciedade zerar.
+export const PREPARED_FOOD_CATEGORIES = new Set(['CookedFood', 'SpecialFood']);
 
 const SATIETY_MINUTES_BY_CATEGORY = {
   RawFood: 3,

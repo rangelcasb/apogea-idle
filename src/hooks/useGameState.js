@@ -15,6 +15,7 @@ import {
   unspentPoints,
   getDailyBoostedMonster,
   FOOD_CATEGORIES,
+  PREPARED_FOOD_CATEGORIES,
   eatFood,
   tickSatiety,
   QUESTS_BY_ID,
@@ -221,13 +222,13 @@ function mergeLoot(inventory, droppedItems, capacity) {
 // mochila assim que ela chega — seja de loot ou de compra no mercador. Come a pilha
 // inteira de uma vez (a duração de cada unidade soma, igual comer manualmente várias
 // vezes seguidas).
-function autoEatAllFood(inventory, satiety, log) {
+function autoEatAllFood(inventory, satiety, log, categories = FOOD_CATEGORIES) {
   let nextInventory = inventory;
   let nextSatiety = satiety;
   let nextLog = log;
 
   for (const item of inventory) {
-    if (!FOOD_CATEGORIES.has(item.category) || item.quantity <= 0) continue;
+    if (!categories.has(item.category) || item.quantity <= 0) continue;
     for (let i = 0; i < item.quantity; i++) {
       nextSatiety = eatFood(nextSatiety, item);
     }
@@ -275,7 +276,8 @@ function createCharacter(name) {
     satiety: { remainingMs: 0, bonus: null, foodName: null },
     claimedQuests: [],
     autoCombat: false,
-    autoEat: false,
+    autoEatDrops: false,
+    autoEatCookedInventory: false,
     learnedSpells: [],
     equippedSpells: Array(SPELL_SLOTS).fill(null),
     autoCastSpells: false,
@@ -337,7 +339,10 @@ function migrateCharacter(char) {
       typeof entry === 'string' ? { name: entry, minRarity: null } : entry,
     ),
     autoCombat: char.autoCombat ?? false,
-    autoEat: char.autoEat ?? false,
+    // Toggle único antigo (autoEat) virava as duas opções novas — comer quem já tinha
+    // ligado não deve "perder" o comportamento de antes ao migrar.
+    autoEatDrops: char.autoEatDrops ?? char.autoEat ?? false,
+    autoEatCookedInventory: char.autoEatCookedInventory ?? char.autoEat ?? false,
     talentResetCount: char.talentResetCount ?? 0,
     learnedSpells: char.learnedSpells ?? [],
     equippedSpells: char.equippedSpells ?? Array(SPELL_SLOTS).fill(null),
@@ -462,8 +467,8 @@ function defeatMonster(char, currentMonster, log, { lifestealHeal = 0, selfDamag
   // Com comer automático ligado, comida nem entra na checagem de peso — ela é
   // comida na hora, nunca fica ocupando espaço, então "mochila cheia" não deve
   // bloquear um alimento que nem vai ficar guardado.
-  const foodDrops = char.autoEat ? itemDrops.filter((i) => FOOD_CATEGORIES.has(i.category)) : [];
-  const nonFoodDrops = char.autoEat ? itemDrops.filter((i) => !FOOD_CATEGORIES.has(i.category)) : itemDrops;
+  const foodDrops = char.autoEatDrops ? itemDrops.filter((i) => FOOD_CATEGORIES.has(i.category)) : [];
+  const nonFoodDrops = char.autoEatDrops ? itemDrops.filter((i) => !FOOD_CATEGORIES.has(i.category)) : itemDrops;
 
   const { inventory: mergedInventory, rejected } = mergeLoot(char.inventory, nonFoodDrops, charStats.capacity);
   for (const item of nonFoodDrops) {
@@ -599,21 +604,43 @@ function reducer(state, action) {
       return { ...state, character, autoCombat: value };
     }
 
-    case 'SET_AUTO_EAT': {
+    // Come automaticamente comida que DROPA de monstro morto (loot de combate) assim
+    // que ela chega — não mexe em comida comprada na loja nem na que já está parada
+    // na mochila (isso é o outro toggle, autoEatCookedInventory).
+    case 'SET_AUTO_EAT_DROPS': {
       const char = state.character;
       if (!char) return state;
-      // Ligar a opção já come na hora toda comida que estiver parada na mochila —
-      // não só a que chegar depois.
+      return { ...state, character: { ...char, autoEatDrops: action.enabled } };
+    }
+
+    // Come automaticamente PRATO PRONTO (Cooked/SpecialFood — as únicas categorias
+    // com regen real) parado na mochila assim que a saciedade zera. Ligar a opção já
+    // come na hora qualquer prato pronto que já estiver guardado.
+    case 'SET_AUTO_EAT_COOKED_INVENTORY': {
+      const char = state.character;
+      if (!char) return state;
       let inventory = char.inventory;
       let satiety = char.satiety;
       let log = state.log;
       if (action.enabled) {
-        const eaten = autoEatAllFood(inventory, satiety, log);
+        const eaten = autoEatAllFood(inventory, satiety, log, PREPARED_FOOD_CATEGORIES);
         inventory = eaten.inventory;
         satiety = eaten.satiety;
         log = eaten.log;
       }
-      return { ...state, character: { ...char, autoEat: action.enabled, inventory, satiety }, log };
+      return { ...state, character: { ...char, autoEatCookedInventory: action.enabled, inventory, satiety }, log };
+    }
+
+    // Zera a saciedade na hora, por escolha do jogador (ex: quer trocar o bônus ativo
+    // sem esperar o tempo acabar, comendo outra coisa em seguida).
+    case 'RESET_SATIETY': {
+      const char = state.character;
+      if (!char) return state;
+      return {
+        ...state,
+        character: { ...char, satiety: { remainingMs: 0, bonus: null, foodName: null } },
+        log: pushLog(state.log, 'Saciedade zerada.'),
+      };
     }
 
     case 'SET_AUTO_POTION': {
@@ -1406,11 +1433,12 @@ function reducer(state, action) {
 
       let satiety = tickSatiety(char.satiety, REGEN_TICK_MS);
 
-      // Comer automático (opção ligada no painel do Personagem): se a saciedade zerou
-      // e sobrou comida na mochila (normalmente não sobra, já que agora se come na
-      // hora que a comida chega), come sozinho como último recurso.
-      if (char.autoEat && satiety.remainingMs <= 0) {
-        const foodIdx = inventory.findIndex((i) => FOOD_CATEGORIES.has(i.category) && i.quantity > 0);
+      // Comer prato pronto automático (opção ligada no painel do Personagem): se a
+      // saciedade zerou e sobrou Cooked/SpecialFood guardado na mochila, come sozinho
+      // como último recurso. Ingrediente cru/bebida não tem regen real, então não
+      // entra aqui — fica parado só pra vender.
+      if (char.autoEatCookedInventory && satiety.remainingMs <= 0) {
+        const foodIdx = inventory.findIndex((i) => PREPARED_FOOD_CATEGORIES.has(i.category) && i.quantity > 0);
         if (foodIdx >= 0) {
           const food = inventory[foodIdx];
           satiety = eatFood(satiety, food);
@@ -1524,17 +1552,12 @@ function reducer(state, action) {
       }
 
       const def = getShopItemDefinition(action.itemName);
-      let log = pushLog(state.log, `Você comprou ${action.itemName} de ${merchant.name} por ${offer.price} gold.`);
-      let satiety = char.satiety;
+      const log = pushLog(state.log, `Você comprou ${action.itemName} de ${merchant.name} por ${offer.price} gold.`);
+      const satiety = char.satiety;
 
-      // Comida comprada com comer automático ligado é comida na hora — não depende de
-      // espaço na mochila (nunca chega a ficar guardada).
-      if (char.autoEat && FOOD_CATEGORIES.has(def.category)) {
-        satiety = eatFood(satiety, def);
-        satiety.foodName = satiety.foodName ?? action.itemName;
-        log = pushLog(log, `Você comeu ${action.itemName} automaticamente. Saciado por ${Math.round(satiety.remainingMs / 60000)}min.`);
-        return { ...state, character: { ...char, gold: char.gold - offer.price, satiety }, log };
-      }
+      // Comida comprada sempre vai pra mochila (não é mais comida na hora) — quem
+      // quiser que ela seja consumida sozinha usa o toggle "comer prato pronto" (que
+      // dispara quando a saciedade zerar) ou come na mão pela tela de Mochila.
 
       // Mesma correção do loot de monstro: o nome anunciado pela loja às vezes é a
       // grafia antiga (ex: alias em ITEM_NAME_ALIASES) — resolve pro nome canônico do
@@ -2107,7 +2130,9 @@ export function useGameState() {
     dispatch({ type: 'RESET' });
   }, []);
   const setAutoCombat = useCallback((valueOrFn) => dispatch({ type: 'SET_AUTO_COMBAT', valueOrFn }), []);
-  const setAutoEat = useCallback((enabled) => dispatch({ type: 'SET_AUTO_EAT', enabled }), []);
+  const setAutoEatDrops = useCallback((enabled) => dispatch({ type: 'SET_AUTO_EAT_DROPS', enabled }), []);
+  const setAutoEatCookedInventory = useCallback((enabled) => dispatch({ type: 'SET_AUTO_EAT_COOKED_INVENTORY', enabled }), []);
+  const resetSatiety = useCallback(() => dispatch({ type: 'RESET_SATIETY' }), []);
   const setAutoPotion = useCallback((settings) => dispatch({ type: 'SET_AUTO_POTION', settings }), []);
   const consumeItem = useCallback((itemId) => dispatch({ type: 'CONSUME_ITEM', itemId }), []);
   const sellItem = useCallback((itemId, all) => dispatch({ type: 'SELL_ITEM', itemId, all }), []);
@@ -2215,7 +2240,9 @@ export function useGameState() {
     log: state.log,
     autoCombat: state.autoCombat,
     setAutoCombat,
-    setAutoEat,
+    setAutoEatDrops,
+    setAutoEatCookedInventory,
+    resetSatiety,
     setAutoPotion,
     createNewCharacter,
     chooseVocation,

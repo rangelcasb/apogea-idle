@@ -44,7 +44,9 @@ export default function App() {
     log,
     autoCombat,
     setAutoCombat,
-    setAutoEat,
+    setAutoEatDrops,
+    setAutoEatCookedInventory,
+    resetSatiety,
     setAutoPotion,
     createNewCharacter,
     chooseVocation,
@@ -217,7 +219,9 @@ export default function App() {
             vocationCost={vocationCost}
             autoCombat={autoCombat}
             addToBlacklist={addToBlacklist}
-            setAutoEat={setAutoEat}
+            setAutoEatDrops={setAutoEatDrops}
+            setAutoEatCookedInventory={setAutoEatCookedInventory}
+            resetSatiety={resetSatiety}
             setAutoPotion={setAutoPotion}
             learnSpell={learnSpell}
           />
