@@ -129,51 +129,53 @@ export function hasShieldEquipped(equipment) {
 // Os demais talentos (a maioria, presos a magias/efeitos que não existem aqui) caem no
 // bônus genérico simplificado de sempre.
 const MECHANICS = {
-  10: 'lifesteal', // Stabbing Preference — Daggers provide Lifeleech (ataque físico)
-  11: 'armorPen', // Thorough Puncture — ignore some of target's armor
-  12: 'critChance', // Shearing Stroke — chance of dealing 1.5x damage
-  47: 'damagePercent', // Blade Training — Swords have more Damage
-  80: 'damagePercent', // Going Big — Large Weapons have more Damage
-  32: 'armorPercent', // Block Efficacy — Shields have more Defense
-  16: 'attackSpeedFlat', // Bow Guidance — Bows have extra Attackspeed (ranks já são flat)
-  67: 'trueDamageChance', // Jagged Rhythm — dagger, 50% chance of extra (Ability/4) True Damage
-  68: 'doubleAttack', // Luck Foreseen II — Ability/6 = % chance of attacking twice
-  69: 'trueDamageDouble', // Dark Blade — doubles True Damage dealt, but you take that too
+  // ── Cajado (ids 200-213) ─ dados reais do cliente (traits.json) ───────────
+  200: 'staffTrueDamage', // Staff Mastery — Staves/Wands dão +X Dano Verdadeiro fixo (real)
+  201: 'staffChargePct', // Charge the Stick — cast Elemental carrega o próximo golpe com X% da Mana gasta em Dano Verdadeiro (real)
+  202: 'franticConjury', // Frantic Conjury — acertar magia de Fogo/Energia tem chance de conjurar Conjure Fire de graça no próximo golpe (real, ampliado pra Fogo OU Energia)
+  203: 'standby', // Charged Body — depende de "Conjure Energy"/"Charged Ground", magias não documentadas — sem efeito
+  204: 'fireFlatDamage', // Conflagrated Mind — magias de Fogo +10 de dano base (real, sem a parte de Área de Efeito)
+  205: 'earthWaterCooldownReduction', // Gallop's Fall — reduz cooldown de Terra e Água (real, Gallop's Fall antes só cobria Água)
+  206: 'standby', // Geomancer — depende de "estar na água" e magias Geyser/Rock Shield não documentadas — sem efeito
+  207: 'standby', // Serene Retribution — depende de "Water Wave", magia não documentada — sem efeito
+  208: 'attackSpeedFlat', // Wizard Studies — Cajado/Varinha +Attackspeed fixo (real)
+  209: 'standby', // Chrono Conversion — depende de Movespeed extra e magias Time/Mystic, que não existem aqui — sem efeito
+  210: 'magicThresholdAttackSpeed', // Shift Wardens — +5 AS se Magic final >=15 (real, parte de Dash/Teleport pulada — não existem aqui)
+  211: 'chosenOne', // Chosen One — +15 Magic +15 Ability fixos (real; "monstros miram 50% mais" não tem efeito, não existe sistema de mira)
+  212: 'friendOfApogea', // Friend of Apogea — Terra/Água/Luz custam 35% menos mana, mas todo dano de magia -25% (real)
+  213: 'warlockNew', // Warlock — todo dano de magia +25%, cura -50% mais fraca (real; "não pode curar outros" N/A, sem multiplayer)
 
-  // Ramo Cajado — agora que o jogo tem magias de verdade (aba Magias, cooldown real),
-  // dá pra implementar essas mecânicas de verdade em vez do bônus genérico de Ability.
-  1: 'staffFreeCast', // Staff Mastery — chance do ATAQUE BÁSICO com cajado não gastar mana
-  2: 'staffCharge', // Charge the Staff — magia Elemental carrega o próximo golpe com dano verdadeiro extra
-  3: 'franticConjury', // Frantic Conjury — magia de Fogo tem chance de conjurar Conjure Fire de graça no próximo golpe
-  62: 'spellCooldownReduction', // Electric Nature — reduz cooldown de TODAS as magias
-  64: 'fireCooldownReduction', // Conflagrated Mind — reduz cooldown de magias de Fogo (25%, sem área de efeito nesse jogo)
-  65: 'holyCooldownReduction', // Sacred Stick — reduz cooldown de magias Holy (25%, sem área de efeito nesse jogo)
-  66: 'waterCooldownReduction', // Gallop's Fall — reduz cooldown de magias de Água (35%)
-  4: 'elementalAoeBonus', // Warlock — sem sistema de área de efeito (1 monstro por vez), aproximado como +dano em Energia/Fogo
-  63: 'projectileBounceBonus', // Steering Insight — sem sistema de ricochete, aproximado como +dano em Energia/Arco
+  // ── Adaga (ids 220-233) ────────────────────────────────────────────────────
+  220: 'lifesteal', // Stabbing Preference — Adagas dão Lifeleech (real)
+  221: 'abilityToAttackSpeed', // Hand Finesse — Ability vira Attackspeed, cap 5 (real)
+  222: 'castAttackBurst', // Gaff Hack — sem magia Time/Mystic aqui: qualquer cast tem chance de dar 1 golpe extra grátis (homebrew, reaproveita mecânica antiga)
+  223: 'standby', // Slash And Dash — depende de Backstab (posição atrás do alvo), não existe aqui — sem efeito
+  224: 'standby', // Tendon Cut — mesmo motivo (Backstab) — sem efeito
+  225: 'daggerExtraHitOnAttack', // Jagged Rhythm — golpe de adaga tem chance de dar 1 golpe extra (homebrew: era buff de Attackspeed temporário, sem timers aqui vira golpe extra na hora)
+  226: 'foreseenDecay', // Foreseen Decay — +5 Dano Verdadeiro fixo, 15% de chance de dobrar (real)
+  227: 'poisonShiv', // Poison Shiv — +5 Dano Verdadeiro fixo (real; explosão em morte pulada, 1 alvo só)
+  228: 'sweetSpotFlatDamage', // Sweet Spot — sem Range/Distância aqui: bônus de dano fixo sempre ativo (homebrew, adaga é corpo a corpo = "sempre perto")
+  229: 'standby', // Chunk Sampling — depende de "atordoar" (stagger), sistema que não existe — sem efeito
+  230: 'standby', // Monster Meat — depende de aliados próximos, sem multiplayer — sem efeito
+  231: 'darkBladePlus', // Dark Blade — dobra Dano Verdadeiro (e você recebe também) + golpes dão +3 Mana (real)
+  232: 'dualDaggerDamage', // Double Danger — duas adagas dobram o Dano (real; "reduz outros stats à metade" pulado, complexo demais)
+  233: 'standby', // Gourmand — depende de sistema de comida com buffs temporizados e Movespeed, incompatível com o sistema de saciedade daqui — sem efeito
 
-  // Ramo Orbe — mesmo raciocínio: agora que existe sistema de magia real, essas
-  // mecânicas ligam de verdade em vez do bônus genérico de Ability.
-  56: 'spellLifesteal', // Pondering It — Spellvamp: cura baseada no DANO DE MAGIA (não no ataque físico)
-  57: 'spellPowerBonus', // Unnatural Flow — soma um bônus fixo (4/7/12) na "Base Damage" das magias, igual mais Ability serve pro ataque físico
-  60: 'diamondSkin', // Diamond Skin — conjurar magia de Energia dá escudo (20/35/50), empilha até 3x
-  61: 'unstableAegis', // Unstable Aegis — quando o escudo absorve dano, estoura um "Unstable Berserk" homebrew no monstro
-  91: 'healPowerBonus', // Magic Touch — com Orbe, magias de Cura curam 25% mais
-  92: 'healManaDiscount', // Apogea's Ardor — com Orbe, magias de Cura custam 50% menos mana
-  93: 'standby', // Child's Channel — combo complexo demais (cura em outros, etc.) — em standby por enquanto, sem efeito
-
-  // ── Adaga (3 restantes) ──────────────────────────────────────────────────
-  13: 'doubleAttackAlt', // Luck Foreseen — Ability/7 = % de ataque duplo (soma com Luck Foreseen II, que usa /6)
-  14: 'castAttackBurst', // Gaff Hack — sem magia Mystic/Time nesse jogo: qualquer cast tem chance de dar 1 golpe extra grátis
-  15: 'dualDaggerDamage', // Double Danger — duas adagas equipadas dobram o Dano
-
-  // ── Arco ──────────────────────────────────────────────────────────────────
-  17: 'bowCritChance', // Good Technique — sem Range nesse jogo: aproximado como chance de crítico extra
-  18: 'bowFlatDamage', // Artisanal Arsenal — +7 de Dano fixo com arco equipado
-  19: 'bowExplosiveChance', // Explosive Ammo — sem área de efeito: chance de dano bônus no golpe
-  20: 'arrowCooldownReduction', // Shineshooter — reduz cooldown de magias tipo Arrow
-  21: 'arrowBladeDamageBonus', // Bullseye — bônus de dano em magias Arrow/Blade (sem "alvo focado" real)
-  70: 'flatAttackSpeed10', // Tunnelvision — +10 Attackspeed (sem a trava de não poder se mover, N/A no idle)
+  // ── Arco (ids 240-253) ──────────────────────────────────────────────────────
+  240: 'attackSpeedFlat', // Bow Guidance — Arco/Besta +Attackspeed fixo (real)
+  241: 'bowFlatDamageRanked', // Good Technique — sem Range aqui: bônus de dano fixo sempre ativo (homebrew, arco é à distância = "sempre longe")
+  242: 'bowFlatDamage2', // Artisanal Arsenal — +dano fixo (real; chance de recuperar munição pulada, sem sistema de flechas)
+  243: 'bowExplosiveChance', // Explosive Ammo — sem área de efeito: chance de dano bônus no golpe (homebrew, reaproveita mecânica antiga)
+  244: 'bowSecondaryProcChance', // Mahogany Build — mesmo raciocínio de Explosive Ammo, chance de dano bônus separada (homebrew)
+  245: 'standby', // Meditation — reduz custo de magias Time/Mystic, que não existem nesse jogo — sem efeito possível
+  246: 'standby', // Chasing Prey — depende de Movespeed — sem efeito
+  247: 'standby', // Hunt Prep — depende de magia Time/Mystic e "Grand Trap" não documentada — sem efeito
+  248: 'arrowExtraHitChance', // Swiftstride — cast de magia tipo Arrow tem chance de dar 1 golpe extra (homebrew: era cast de "Haste", sem timers vira golpe extra na hora)
+  249: 'arrowBladeTrueDamage', // Bullseye — magia Arrow/Blade acerta = +2×(Ability/3) Dano Verdadeiro (real; "dobrado se for o alvo atual" sempre vale aqui, só existe 1 alvo)
+  250: 'arrowBladeHeal', // Deferred Reverence — magia Arrow/Blade acerta = cura 2×(Magic/3) (real, mesmo raciocínio do dobro)
+  251: 'standby', // Improvised Sentry — depende de sistema de invocação, que não existe — sem efeito
+  252: 'standby', // Mother's Embrace — conjurar 2x com metade do dano cada é matematicamente neutro no nosso modelo de 1 dano por cast — sem efeito prático, não implementado
+  253: 'attackSpeedFlat12', // Tunnelvision — +12 Attackspeed fixo (real; trava de não poder se mover é N/A no idle)
 
   // ── Luva — dados reais do cliente (traits.json), todos os valores por rank já são
   // os oficiais, não aproximação nossa (exceto onde marcado "homebrew").
@@ -192,114 +194,211 @@ const MECHANICS = {
   106: 'shapeOfWater', // Shape of Water — +5 AS, ataque gasta 3 mana por +5 Dano Verdadeiro, mas Mana vira 25 e Magic vira 5 (real, trade-off pesado)
   107: 'oneWithApogeaGlove', // One With Apogea (Luva) — Mana vira Dano Verdadeiro (1 a cada 35), mas zera o dano físico (real)
 
-  // ── Armadura Leve ────────────────────────────────────────────────────────
-  25: 'lightArmorMana', // Cozy and Useful — Armadura Leve dá mana extra (valor real do rank, não o genérico)
-  26: 'noHelmetAttackSpeed', // Breeze in Your Hair — sem elmo, ganha Attackspeed (era Movespeed)
-  27: 'freeCapacityAttackSpeed', // Lightfoot — capacidade livre vira Attackspeed (era Movespeed)
-  28: 'battleBootsCrit', // Battle Boots — chance extra de crítico (era conversão de Movespeed)
-  29: 'lightArmorWeightMagic', // Dressing Wizardly — peça leve <35oz dá Magic extra
-  30: 'freeCapacityMagicPercent', // Powerful Space — capacidade livre vira % de Magic
-  31: 'lightArmorCountMagicPercent', // Clothes of the Damned — % de Magic por peça de Armadura Leve equipada
-  35: 'darknessEmbrace', // Darkness Embrace — magias de Death custam 10x menos, Heal/Light/Holy custam 10x mais
+  // ── Armadura Leve (ids 260-273) ──────────────────────────────────────────
+  260: 'lightArmorMana', // Cozy and Useful — Armadura Leve dá mana extra (real)
+  261: 'lightArmorCapacity', // Lightfoot — +Capacidade Máxima fixa (real; parte de Movespeed pulada)
+  262: 'lightArmorNoHelmetHpRegen', // Breeze in Your Hair — sem elmo, ganha HP Regen (real; parte de Movespeed pulada)
+  263: 'battleBootsCrit', // Battle Boots — chance extra de crítico (homebrew, era conversão de Movespeed)
+  264: 'adventurersSpirit', // Adventurer's Spirit — Magic/Ability por 100 de Capacidade Máxima, cap 10 cada (real; "Backpacks não dão mais stats" pulado)
+  265: 'skalsfeetNoBoots', // Skalsfeet — sem botas, múltiplos bônus de stats (homebrew, real não especifica os valores)
+  266: 'dressingWizardly2', // Dressing Wizardly — Armadura Leve dá Magic e Mana Regen fixos (real)
+  267: 'clothesOfTheDamned2', // Clothes of the Damned — +10 Magic +10% Spellvamp com 3+ Armadura Leve (real; remoção de stats negativos pulada)
+  268: 'standby', // Relic Affinity — mexeria na forma como stats de item escalam com a classe, complexo/arriscado demais pra retrofit — sem efeito
+  269: 'mercColorsNegativeStat', // Merc Colors — peça de Armadura Leve com stat negativo dá +Ability (real)
+  270: 'standby', // Quicken Mismatch — depende de "Surge", magia não documentada — sem efeito
+  271: 'standby', // Razor Sprint — depende de Dash/Teleport, que não existem aqui — sem efeito
+  272: 'darknessEmbrace', // Darkness Embrace — magias de Death custam 10x menos, Heal/Light/Holy custam 10x mais (real)
+  273: 'masqueAllStats', // Masque of Elgifu — +1 em todos os stats (real; traje de bobo da corte é só visual, N/A)
 
-  // ── Escudo (Block Efficacy=32 e armorPercent já reais) ──────────────────────
-  33: 'swordShieldDamage', // Bread and Butter — espada + escudo dá dano extra
-  37: 'blockStagger', // Shieldslam — bloquear tem chance de atordoar o monstro (pula o próximo ataque dele)
-  77: 'blockHeal', // Rooted Guard — bloquear regenera vida fixa
-  78: 'defenseCooldownReduction', // Royal Shield — reduz cooldown de magias Defense
-  79: 'monsterCandy', // Monster Candy — Conjure/Defense custam 50% menos mana, mas -99 de Dano
-  38: 'blockEmpower', // Hex Parry — bloquear fortalece a próxima magia Arrow/Blade em 50%
-  34: 'blockReflect', // Deflect — bloquear com Escudo Mágico ativo reflete dano verdadeiro no monstro
-  36: 'physicalCastDoubleShield', // Bulwark Leap — conjurar magia Physical dobra o Escudo Mágico (cap 200)
+  // ── Escudo (ids 280-292) ─────────────────────────────────────────────────
+  280: 'armorPercent', // Block Efficacy — Escudos dão mais Defesa (real)
+  281: 'standby', // Loud Presence — "monstros miram mais em você" não tem efeito, sem sistema de mira — sem efeito (nó estrutural, só destrava os filhos)
+  282: 'shieldManaRegen', // Rooted Guard — segurar Escudo dá Mana Regen (real; era cura por bloqueio antes, agora é regen passivo)
+  283: 'standby', // Elemental Plate — buff vago "baseado no elemento", sem fórmula — sem efeito
+  284: 'etchedGemsShield', // Etched Gems — gastar mais de 50% da Mana máxima num cast dá +20 Escudo Mágico (real)
+  285: 'defenseConjureCooldownReduction', // Royal Attire — reduz cooldown de Defense e Conjure (real, ampliado pra incluir Conjure)
+  286: 'standby', // Divine Pull — depende de magia não documentada — sem efeito
+  287: 'standby', // Guard Training — depende de "Knight's Vow", não documentada — sem efeito
+  288: 'shieldFlatDamage', // Swing Maneuver — Escudos dão Dano extra fixo (real)
+  289: 'standby', // Bulwark Leap — agora depende de Dash/Teleport (mudou de mecânica) — sem efeito
+  290: 'standby', // Shield Throw — depende de Range e magia não documentada — sem efeito
+  291: 'innervatedMana', // Innervated Mana — dano recebido vira Mana (2:1), mas lançar magia zera a Mana (real, risco/recompensa)
+  292: 'standby', // Stricken Devotion — depende de decaimento de Escudo Mágico ao longo do tempo, sistema que não existe aqui — sem efeito
 
-  // ── Armadura Pesada ──────────────────────────────────────────────────────
-  39: 'heavyArmorHealth', // Well Protected — Armadura Pesada dá vida extra (valor real do rank)
-  40: 'heavyArmorCountHealth', // Bulking Up — vida extra por peça de Armadura Pesada equipada
-  41: 'heavyArmorWeightAbility', // Heavy Metal — peça pesada >35oz dá Ability extra
-  42: 'capacityToArmor', // Carry Your Might — capacidade máxima vira Armor (cap 8)
-  98: 'heavyArmorCountAbilityPercent', // Juggernaut — % de Ability por peça de Armadura Pesada equipada
-  43: 'healCooldownReduction', // Royal Banner — reduz cooldown de magias Heal (Time não existe nesse jogo)
-  44: 'healCastShield', // Magic Steel — conjurar Heal dá Escudo Mágico (% da Armor, cap 100)
-  45: 'heavyArmorFlatStats', // Blessed Plate — Armadura Pesada dá Magic e Mana fixos
-  46: 'bothHandsBonus', // Endowed in Steel — usar as duas mãos livres (arma sem offhand) dá bônus de stats
+  // ── Armadura Pesada (ids 320-333) ────────────────────────────────────────
+  320: 'heavyArmorHealth', // Well Protected — Armadura Pesada dá vida extra (real)
+  321: 'heavyArmorCapacityRegen', // Carry your Might — Armadura Pesada dá Capacidade Máxima e HP Regen fixos (real)
+  322: 'heavyArmorAbility', // Heavy Metal — Armadura Pesada dá Ability fixo (real)
+  323: 'heavyArmorCountLifeleech', // Juggernaut — +10 Ability +10% Lifeleech com 3+ Armadura Pesada (real; remoção de stats negativos pulada)
+  324: 'loomingDreadTrueDmg', // Looming Dread — +1 Dano Verdadeiro a cada 10 de Armor (real)
+  325: 'healLightFlatDiscount', // Royal Marks — magias Heal/Light custam Mana fixa a menos (real)
+  326: 'blessedPlateHealBoost', // Blessed Plate — com 3+ Armadura Pesada, cura em você +35% enquanto abaixo de 35% de vida (real)
+  327: 'standby', // Runic Adornments — reduziria dano de magia recebido, mas monstros não têm ataques mágicos nesse jogo — sem efeito possível
+  328: 'stubbornWillShieldProc', // Stubborn Will — tomar dano tem chance de dar Escudo Mágico (real)
+  329: 'cannonBallThrash', // Cannon Ball — a magia Thrash ganha +10 de dano base fixo (real; Área/Alcance pulados)
+  330: 'standby', // Indecent Gesture — sem valor numérico de dano/efeito quantificável na descrição real — sem efeito
+  331: 'standby', // Congenital Growth — só teria a parte NEGATIVA implementável (perde Movespeed/AS/Magic) sem a positiva (Range/Pull Force) — injusto implementar só o lado ruim, sem efeito
+  332: 'endowedInSteelCount6', // Endowed in Steel — +35 Dano com 6+ Armadura Pesada (real; nosso sistema só tem 4 slots de armadura, então na prática é inalcançável — documentado, não alterei o número real)
+  333: 'standby', // Impeccable Set — depende de "Glowing Light", magia não documentada — sem efeito
 
-  // ── Espada ───────────────────────────────────────────────────────────────
-  51: 'abilityToAttackSpeed', // Hand Finesse — Ability vira Attackspeed (cap 5)
-  52: 'bladeCooldownReductionBigSword', // Blade Prowess — espada tamanho 6 sem escudo reduz cooldown de magias Blade
-  53: 'dualSwordPenalty', // Dual-Wielding — duas espadas tamanho 6 reduzem Dano (a troca de equipSize não é simulável)
-  55: 'bladeManaDiscount', // Fencing Classes — magias Blade custam menos mana
-  90: 'highlander', // Highlander — magias Blade custam 50% menos mana + Attackspeed vira Dano (sem desativar o ataque básico, por segurança)
-  54: 'ninjaExtraHit', // To Be Ninja — chance de golpe extra (era boost de Movespeed)
+  // ── Espada / One Hand Combat (ids 340-353) ───────────────────────────────
+  340: 'damagePercent', // One Hand Combat — Armas Regulares (espada) têm mais Dano (real)
+  341: 'edgeLifeHeal', // Edge Life — abaixo de X% de vida, atacar cura 2 de vida (real)
+  342: 'dualSwordPenalty', // Dual-Wielding — duas espadas tamanho 6 reduzem Dano (real; a troca de equipsize não é simulável)
+  343: 'theExpertShieldProc', // The Expert — +3 Attackspeed fixo + chance de Escudo Mágico = Ability/10 cap 100 (real)
+  344: 'ninjaExtraHit', // To Be Ninja — +3 Attackspeed fixo + chance de golpe extra (homebrew, era boost de Movespeed)
+  345: 'bladeManaDiscountFlat', // Fencing Classes — magias Blade custam Mana fixa a menos (real)
+  346: 'standby', // Call To Arms — depende de magia não documentada — sem efeito
+  347: 'primaDraw', // Prima Draw — cooldown de Blade/Physical -50% + 10% Spellvamp, com 1 arma e sem escudo (real)
+  348: 'armorPenFlat', // Resonant Blow — ignora Armor fixa do alvo (real)
+  349: 'standby', // Power Contact — depende de "não atacar por 2s", timing que não simulamos — sem efeito
+  350: 'standby', // Sacred Accrue — mesmo motivo (timing) — sem efeito
+  351: 'echoriadDualWield', // Echoriad — duas espadas: +3 Attackspeed, -35% Dano (real; Range pulado)
+  352: 'standby', // Exacted Rectitude — depende do conceito de "ataque empoderado" de Power Contact/Sacred Accrue, que ficaram em standby — sem efeito
+  353: 'highlander', // Highlander — magias Blade custam 50% menos mana + Attackspeed vira Dano (real; sem desativar o ataque básico, por segurança)
 
-  // ── Arma Grande ──────────────────────────────────────────────────────────
-  81: 'berserkerLowHealth', // Berserker — abaixo de 66% de vida, dano extra
-  82: 'overwhelmingForceChance', // Overwhelming Force — sem área de efeito: chance de dano bônus no golpe
-  83: 'wreckingIt', // Wrecking It — conjurar Blade/Physical carrega o próximo golpe com Dano Verdadeiro extra
-  84: 'manaLeech', // Magic Blade — Manaleech: recupera mana baseado no dano causado
-  85: 'unfathomableRage', // Unfathomable Rage — dano recebido vira mana, mas dobra o custo de todas as magias
+  // ── Arma Grande / Two Handed Grip (ids 300-313) ──────────────────────────
+  300: 'damagePercent', // Two Handed Grip — Armas Grandes têm mais Dano (real)
+  301: 'armorPen', // Thorough Puncture — ataques físicos ignoram Armor do alvo (real, agora exclusivo de Arma Grande)
+  302: 'bloodbathHeal', // Bloodbath — matar cura % da vida máxima do alvo, cap 50 (real)
+  303: 'berserkerScaling', // Berserker — a cada 10% de vida faltando, +1 Dano +1% Lifeleech (real, escala contínua)
+  304: 'coreStrength', // Core Strength — ataques gastam 5% da vida máxima em Dano Verdadeiro (cap 20) + 5% Lifeleech (real, arriscado)
+  305: 'smiteOnCrit', // Smite — sem "atordoar": crítico causa Dano Verdadeiro extra (homebrew, remapeado de "staggering")
+  306: 'gemmedHilt', // Gemmed Hilt — Arma Grande dá +5 Dano Verdadeiro +3 Magic +5 Mana Regen +25 Mana fixos (real)
+  307: 'magicBladeLifeMana', // Magic Blade — +10% Manaleech +10% Lifeleech (real; remoção de stats negativos pulada)
+  308: 'survivalInstinctFlat', // Survival Instinct — +HP Regen fixo (homebrew, parte de Movespeed pulada)
+  309: 'overwhelmingForceChance', // Overwhelming Force — sem área de efeito: chance de dano bônus no golpe (homebrew)
+  310: 'preciseTear', // Precise Tear — chance de Dano Verdadeiro = 5% da vida do alvo, cap 50 (real)
+  311: 'birthRevelationNoArmor', // Birth Revelation — sem nenhuma armadura equipada, +15 Dano fixo (real; Movespeed pulado)
+  312: 'higherRuling', // Higher Ruling — +1 Dano por ponto de Magic final, mas golpe de misericórdia causa Magic×5 em você (real, arriscado)
+  313: 'standby', // Unfathomable Rage — mudou de mecânica (agora é "conjurar com Vida"), estrutura complexa demais/arriscada pra retrofit sem quebrar o sistema de magia — sem efeito
+
+  // ── Orbe / Pondering It (ids 360-373) ────────────────────────────────────
+  360: 'spellLifesteal', // Pondering It — Spellvamp: cura baseada no dano de magia (real)
+  361: 'spellCooldownReduction', // Electric Nature — reduz cooldown de todas as magias (real)
+  362: 'diamondSkin', // Diamond Skin — conjurar Energia/Physical/Arrow dá Escudo, empilha até cap 100 (real, ampliado pros 3 tipos)
+  363: 'orbShieldProc', // Repelling Shell — tomar dano no Escudo Mágico tem chance de estourar dano verdadeiro homebrew no monstro (real % de chance, efeito "Repelling Force" aproximado)
+  364: 'unstableAegis', // Unstable Aegis — mesmo gatilho de Repelling Shell, outro estouro homebrew ("Unstable Berserk")
+  365: 'standby', // Magic Collector — bônus depende de "qual outro item você segura", condicional demais pra generalizar — sem efeito
+  366: 'standby', // Polymorphic Sphere — "efeito aleatório" sem lista definida — sem efeito
+  367: 'standby', // Vessel of Vigor — mesmo motivo — sem efeito
+  368: 'healPowerBonus', // Magic Touch — magias de Cura curam mais (real, agora escalando por rank)
+  369: 'healManaDiscount25', // Shining Front — magias de Cura custam 25% menos mana (real; "Healing Wind" pulado)
+  370: 'holyFlatDamage', // Thorough Judgment — magias Holy +10 de dano base (real; Área pulada)
+  371: 'standby', // Child's Channel — depende de curar OUTROS jogadores, sem multiplayer — sem efeito
+  372: 'onyxScreen', // Onyx Screen — dobra ganho de Escudo Mágico (cap 200), mas dobra o dano normal recebido (real, risco/recompensa)
+  373: 'standby', // Inzil's Fate — exige 2 Orbes ao mesmo tempo, mas nosso sistema só permite 1 Orbe (mão secundária) — condição inalcançável, sem efeito
 };
 
-// Ramo Orbe: valores fixos dos talentos de 1 ponto só (fonte real não documenta rank
-// diferente pra esses).
-const HEAL_POWER_BONUS_PCT = 25;
-const HEAL_MANA_DISCOUNT_PCT = 50;
-export const DIAMOND_SKIN_MAX_STACKS = 3;
-// "Unstable Berserk" não é uma das 34 magias documentadas — a descrição do talento só
-// diz que ele é conjurado, sem fórmula. Aproximamos como um estouro de dano verdadeiro
-// (ignora armadura) baseado no Magic, igual ao padrão de outras mecânicas homebrew.
+// Valores fixos dos nós de 1 ponto só dos 9 ramos revisados nessa leva (Cajado, Adaga,
+// Arco, Armadura Leve, Escudo, Arma Grande, Armadura Pesada, Espada, Orbe) — extraídos
+// direto do cliente (traits.json), exceto onde marcado "homebrew" (mecânica real depende
+// de sistema que esse jogo idle não tem: Movespeed, Range/Distância, Dash/Teleporte,
+// stagger, backstab, multiplayer, tipos de munição, timers de "não atacar por X
+// segundos"). Nós puramente 1-ponto com valor variável (%chance, stat) já têm a ranks[]
+// no RAW_TALENTS acima — as constantes aqui são só pros que NÃO têm valor de rank na
+// fonte (ranks: []) mas mesmo assim precisam de um número fixo pra funcionar.
+
+// ── Cajado ──
+const CHOSEN_ONE_STAT_BONUS = 15; // Chosen One (real)
+const FRIEND_OF_APOGEA_MANA_DISCOUNT_PCT = 35; // real
+const FRIEND_OF_APOGEA_DAMAGE_PENALTY_PCT = 25; // real
+const WARLOCK_DAMAGE_BONUS_PCT = 25; // real
+const WARLOCK_HEAL_PENALTY_PCT = 50; // real
+const SHIFT_WARDENS_MAGIC_THRESHOLD = 15; // real
+const SHIFT_WARDENS_AS_BONUS = 5; // real
+const CONFLAGRATED_MIND_FLAT_DAMAGE = 10; // real
+
+// ── Adaga ──
+const FORESEEN_DECAY_TRUE_DAMAGE = 5; // real
+const FORESEEN_DECAY_DOUBLE_CHANCE = 0.15; // real
+const POISON_SHIV_TRUE_DAMAGE = 5; // real
+const DARK_BLADE_MANA_PER_HIT = 3; // real
+export const DUAL_DAGGER_DAMAGE_BONUS_PCT = 100; // real ("dobra o Dano")
+
+// ── Arco ──
+const BOW_EXPLOSIVE_CHANCE = 0.35; // Explosive Ammo (real)
+const BOW_SECONDARY_PROC_CHANCE = 0.35; // Mahogany Build (real)
+const BULLSEYE_ABILITY_DIVISOR = 3; // real
+const DEFERRED_REVERENCE_MAGIC_DIVISOR = 3; // real
+const TUNNELVISION_AS_FLAT = 12; // real
+
+// ── Armadura Leve ──
+const BATTLE_BOOTS_CRIT_BONUS = 0.05; // homebrew (era conversão de Movespeed)
+const ADVENTURERS_SPIRIT_CAPACITY_DIVISOR = 100; // real
+const ADVENTURERS_SPIRIT_STAT_CAP = 10; // real
+const SKALSFEET_STAT_BONUS = 3; // homebrew (real não especifica os stats exatos)
+const CLOTHES_OF_THE_DAMNED2_MAGIC = 10; // real
+const CLOTHES_OF_THE_DAMNED2_SPELLVAMP_PCT = 10; // real
+const LIGHT_ARMOR_COUNT_THRESHOLD = 3; // real
+const MASQUE_ALL_STATS_BONUS = 1; // real
+
+// ── Escudo ──
+const ETCHED_GEMS_SHIELD_GAIN = 20; // real
+const ETCHED_GEMS_MANA_SPENT_THRESHOLD_PCT = 50; // real
+export const INNERVATED_MANA_DAMAGE_TO_MANA_DIVISOR = 2; // real
+
+// ── Arma Grande ──
+const BLOODBATH_HEAL_CAP = 50; // real
+const BERSERKER_HEALTH_STEP_PCT = 10; // real: a cada 10% de vida faltando
+const BERSERKER_DAMAGE_PER_STEP = 1; // real
+const BERSERKER_LIFESTEAL_PER_STEP = 1; // real
+const CORE_STRENGTH_HP_SPEND_PCT = 5; // real
+const CORE_STRENGTH_TRUE_DAMAGE_CAP = 20; // real
+const CORE_STRENGTH_LIFESTEAL_PCT = 5; // real
+const MAGIC_BLADE_LIFESTEAL_PCT = 10; // real
+export const OVERWHELMING_FORCE_CHANCE = 0.35; // real
+const PRECISE_TEAR_CHANCE = 0.35; // real
+const PRECISE_TEAR_HEALTH_PCT = 5; // real
+const PRECISE_TEAR_CAP = 50; // real
+const BIRTH_REVELATION_FLAT_DAMAGE = 15; // real
+const HIGHER_RULING_SELF_DAMAGE_MULT = 5; // real
+
+// ── Armadura Pesada ──
+const HEAVY_ARMOR_COUNT_ABILITY_PCT = 10; // Juggernaut (real, novo valor)
+const HEAVY_ARMOR_COUNT_LIFESTEAL_PCT = 10; // Juggernaut (real)
+const LOOMING_DREAD_ARMOR_DIVISOR = 10; // real
+const BLESSED_PLATE2_HEAL_BONUS_PCT = 35; // real
+const BLESSED_PLATE2_HEALTH_THRESHOLD_PCT = 35; // real
+const HEAVY_ARMOR_COUNT_THRESHOLD = 3; // real
+const STUBBORN_WILL_SHIELD_GAIN = 20; // homebrew magnitude (fonte real só documenta a % de chance por rank)
+const CANNON_BALL_FLAT_DAMAGE = 10; // real
+export const ENDOWED_IN_STEEL2_FLAT_DAMAGE = 35; // real
+export const ENDOWED_IN_STEEL2_ARMOR_COUNT_MIN = 6; // real — nosso sistema só tem 4 slots de armadura, então isso nunca ativa de verdade (documentado, não alterei o número)
+
+// ── Espada ──
+const EDGE_LIFE_HEAL_FLAT = 2; // real
+const THE_EXPERT_AS_FLAT = 3; // real
+const THE_EXPERT_SHIELD_CHANCE = 0.35; // real
+const THE_EXPERT_SHIELD_ABILITY_DIVISOR = 10; // real
+const THE_EXPERT_SHIELD_CAP = 100; // real
+export const NINJA_EXTRA_HIT_CHANCE = 0.35; // To Be Ninja (real, valor atualizado)
+const NINJA_AS_FLAT = 3; // real
+const PRIMA_DRAW_CD_REDUCTION_PCT = 50; // real
+const PRIMA_DRAW_SPELLVAMP_PCT = 10; // real
+const ECHORIAD_AS_FLAT = 3; // real
+const ECHORIAD_DAMAGE_PENALTY_PCT = 35; // real
+export const HIGHLANDER_MANA_DISCOUNT_PCT = 50; // real
+const HIGHLANDER_AS_TO_DAMAGE_DIVISOR = 1; // real: "1 Dano por ponto extra de Attackspeed"
+
+// ── Orbe ──
+const DIAMOND_SKIN_SHIELD_CAP = 100; // real (cap total, não é mais "3 stacks" — a fonte antiga tinha isso errado)
+const ORB_SHIELD_PROC_CHANCE = 0.5; // real, compartilhado por Repelling Shell e Unstable Aegis
+// "Repelling Force" e "Unstable Berserk" não são magias documentadas com fórmula — a
+// descrição só diz que são conjuradas, sem valor de dano oficial. Aproximamos os dois
+// como estouros de dano verdadeiro (ignora armadura) baseados no Magic, com divisores
+// diferentes pra distingui-los.
+const REPELLING_SHELL_MAGIC_DIVISOR = 6;
 export const UNSTABLE_AEGIS_MAGIC_DIVISOR = 4;
+const HEAL_MANA_DISCOUNT_25_PCT = 25; // Shining Front (real)
+const HOLY_FLAT_DAMAGE = 10; // Thorough Judgment (real)
+const ONYX_SCREEN_SHIELD_CAP = 200; // real
 
-// Valores fixos dos talentos de 1 ponto só do ramo Cajado que dependem de cooldown ou
-// bônus aproximado — não escalam por rank (a fonte real não documenta um valor
-// diferente, é a % citada na própria descrição do talento).
-const FIRE_CD_REDUCTION_PCT = 25;
-const HOLY_CD_REDUCTION_PCT = 25;
-const WATER_CD_REDUCTION_PCT = 35;
-// Warlock e Steering Insight prometem "área de efeito extra" / "ricochete e explosão"
-// — esse jogo só tem 1 monstro por combate, então não existe como simular isso de
-// verdade. Aproximei como um bônus fixo de dano nas escolas de magia certas, deixando
-// claro que NÃO é a mecânica real (não tem multi-alvo aqui).
-const WARLOCK_DAMAGE_BONUS_PCT = 15;
-const STEERING_INSIGHT_DAMAGE_BONUS_PCT = 20;
-
-// "ML/5", "ML/4", "ML/2" (Charge the Staff) — ML = Magic Level, ou seja, o divisor que
-// aplica sobre o stat Magic final pra achar o dano verdadeiro extra daquele rank.
-function parseMagicDivisor(str) {
-  const m = /ML\/(\d+(?:\.\d+)?)/.exec(str || '');
-  return m ? parseFloat(m[1]) : NaN;
-}
-
-// Valores fixos dos talentos de 1 ponto só (ou com mecânica sem % na fonte) dos ramos
-// Adaga/Arco/Luva/Escudo/Armadura/Espada/Arma Grande implementados nessa leva.
-const DAGGER_DOUBLE_ATTACK_ALT_DIVISOR = 7; // Luck Foreseen: Ability/7 = % ataque duplo
-const BOW_EXPLOSIVE_CHANCE = 0.25; // Explosive Ammo: 25% de chance (real)
-const ARROW_BLADE_DAMAGE_BONUS_PCT = 20; // Bullseye: sem "alvo focado", bônus fixo homebrew
-const BATTLE_BOOTS_CRIT_BONUS = 0.05; // Battle Boots: crítico extra homebrew (era conversão de Movespeed)
-const CAPACITY_TO_ARMOR_DIVISOR = 100; // Carry Your Might: 100 Capacidade = 1 Armor
-const CAPACITY_TO_ARMOR_CAP = 8;
-const FREE_CAPACITY_ATTACK_SPEED_DIVISOR = 10; // Lightfoot: 10 capacidade livre = 1 Attackspeed
-const FREE_CAPACITY_ATTACK_SPEED_CAP = 3;
 export const DARKNESS_EMBRACE_DEATH_DISCOUNT_PCT = 90; // "10x mais barato" = -90% de custo
 export const DARKNESS_EMBRACE_HEAL_SURCHARGE_PCT = 900; // "10x mais caro" = +900% de custo
-const MONSTER_CANDY_DAMAGE_PENALTY = 99; // Monster Candy: "lose 99 damage" (real)
-export const MONSTER_CANDY_MANA_DISCOUNT_PCT = 50; // real
-export const BLOCK_EMPOWER_PCT = 50; // Hex Parry (real)
-export const BLOCK_REFLECT_PCT = 35; // Deflect (real)
-export const BULWARK_LEAP_SHIELD_CAP = 200; // real
-const HEAVY_ARMOR_WEIGHT_ABILITY = 1; // Heavy Metal (real, peça >35oz)
-const HEAVY_ARMOR_COUNT_ABILITY_PCT = 5; // Juggernaut (real, % por peça)
-const HEAVY_ARMOR_FLAT_MAGIC = 1; // Blessed Plate (real)
-const HEAVY_ARMOR_FLAT_MANA = 25; // Blessed Plate (real)
-export const MAGIC_STEEL_SHIELD_CAP = 100; // real
-const BOTH_HANDS_BONUS = 2; // Endowed in Steel: "múltiplos bônus de stats" — homebrew, +2 flat em Dano/Armor/Ability
-const HAND_FINESSE_AS_CAP = 5; // real
-export const HIGHLANDER_MANA_DISCOUNT_PCT = 50; // real
-const HIGHLANDER_AS_TO_DAMAGE_DIVISOR = 2; // real: 2 Attackspeed = 1 Dano
-const NINJA_EXTRA_HIT_CHANCE = 0.25; // To Be Ninja (real % — era boost de Movespeed)
-export const BERSERKER_HEALTH_THRESHOLD_PCT = 66; // real
-const OVERWHELMING_FORCE_CHANCE = 0.35; // real (sem área de efeito)
-export const UNFATHOMABLE_RAGE_DAMAGE_TO_MANA_DIVISOR = 2; // real: 2 dano recebido = 1 mana
-export const UNFATHOMABLE_RAGE_SPELL_COST_MULTIPLIER = 2; // real: dobra custo das magias
+export const MAGIC_STEEL_SHIELD_CAP = 100; // real (Arcane Trickster, Luva)
+const BOTH_HANDS_BONUS = 2; // Power Stance (Luva): "múltiplos bônus de stats" — homebrew, +2 flat em Dano/Armor/Ability
+const HAND_FINESSE_AS_CAP = 5; // real (Hand Finesse, Adaga)
 
 // Ramo Luva — valores reais confirmados no cliente (traits.json) pros nós de 1 ponto.
 export const DRUNK_STYLE_SPELLVAMP_PCT = 10;
@@ -316,12 +415,6 @@ export const SUPERNATURAL_GAMBLE_MANA_DISCOUNT_PCT = 50; // real
 export const SUPERNATURAL_GAMBLE_SELF_DAMAGE_CHANCE = 0.5; // real
 export const ONE_WITH_APOGEA_GLOVE_MANA_DIVISOR = 35; // real
 
-// Valores fixos das 3 mecânicas de dano-verdadeiro/ataque-duplo da adaga (não escalam
-// por rank — são talentos de 1 ponto só, o valor real vem direto da descrição).
-const TRUE_DAMAGE_CHANCE = 0.5; // Jagged Rhythm: 50% de chance por golpe
-const TRUE_DAMAGE_ABILITY_DIVISOR = 4; // Jagged Rhythm: dano extra = Ability / 4
-const DOUBLE_ATTACK_ABILITY_DIVISOR = 6; // Luck Foreseen II: 6 Ability = 1% de chance
-
 function guessEffect(description) {
   const d = description.toLowerCase();
   if (d.includes('attackspeed')) return { stat: 'attackSpeed', perRank: 0.02 };
@@ -337,36 +430,53 @@ function guessEffect(description) {
 const RAW_TALENTS = [
   { id: 0, name: 'Start Here', parent: null, branch: 'core', description: 'Level 1 starting point.', ranks: [] },
 
-  // ── Cajado ────────────────────────────────────────────────────────────────
-  { id: 1, name: 'Staff Mastery', parent: 0, branch: 'staff', description: 'Staves have a chance of shooting without a cost', ranks: ['6%', '12%', '24%', '42%', '90%'] },
-  { id: 2, name: 'Charge the Staff', parent: 1, branch: 'staff', description: 'Casting an Elemental spell using a staff will make your next attack deal extra True Damage', ranks: ['ML/5', 'ML/4', 'ML/2'] },
-  { id: 3, name: 'Frantic Conjury', parent: 2, branch: 'staff', description: "Casting a Fire spell has a chance your next attack will cast Conjure Fire on target's location", ranks: ['20%', '30%', '50%'] },
-  { id: 4, name: 'Warlock', parent: 3, branch: 'staff', description: 'While holding a staff, gain 1 extra Area of Effect for Energy and Fire spells', ranks: [] },
-  { id: 64, name: 'Conflagrated Mind', parent: 2, branch: 'staff', description: 'While holding a staff, gain 1 extra Area of Effect and 25% cooldown reduction for Fire spells', ranks: [] },
-  { id: 62, name: 'Electric Nature', parent: 2, branch: 'staff', description: 'Reduces the cooldown of spells by 15%', ranks: ['6%', '10%', '15%'] },
-  { id: 63, name: 'Steering Insight', parent: 62, branch: 'staff', description: 'Energy and Arrow projectile spells bounce when colliding with enemies and explode on death', ranks: [] },
-  { id: 65, name: 'Sacred Stick', parent: 1, branch: 'staff', description: 'While holding a staff, gain 1 extra Area of Effect and 25% cooldown reduction for Holy spells', ranks: [] },
-  { id: 66, name: "Gallop's Fall", parent: 65, branch: 'staff', description: 'Reduces the cooldown of Water spells by 35%', ranks: [] },
+  // ── Cajado — dados reais do cliente (traits.json) ───────────────────────
+  { id: 200, name: 'Staff Mastery', parent: 0, branch: 'staff', description: 'Staves and Wands deal +X True Damage', ranks: ['1', '2', '3', '4', '5'] },
+  { id: 201, name: 'Charge the Stick', parent: 200, branch: 'staff', description: 'Casting an Elemental spell with a Staff or Wand empowers your next attack with X% of your spent Mana as True Damage', ranks: ['8%', '12%', '18%'] },
+  { id: 202, name: 'Frantic Conjury', parent: 201, branch: 'staff', description: 'Hitting a Fire or Energy spell on a target has a X% chance that your next attack will cast "Conjure Fire" on the target\'s location', ranks: ['20%', '25%', '35%'] },
+  { id: 203, name: 'Charged Body', parent: 202, branch: 'staff', description: 'Casting an Energy spell will also cast "Charged Ground". Also, Frantic Conjury will now cast "Conjure Energy"', ranks: [] },
+  { id: 204, name: 'Conflagrated Mind', parent: 202, branch: 'staff', description: 'Fire spells have +10 Base Damage and +1 Area of Effect', ranks: [] },
+  { id: 205, name: "Gallop's Fall", parent: 201, branch: 'staff', description: 'While holding a Staff or Wand, reduces the cooldown of Earth and Water spells by X%', ranks: ['15%', '20%', '30%'] },
+  { id: 206, name: 'Geomancer', parent: 205, branch: 'staff', description: 'While in water, Water spells will also cast "Geyser". While not, Earth spells will also cast "Rock Shield"', ranks: [] },
+  { id: 207, name: 'Serene Retribution', parent: 205, branch: 'staff', description: 'Taking Damage from your current target has a 15% chance of casting "Water Wave" towards it', ranks: [] },
+  { id: 208, name: 'Wizard Studies', parent: 201, branch: 'staff', description: 'Wands and Staves gain +X Attackspeed', ranks: ['2', '3', '5'] },
+  { id: 209, name: 'Chrono Conversion', parent: 208, branch: 'staff', description: 'Gain +15 Magic if you have 5 or more extra Movespeed. Additionally, reduces the cooldown of Time and Mystic spells by 35%', ranks: [] },
+  { id: 210, name: 'Shift Wardens', parent: 208, branch: 'staff', description: 'Gain +5 Attackspeed if you have 15 or more extra Magic. Additionally, Dash and Teleporting spells cost 25% less Mana', ranks: [] },
+  { id: 211, name: 'Chosen One', parent: 200, branch: 'staff', description: 'Gain +15 Magic and +15 Ability but monsters target you 50% more often', ranks: [] },
+  { id: 212, name: 'Friend of Apogea', parent: 200, branch: 'staff', description: 'Earth, Water and Light spells cost 35% less Mana, but spells deal 25% less damage', ranks: [] },
+  { id: 213, name: 'Warlock', parent: 200, branch: 'staff', description: 'Spells deal 25% more Damage at the cost of your healing spells being 50% weaker. You also cannot heal other players', ranks: [] },
 
-  // ── Adaga ─────────────────────────────────────────────────────────────────
-  { id: 10, name: 'Stabbing Preference', parent: 0, branch: 'dagger', description: 'Daggers provide Lifeleech', ranks: ['1%', '3%', '6%', '10%', '15%'] },
-  { id: 11, name: 'Thorough Puncture', parent: 10, branch: 'dagger', description: "Physical attacks ignore some of the target's armor", ranks: ['8%', '13%', '20%'] },
-  { id: 12, name: 'Shearing Stroke', parent: 11, branch: 'dagger', description: 'Attacks have a chance of dealing 1.5x damage', ranks: ['10%', '14%', '20%'] },
-  { id: 13, name: 'Luck Foreseen', parent: 12, branch: 'dagger', description: 'Converts 7 Ability into 1% chance of attacking twice', ranks: [] },
-  { id: 14, name: 'Gaff Hack', parent: 11, branch: 'dagger', description: 'Casting a Mystic or Time spell has a chance of boosting your Attackspeed by 7 for 4s', ranks: ['20%', '30%', '50%'] },
-  { id: 15, name: 'Double Danger', parent: 14, branch: 'dagger', description: 'Using two daggers doubles your Item Damage', ranks: [] },
-  { id: 67, name: 'Jagged Rhythm', parent: 12, branch: 'dagger', description: 'Attacking using a dagger has a 50% chance of dealing extra (Ability/4) True Damage', ranks: [] },
-  { id: 68, name: 'Luck Foreseen II', parent: 67, branch: 'dagger', description: 'Converts 6 Ability into 1% chance of attacking twice', ranks: [] },
-  { id: 69, name: 'Dark Blade', parent: 68, branch: 'dagger', description: 'Doubles all True Damage you deal, but you also receive the True Damage dealt', ranks: [] },
+  // ── Adaga — dados reais do cliente (traits.json) ────────────────────────
+  { id: 220, name: 'Stabbing Preference', parent: 0, branch: 'dagger', description: 'Daggers and Knives provide X% Lifeleech', ranks: ['1%', '3%', '6%', '10%', '15%'] },
+  { id: 221, name: 'Hand Finesse', parent: 220, branch: 'dagger', description: 'Gain +X Attackspeed per 15 Ability you have capping at 5', ranks: ['15', '13', '10'] },
+  { id: 222, name: 'Gaff Hack', parent: 221, branch: 'dagger', description: 'Casting a Time or Mystic spell will give your next attack have +X Range and Dash you to your target causing a Backstab', ranks: ['15', '20', '30'] },
+  { id: 223, name: 'Slash And Dash', parent: 222, branch: 'dagger', description: 'When you Backstab a target, deal 1.5x Damage and cast "Haste"', ranks: [] },
+  { id: 224, name: 'Tendon Cut', parent: 222, branch: 'dagger', description: 'When you Backstab a target, debuff its Movespeed by 15 for 3 seconds and gain 50% Lifeleech on that attack', ranks: [] },
+  { id: 225, name: 'Jagged Rhythm', parent: 221, branch: 'dagger', description: 'Attacking using a Dagger or Knife has a X% chance of buffing your Attackspeed by 6 for 4 seconds', ranks: ['7%', '10%', '15%'] },
+  { id: 226, name: 'Foreseen Decay', parent: 225, branch: 'dagger', description: 'While using a Dagger or Knife, attacks will deal +5 True Damage and have a 15% chance of happening twice', ranks: [] },
+  { id: 227, name: 'Poison Shiv', parent: 225, branch: 'dagger', description: 'While using a Dagger or Knife, attacks will deal +5 True Damage and killing an enemy causes it to explode, damaging nearby foes', ranks: [] },
+  { id: 228, name: 'Sweet Spot', parent: 221, branch: 'dagger', description: 'You deal +X Damage if you are closer than 15 Range of your target', ranks: ['3', '5', '8'] },
+  { id: 229, name: 'Chunk Sampling', parent: 228, branch: 'dagger', description: 'Staggering an enemy will double your Lifeleech on that attack', ranks: [] },
+  { id: 230, name: 'Monster Meat', parent: 228, branch: 'dagger', description: 'Killing a monster buffs and heals allies nearby including you', ranks: [] },
+  { id: 231, name: 'Dark Blade', parent: 220, branch: 'dagger', description: 'Doubles all True Damage you deal, but that True Damage also damages you. Attacks also give you +3 Mana', ranks: [] },
+  { id: 232, name: 'Double Danger', parent: 220, branch: 'dagger', description: 'Using two Daggers or Knives doubles your extra Damage and Attackspeed, but halves all other extra stats', ranks: [] },
+  { id: 233, name: 'Gourmand', parent: 220, branch: 'dagger', description: 'Food gives 6 times the stat buffs, but your Movespeed is capped at 33 and foods no longer give Regen buffs', ranks: [] },
 
-  // ── Arco ──────────────────────────────────────────────────────────────────
-  { id: 16, name: 'Bow Guidance', parent: 0, branch: 'bow', description: 'Bows have extra Attackspeed', ranks: ['1', '2', '3', '4', '6'] },
-  { id: 17, name: 'Good Technique', parent: 16, branch: 'bow', description: 'Gain extra Range', ranks: ['1', '2', '4'] },
-  { id: 18, name: 'Artisanal Arsenal', parent: 17, branch: 'bow', description: 'Non-magic arrows deal +7 Damage and break less often', ranks: ['7'] },
-  { id: 19, name: 'Explosive Ammo', parent: 18, branch: 'bow', description: 'Arrows have a 25% chance of exploding dealing area damage that briefly slows', ranks: [] },
-  { id: 20, name: 'Shineshooter', parent: 17, branch: 'bow', description: 'Reduces the cooldown of Arrow spells by 35%', ranks: ['10%', '20%', '35%'] },
-  { id: 21, name: 'Bullseye', parent: 20, branch: 'bow', description: 'Increases the Damage of Arrow and Blade spells against enemies you have currently targeted', ranks: [] },
-  { id: 70, name: 'Tunnelvision', parent: 21, branch: 'bow', description: 'Gain 10 Attackspeed, but you can no longer move while targeting an enemy', ranks: [] },
+  // ── Arco — dados reais do cliente (traits.json) ─────────────────────────
+  { id: 240, name: 'Bow Guidance', parent: 0, branch: 'bow', description: 'Bows and Crossbows have +X Attackspeed', ranks: ['1', '2', '3', '4', '5'] },
+  { id: 241, name: 'Good Technique', parent: 240, branch: 'bow', description: 'Attacks deal +X Damage if you are further than 45 Range from the target', ranks: ['2', '3', '6'] },
+  { id: 242, name: 'Artisanal Arsenal', parent: 241, branch: 'bow', description: 'Non-magic arrows and bolts have +X Damage and (Ability / 5) chance of being salvaged', ranks: ['5', '4', '2'] },
+  { id: 243, name: 'Explosive Ammo', parent: 242, branch: 'bow', description: 'Attacking has a 35% chance of doing a special effect based on your Ammunition type', ranks: [] },
+  { id: 244, name: 'Mahogany Build', parent: 242, branch: 'bow', description: 'Attacking has a 35% chance of doing a special effect based on your Distance Weapon type', ranks: [] },
+  { id: 245, name: 'Meditation', parent: 241, branch: 'bow', description: 'Time and Mystic spells cost X% less Mana', ranks: ['7%', '13%', '20%'] },
+  { id: 246, name: 'Chasing Prey', parent: 245, branch: 'bow', description: "Attacking has a chance equal to your Movespeed to debuff the target's Armor by 10 and Movespeed by 5 for 3 seconds", ranks: [] },
+  { id: 247, name: 'Hunt Prep', parent: 245, branch: 'bow', description: 'Casting a Time or Mystic spell will cast "Grand Trap" before it', ranks: [] },
+  { id: 248, name: 'Swiftstride', parent: 241, branch: 'bow', description: 'Casting an Arrow spell while using a Bow or Crossbow has a X% chance of casting "Haste"', ranks: ['15%', '22%', '35%'] },
+  { id: 249, name: 'Bullseye', parent: 248, branch: 'bow', description: 'Hitting a target with an Arrow or Blade spell will deal +(Ability / 3) as True Damage, doubled if you hit your current target', ranks: [] },
+  { id: 250, name: 'Deferred Reverence', parent: 248, branch: 'bow', description: 'Hitting a target with an Arrow or Blade spell will heal you by (Magic / 3), doubled if you hit your current target', ranks: [] },
+  { id: 251, name: 'Improvised Sentry', parent: 240, branch: 'bow', description: 'Attacking has a chance equal to your Magic of consuming Ammunition to summon an Improvised Sentry on your location', ranks: [] },
+  { id: 252, name: "Mother's Embrace", parent: 240, branch: 'bow', description: 'Arrow spells will be cast twice, but they both deal half the damage', ranks: [] },
+  { id: 253, name: 'Tunnelvision', parent: 240, branch: 'bow', description: 'Gain +12 Attackspeed, but you can no longer move while targeting an enemy', ranks: [] },
 
   // ── Luva ─────────────────────────────────────────────────────────────────
   // Reconstruída do zero com dados extraídos DIRETO do cliente do jogo (Apogea 3.2.6,
@@ -389,68 +499,100 @@ const RAW_TALENTS = [
   { id: 106, name: 'Shape of Water', parent: 104, branch: 'glove', description: 'Gain +5 Attackspeed, additionally your attacks spend 3 Mana to deal +5 True Damage — but your Mana is set to 25 and Magic to 5', ranks: [] },
   { id: 107, name: 'One With Apogea', parent: 102, branch: 'glove', description: 'Gain +1 True Damage per 35 Mana points, but you no longer deal physical damage', ranks: [] },
 
-  // ── Armadura Leve ────────────────────────────────────────────────────────
-  { id: 25, name: 'Cozy and Useful', parent: 0, branch: 'lightarmor', description: 'Light Armor has extra mana', ranks: ['1', '3', '6', '10', '15'] },
-  { id: 26, name: 'Breeze in Your Hair', parent: 25, branch: 'lightarmor', description: 'Not wearing a helmet gives you Movespeed', ranks: ['1', '2', '3'] },
-  { id: 28, name: 'Battle Boots', parent: 26, branch: 'lightarmor', description: 'Converts 1 Movespeed into 1% chance of dealing 1.5x Damage', ranks: [] },
-  { id: 27, name: 'Lightfoot', parent: 25, branch: 'lightarmor', description: 'Converts 10 Free Capacity into 1 Movespeed, capping at 3', ranks: [] },
-  { id: 29, name: 'Dressing Wizardly', parent: 27, branch: 'lightarmor', description: 'Light Armor that weighs less than 35oz has Magic extra', ranks: ['1'] },
-  // Mesmo problema: Dressing Wizardly (id29, pai) só tem 1 rank, então Powerful Space
-  // nunca passava de 1/3 investindo tudo. Reduzido pro melhor valor (divisor menor =
-  // mais % de Magic por capacidade livre).
-  { id: 30, name: 'Powerful Space', parent: 29, branch: 'lightarmor', description: 'Gain 5% Magic for each X Free Capacity you have, capping at 20%', ranks: ['15'] },
-  { id: 31, name: 'Clothes of the Damned', parent: 30, branch: 'lightarmor', description: 'Removes negative effects from Light Armor and gain 5% Magic for each equipped Light Armor', ranks: [] },
-  { id: 35, name: 'Darkness Embrace', parent: 31, branch: 'lightarmor', description: 'Death spells are 10 times cheaper. Heal, Light and Holy spells are 10 times more expensive', ranks: [] },
+  // ── Armadura Leve — dados reais do cliente (traits.json) ────────────────
+  { id: 260, name: 'Cozy and Useful', parent: 0, branch: 'lightarmor', description: 'Light Armor has +X Mana', ranks: ['1', '3', '5', '8', '12'] },
+  { id: 261, name: 'Lightfoot', parent: 260, branch: 'lightarmor', description: 'Gain +X Movespeed and +X Max Capacity', ranks: ['20', '30', '50'] },
+  { id: 262, name: 'Breeze in Your Hair', parent: 261, branch: 'lightarmor', description: 'Not wearing a helmet gives you +X Movespeed and +X Health Regen', ranks: ['3', '6', '10'] },
+  { id: 263, name: 'Battle Boots', parent: 262, branch: 'lightarmor', description: 'Gain 1% chance of dealing 1.5x Damage per 1 Movespeed point', ranks: [] },
+  { id: 264, name: "Adventurer's Spirit", parent: 263, branch: 'lightarmor', description: 'Gain +1 Magic and +1 Ability per 100 Max Capacity capping at 10, Backpacks no longer give stats', ranks: [] },
+  { id: 265, name: 'Skalsfeet', parent: 262, branch: 'lightarmor', description: 'Not wearing boots gives you multiple stat boosts', ranks: [] },
+  { id: 266, name: 'Dressing Wizardly', parent: 261, branch: 'lightarmor', description: 'Light Armor gives you +X Magic and +X Mana Regen', ranks: ['1', '2', '4'] },
+  { id: 267, name: 'Clothes of the Damned', parent: 266, branch: 'lightarmor', description: 'Removes Light Armor negative stats. Also, gain +10 Magic and +10% Spellvamp if you have 3 or more equipped Light Armor', ranks: [] },
+  { id: 268, name: 'Relic Affinity', parent: 266, branch: 'lightarmor', description: 'Ability and Magic on items now scale with class multipliers. Additionally, Magic and Ability on items each gain 1 extra stat point', ranks: [] },
+  { id: 269, name: 'Merc Colors', parent: 261, branch: 'lightarmor', description: 'Light Armor with negative stats have +X Ability', ranks: ['2', '3', '5'] },
+  { id: 270, name: 'Quicken Mismatch', parent: 269, branch: 'lightarmor', description: 'Taking damage equal or greater than 15% of your Max Health will cast Surge', ranks: [] },
+  { id: 271, name: 'Razor Sprint', parent: 269, branch: 'lightarmor', description: 'Dashing or Teleporting will Damage enemies it passes through. Also gives the spell "Dash" extended range', ranks: [] },
+  { id: 272, name: 'Darkness Embrace', parent: 260, branch: 'lightarmor', description: 'Death spells are 10 times cheaper. Heal, Light and Holy spells are 10 times more expensive', ranks: [] },
+  { id: 273, name: 'Masque of Elgifu', parent: 260, branch: 'lightarmor', description: "Gain +1 point in all stats, but you're forced to wear a jester outfit", ranks: [] },
 
-  // ── Escudo ───────────────────────────────────────────────────────────────
-  { id: 32, name: 'Block Efficacy', parent: 0, branch: 'shield', description: 'Shields have more Defense', ranks: ['1%', '4%', '8%', '14%', '20%'] },
-  { id: 33, name: 'Bread and Butter', parent: 32, branch: 'shield', description: 'Using a sword and shield gives you extra damage', ranks: ['2', '4', '8'] },
-  { id: 37, name: 'Shieldslam', parent: 33, branch: 'shield', description: 'Blocking an attack has a chance of staggering the attacker', ranks: ['7%', '10%', '15%'] },
-  { id: 77, name: 'Rooted Guard', parent: 32, branch: 'shield', description: 'Blocking an attack regenerates 5 health', ranks: [] },
-  // Mesmo problema: Rooted Guard (id77, pai) só tem 1 rank, então Royal Shield nunca
-  // passava de 1/3 investindo tudo. Reduzido pro melhor valor.
-  { id: 78, name: 'Royal Shield', parent: 77, branch: 'shield', description: 'Reduces the cooldown of Defense spells by 35%', ranks: ['35%'] },
-  { id: 79, name: 'Monster Candy', parent: 78, branch: 'shield', description: 'Taunt lasts 100% longer, Conjure and Defense spells cost 50% less mana, lose 99 damage', ranks: [] },
-  { id: 38, name: 'Hex Parry', parent: 77, branch: 'shield', description: 'Successfully blocking an attack will empower your next Arrow or Blade spell by 50%', ranks: [] },
-  { id: 34, name: 'Deflect', parent: 38, branch: 'shield', description: 'Blocking with a Magic Shield will reflect 35% of the damage taken, ignoring armor', ranks: ['35%'] },
-  { id: 36, name: 'Bulwark Leap', parent: 38, branch: 'shield', description: 'While holding a shield, casting a Time or Physical spell will double your Magic Shield, capping at 200', ranks: [] },
+  // ── Escudo — dados reais do cliente (traits.json) ───────────────────────
+  { id: 280, name: 'Block Efficacy', parent: 0, branch: 'shield', description: 'Shields have X% Defense', ranks: ['1%', '4%', '8%', '13%', '20%'] },
+  { id: 281, name: 'Loud Presence', parent: 280, branch: 'shield', description: 'Monsters target you X% more often', ranks: ['25%', '35%', '50%'] },
+  { id: 282, name: 'Rooted Guard', parent: 281, branch: 'shield', description: 'Holding a Shield gives you +X Mana Regen', ranks: ['2', '4', '8'] },
+  { id: 283, name: 'Elemental Plate', parent: 282, branch: 'shield', description: 'While holding a Shield, casting an Elemental spell will give you a buff based on that element', ranks: [] },
+  { id: 284, name: 'Etched Gems', parent: 282, branch: 'shield', description: 'While holding a Shield, spending more than 50% of your Max Mana will give you +20 Magic Shield', ranks: [] },
+  { id: 285, name: 'Royal Attire', parent: 281, branch: 'shield', description: 'Reduces the cooldown of Defense and Conjure spells by X%', ranks: ['15%', '20%', '30%'] },
+  { id: 286, name: 'Divine Pull', parent: 285, branch: 'shield', description: 'Taunt gains +1 Area of Effect and will also cast "Divine Pull"', ranks: [] },
+  { id: 287, name: 'Guard Training', parent: 285, branch: 'shield', description: 'Casting a Defense spell will also cast "Knight\'s Vow"', ranks: [] },
+  { id: 288, name: 'Swing Maneuver', parent: 281, branch: 'shield', description: 'Shields have +X Damage', ranks: ['3', '4', '7'] },
+  { id: 289, name: 'Bulwark Leap', parent: 288, branch: 'shield', description: 'While holding a Shield, Dashing or Teleporting will damage enemies where you land giving you a Magic Shield based on your Max Capacity', ranks: [] },
+  { id: 290, name: 'Shield Throw', parent: 288, branch: 'shield', description: 'Casting a Defense spell will give your next attack +40 Range and cast "Shield Throw" towards your target', ranks: [] },
+  { id: 291, name: 'Innervated Mana', parent: 280, branch: 'shield', description: 'Recover 1 Mana per 2 Damage you receive, but casting any spell will empty your Mana pool', ranks: [] },
+  { id: 292, name: 'Stricken Devotion', parent: 280, branch: 'shield', description: 'Your Magic Shield decays 50% slower, but natural Shield decay damages you.', ranks: [] },
 
-  // ── Armadura Pesada ──────────────────────────────────────────────────────
-  { id: 39, name: 'Well Protected', parent: 0, branch: 'heavyarmor', description: 'Heavy Armor has extra Health', ranks: ['1', '3', '6', '10', '15'] },
-  { id: 40, name: 'Bulking Up', parent: 39, branch: 'heavyarmor', description: 'Gain Health for each equipped heavy armor', ranks: ['5', '10', '25'] },
-  { id: 41, name: 'Heavy Metal', parent: 40, branch: 'heavyarmor', description: 'Heavy Armor that weighs more than 35oz has Ability extra', ranks: ['1'] },
-  { id: 42, name: 'Carry Your Might', parent: 41, branch: 'heavyarmor', description: 'Converts 100 Max Capacity into 1 Armor, capping at 8', ranks: [] },
-  { id: 98, name: 'Juggernaut', parent: 42, branch: 'heavyarmor', description: 'Removes negative effects from Heavy Armor and gain 5% Ability for each equipped Heavy Armor', ranks: [] },
-  { id: 43, name: 'Royal Banner', parent: 39, branch: 'heavyarmor', description: 'Reduces the cooldown of Time and Heal spells by:', ranks: ['10%', '20%', '35%'] },
-  { id: 44, name: 'Magic Steel', parent: 43, branch: 'heavyarmor', description: 'Casting a Time or Heal spell will give you a Magic Shield equal to a percentage of your total armor, capping at 100', ranks: ['75%', '100%', '150%'] },
-  { id: 45, name: 'Blessed Plate', parent: 44, branch: 'heavyarmor', description: 'Heavy Armor has 1 Magic and 25 Mana extra', ranks: [] },
-  { id: 46, name: 'Endowed in Steel', parent: 45, branch: 'heavyarmor', description: 'Attacking using both your hands gives you multiple stat boosts', ranks: [] },
+  // ── Arma Grande / Two Handed Grip — dados reais do cliente (traits.json) ─
+  { id: 300, name: 'Two Handed Grip', parent: 0, branch: 'largeweapon', description: 'Large Weapons have X% Damage', ranks: ['1%', '4%', '8%', '13%', '20%'] },
+  { id: 301, name: 'Thorough Puncture', parent: 300, branch: 'largeweapon', description: "Physical attacks ignore X% of the target's Armor", ranks: ['12%', '15%', '20%'] },
+  { id: 302, name: 'Bloodbath', parent: 301, branch: 'largeweapon', description: 'Killing a unit heals you by X% of their Max Health capping at 50', ranks: ['3%', '5%', '10%'] },
+  { id: 303, name: 'Berserker', parent: 302, branch: 'largeweapon', description: 'Gain +1 Damage and +1% Lifeleech for every 10% Health you are missing', ranks: [] },
+  { id: 304, name: 'Core Strength', parent: 302, branch: 'largeweapon', description: 'Attacks will spend 5% of your Max Health and convert it into True Damage capping at 20. Also, gain 5% Lifeleech', ranks: [] },
+  { id: 305, name: 'Smite', parent: 301, branch: 'largeweapon', description: 'Staggering a unit also deals +X True Damage to it', ranks: ['5', '7', '10'] },
+  { id: 306, name: 'Gemmed Hilt', parent: 305, branch: 'largeweapon', description: 'Large Weapons gain +5 True Damage, +3 Magic, +5 Mana Regen and +25 Mana', ranks: [] },
+  { id: 307, name: 'Magic Blade', parent: 305, branch: 'largeweapon', description: 'Removes Large Weapons negative stats and gives them +10% Manaleech and +10% Lifeleech', ranks: [] },
+  { id: 308, name: 'Survival Instinct', parent: 301, branch: 'largeweapon', description: 'Gain +X Health Regen per 2 extra Movespeed points', ranks: ['1', '2', '4'] },
+  { id: 309, name: 'Overwhelming Force', parent: 308, branch: 'largeweapon', description: 'Large Weapons have a 35% chance of casting an area of effect spell around the target', ranks: [] },
+  { id: 310, name: 'Precise Tear', parent: 308, branch: 'largeweapon', description: "Large Weapons have a 35% chance of dealing 5% of the target's total health as True Damage capping at 50", ranks: [] },
+  { id: 311, name: 'Birth Revelation', parent: 300, branch: 'largeweapon', description: 'Not wearing any armor gives you +15 Damage and +3 Movespeed', ranks: [] },
+  { id: 312, name: 'Higher Ruling', parent: 300, branch: 'largeweapon', description: 'Gain +1 Damage per extra Magic point you have, but killing blows damage you for (Magic * 5)', ranks: [] },
+  { id: 313, name: 'Unfathomable Rage', parent: 300, branch: 'largeweapon', description: 'All spells are castable using Health, but Heal and Light spells cost twice as much', ranks: [] },
 
-  // ── Espada ───────────────────────────────────────────────────────────────
-  { id: 47, name: 'Blade Training', parent: 0, branch: 'sword', description: 'Regular Swords have more Damage', ranks: ['1%', '4%', '8%', '14%', '20%'] },
-  { id: 51, name: 'Hand Finesse', parent: 47, branch: 'sword', description: 'Gain 1 Attackspeed for each X Ability you have capping at 5', ranks: ['15', '13', '10'] },
-  { id: 53, name: 'Dual-Wielding', parent: 51, branch: 'sword', description: 'Size 6 swords have an equipsize of 5, but deal reduced Damage by:', ranks: ['40%', '36%', '30%'] },
-  { id: 55, name: 'Fencing Classes', parent: 53, branch: 'sword', description: 'Blade spells cost 15% less mana', ranks: [] },
-  { id: 90, name: 'Highlander', parent: 55, branch: 'sword', description: 'Blade spells cost 50% less mana, lose the ability to auto-attack. Additionally, converts 2 Attackspeed into 1 Damage', ranks: [] },
-  { id: 52, name: 'Blade Prowess', parent: 51, branch: 'sword', description: 'While holding one sword of size 6 and no shield, reduces the cooldown of Blade spells by 50%', ranks: [] },
-  { id: 54, name: 'To Be Ninja', parent: 52, branch: 'sword', description: 'Attacking has a 25% chance of boosting your Movespeed by 10 for 4 seconds', ranks: [] },
+  // ── Armadura Pesada — dados reais do cliente (traits.json) ──────────────
+  { id: 320, name: 'Well Protected', parent: 0, branch: 'heavyarmor', description: 'Heavy Armor has +X Health', ranks: ['1', '3', '5', '8', '12'] },
+  { id: 321, name: 'Carry your Might', parent: 320, branch: 'heavyarmor', description: 'Heavy Armor has +X Max Capacity and +X Health Regen', ranks: ['1', '2', '4'] },
+  { id: 322, name: 'Heavy Metal', parent: 321, branch: 'heavyarmor', description: 'Heavy Armor has +X Ability', ranks: ['1', '2', '3'] },
+  { id: 323, name: 'Juggernaut', parent: 322, branch: 'heavyarmor', description: 'Removes Heavy Armor negative stats. Also, gain +10 Ability and +10% Lifeleech if you have 3 or more equipped Heavy Armor', ranks: [] },
+  { id: 324, name: 'Looming Dread', parent: 322, branch: 'heavyarmor', description: 'Gain +1 True Damage for every 10 points in Armor', ranks: [] },
+  { id: 325, name: 'Royal Marks', parent: 321, branch: 'heavyarmor', description: 'Heal and Light spells cost 2 less Mana', ranks: ['2', '3', '5'] },
+  { id: 326, name: 'Blessed Plate', parent: 325, branch: 'heavyarmor', description: "If you have 3 or more equipped Heavy Armor, all spell Healing done to you is 35% stronger while you're under 35% Health", ranks: [] },
+  { id: 327, name: 'Runic Adornments', parent: 325, branch: 'heavyarmor', description: "If you have 3 or more equipped Heavy Armor, all spell Damage done to you is 25% weaker while you're above 75% Health", ranks: [] },
+  { id: 328, name: 'Stubborn Will', parent: 321, branch: 'heavyarmor', description: 'Taking damage has a X% chance of giving you +X Magic Shield', ranks: ['10%', '15%', '25%'] },
+  { id: 329, name: 'Cannon Ball', parent: 328, branch: 'heavyarmor', description: 'Thrash gains +10 Base Damage, +1 Area of Effect and +1 Range', ranks: [] },
+  { id: 330, name: 'Indecent Gesture', parent: 328, branch: 'heavyarmor', description: "Taunt gains +1 Area of Effect and will debuff target's Movespeed by 5 for 5 seconds", ranks: [] },
+  { id: 331, name: 'Congenital Growth', parent: 320, branch: 'heavyarmor', description: 'Gain +10 Range and attacks have a 35% chance of casting "Pull Force" towards your target, but lose 5 Movespeed, Attackspeed and Magic', ranks: [] },
+  { id: 332, name: 'Endowed in Steel', parent: 320, branch: 'heavyarmor', description: 'If you have 6 or more equipped Heavy Armor, gain +35 Damage', ranks: [] },
+  { id: 333, name: 'Impeccable Set', parent: 320, branch: 'heavyarmor', description: 'While at full Health and Mana, casting any spell will also cast "Glowing Light"', ranks: [] },
 
-  // ── Arma Grande (NOVO ramo — machado/espada larga, antes misturado com Espada) ──
-  { id: 80, name: 'Going Big', parent: 0, branch: 'largeweapon', description: 'Large Weapons have more Damage', ranks: ['1%', '4%', '8%', '14%', '20%'] },
-  { id: 81, name: 'Berserker', parent: 80, branch: 'largeweapon', description: 'Being below 66% Health gives you extra Damage', ranks: ['5', '8', '13'] },
-  { id: 82, name: 'Overwhelming Force', parent: 81, branch: 'largeweapon', description: 'While using a Large Weapon, attacking has a 35% chance of casting an Area of Effect spell around the target', ranks: [] },
-  { id: 83, name: 'Wrecking It', parent: 80, branch: 'largeweapon', description: 'Casting a Blade or Physical spell will make your next attack deal extra True Damage', ranks: ['6', '9', '14'] },
-  { id: 84, name: 'Magic Blade', parent: 83, branch: 'largeweapon', description: 'Removes negative effects from Large Weapons and gain 10% Manaleech', ranks: [] },
-  { id: 85, name: 'Unfathomable Rage', parent: 84, branch: 'largeweapon', description: 'Converts 2 Intake Damage into 1 Mana, doubles the cost of all spells', ranks: [] },
+  // ── Espada / One Hand Combat — dados reais do cliente (traits.json) ─────
+  { id: 340, name: 'One Hand Combat', parent: 0, branch: 'sword', description: 'Regular Weapons have X% Damage', ranks: ['1%', '4%', '8%', '13%', '20%'] },
+  { id: 341, name: 'Edge Life', parent: 340, branch: 'sword', description: "While you're under X% Health, attacking with a Regular Weapon heals you for 2 Health", ranks: ['2%', '3%', '5%'] },
+  { id: 342, name: 'Dual-wielding', parent: 341, branch: 'sword', description: 'Size 6 Regular Weapons have an equipsize of 5, but deal X% less Damage', ranks: ['35%', '30%', '25%'] },
+  { id: 343, name: 'The Expert', parent: 342, branch: 'sword', description: 'Gain +3 Attackspeed. Your attacks also have a 35% chance of giving you a Magic Shield equal to (Ability / 10) capping at 100', ranks: [] },
+  { id: 344, name: 'To Be Ninja', parent: 342, branch: 'sword', description: 'Gain +3 Attackspeed. Your attacks also have a 35% chance of boosting your Movespeed by 10 for 4 seconds', ranks: [] },
+  { id: 345, name: 'Fencing Classes', parent: 341, branch: 'sword', description: 'Blade spells cost 5 less Mana', ranks: ['5', '7', '10'] },
+  { id: 346, name: 'Call To Arms', parent: 345, branch: 'sword', description: 'While holding one Regular Weapon with no Shield, hitting a target with a Blade or Physical spell will make your next spell also cast "Call To Arms"', ranks: [] },
+  { id: 347, name: 'Prima Draw', parent: 345, branch: 'sword', description: 'While holding one Regular Weapon with no Shield, reduces the cooldown of Blade and Physical spells by 50% and gain 10% Spellvamp', ranks: [] },
+  { id: 348, name: 'Resonant Blow', parent: 341, branch: 'sword', description: 'Attacking a target with a Regular Weapon ignores 5 flat Armor', ranks: ['5', '7', '10'] },
+  { id: 349, name: 'Power Contact', parent: 348, branch: 'sword', description: 'After not attacking for 2 seconds your next attack will make you cast "Heal"', ranks: [] },
+  { id: 350, name: 'Sacred Accrue', parent: 348, branch: 'sword', description: 'After not attacking for 2 seconds, Empower your next attack to deal +25 True Damage', ranks: [] },
+  { id: 351, name: 'Echoriad', parent: 340, branch: 'sword', description: 'While Dual-Wielding gain +35 Range and +3 Attackspeed, but your Damage is reduced by 35%', ranks: [] },
+  { id: 352, name: 'Exacted Rectitude', parent: 340, branch: 'sword', description: 'Empowered attacks will also cast "Light Strike" on the target\'s location, but you can no longer deal killing blows', ranks: [] },
+  { id: 353, name: 'Highlander', parent: 340, branch: 'sword', description: 'Blade spells cost 50% less Mana, lose the ability to auto-attack. Also gain +1 Damage per extra Attackspeed point', ranks: [] },
 
-  // ── Orbe ─────────────────────────────────────────────────────────────────
-  { id: 56, name: 'Pondering It', parent: 0, branch: 'orb', description: 'Orbs provide Spellvamp', ranks: ['1%', '3%', '6%', '10%', '15%'] },
-  { id: 57, name: 'Unnatural Flow', parent: 56, branch: 'orb', description: 'Your attacks will deal extra magic damage', ranks: ['4', '7', '12'] },
-  { id: 60, name: 'Diamond Skin', parent: 57, branch: 'orb', description: 'Casting an Energy or Arrow spell will give you shield, stacking 3 times', ranks: ['20', '35', '50'] },
-  { id: 61, name: 'Unstable Aegis', parent: 60, branch: 'orb', description: 'Taking shield damage will cast Unstable Berserk around yourself', ranks: [] },
-  { id: 91, name: 'Magic Touch', parent: 56, branch: 'orb', description: 'While holding an Orb, Heal spells are 25% stronger', ranks: [] },
-  { id: 92, name: "Apogea's Ardor", parent: 91, branch: 'orb', description: 'While holding an Orb, Heal spells cost 50% less mana', ranks: [] },
-  { id: 93, name: "Child's Channel", parent: 92, branch: 'orb', description: 'Healing others also heals you, reduces the cooldown of all spells by 50%, and spells deal 75% less damage', ranks: [] },
+  // ── Orbe / Pondering It — dados reais do cliente (traits.json) ──────────
+  { id: 360, name: 'Pondering It', parent: 0, branch: 'orb', description: 'Orbs and Artifacts provide X% Spellvamp', ranks: ['1%', '3%', '6%', '10%', '15%'] },
+  { id: 361, name: 'Electric Nature', parent: 360, branch: 'orb', description: 'Reduces the cooldown of spells by X%', ranks: ['7%', '10%', '15%'] },
+  { id: 362, name: 'Diamond Skin', parent: 361, branch: 'orb', description: 'Hitting an Energy, Physical or Arrow spell on an enemy will give you 25 shield, capping at 100', ranks: ['25', '35', '50'] },
+  { id: 363, name: 'Repelling Shell', parent: 362, branch: 'orb', description: 'Taking Magic Shield damage has a 50% chance of casting "Repelling Force" around yourself', ranks: [] },
+  { id: 364, name: 'Unstable Aegis', parent: 362, branch: 'orb', description: 'Taking Magic Shield damage has a 50% chance of casting "Unstable Berserk" around yourself', ranks: [] },
+  { id: 365, name: 'Magic Collector', parent: 361, branch: 'orb', description: "Orbs and Artifacts give +X of a stat based on the other item you're holding", ranks: ['2', '3', '6'] },
+  { id: 366, name: 'Polymorphic Sphere', parent: 365, branch: 'orb', description: 'While holding an Orb or Artifact, hitting an enemy with a spell has a 50% chance of doing a random effect on it', ranks: [] },
+  { id: 367, name: 'Vessel of Vigor', parent: 365, branch: 'orb', description: 'While holding an Orb or Artifact, casting a spell has a 50% chance of having random effect on you', ranks: [] },
+  { id: 368, name: 'Magic Touch', parent: 361, branch: 'orb', description: 'Heal spells are X% stronger', ranks: ['15%', '20%', '35%'] },
+  { id: 369, name: 'Shining Front', parent: 368, branch: 'orb', description: 'Casting a Heal spell will also cast "Healing Wind". Also, Heal spells cost 25% less Mana', ranks: [] },
+  { id: 370, name: 'Thorough Judgment', parent: 368, branch: 'orb', description: 'Holy spells have +10 Base Damage and +1 Area of Effect', ranks: [] },
+  { id: 371, name: "Child's Channel", parent: 360, branch: 'orb', description: 'Healing other players is 50% stronger and also heal you. But spells deal 25% less Damage', ranks: [] },
+  { id: 372, name: 'Onyx Screen', parent: 360, branch: 'orb', description: 'Doubles all Magic Shield, which now caps at 200, but you take twice as much regular Damage', ranks: [] },
+  { id: 373, name: "Inzil's Fate", parent: 360, branch: 'orb', description: 'While holding two Orbs or Artifacts gain +60 Range and +(Magic / 5) True Damage but when attacking you have a 15% chance of casting "Magic Implosion"', ranks: [] },
 ];
 
 // Requisito extra REAL confirmado (mesma lógica do código-fonte da calculadora antiga)
@@ -464,9 +606,6 @@ const RAW_TALENTS = [
 // PERMANENTEMENTE inalcançável (bug real, achado por simulação). Removida — agora só
 // vale a trava básica (filho nunca ultrapassa o pai), que já é suficiente aqui.
 const EXTRA_REQUIREMENTS = {
-  13: [[10, 5], [12, 3]],
-  15: [[10, 5], [14, 3]],
-  21: [[16, 5], [20, 3]],
   // Ramo Luva — pré-requisitos reais extraídos do cliente (traits.json): os 6 nós de
   // tier 4 exigem o pai direto MAXIMIZADO + Glove Passion também maximizado (não só
   // com 1 ponto, como a trava básica já garantiria); os 3 capstones de tier 5 exigem
@@ -480,6 +619,91 @@ const EXTRA_REQUIREMENTS = {
   105: [[76, 1], [100, 1]],
   106: [[104, 1], [103, 1]],
   107: [[102, 1], [101, 1]],
+
+  // Os outros 9 ramos seguem o mesmo padrão real (extraído direto do cliente via
+  // traits.json → campo "requires", autoritativo): nós de tier 4 exigem o pai direto
+  // maximizado + a raiz do ramo maximizada; nós de tier 5 (capstones) exigem os 2 nós
+  // de tier 4 do mesmo sub-ramo, ambos investidos ao menos 1 ponto.
+  203: [[202, 3], [200, 5]],
+  204: [[202, 3], [200, 5]],
+  206: [[205, 3], [200, 5]],
+  207: [[205, 3], [200, 5]],
+  209: [[200, 5], [208, 3]],
+  210: [[200, 5], [208, 3]],
+  211: [[209, 1], [210, 1]],
+  212: [[206, 1], [207, 1]],
+  213: [[203, 1], [204, 1]],
+  223: [[222, 3], [220, 5]],
+  224: [[222, 3], [220, 5]],
+  226: [[225, 3], [220, 5]],
+  227: [[225, 3], [220, 5]],
+  229: [[220, 5], [228, 3]],
+  230: [[220, 5], [228, 3]],
+  231: [[226, 1], [227, 1]],
+  232: [[223, 1], [224, 1]],
+  233: [[229, 1], [230, 1]],
+  243: [[242, 3], [240, 5]],
+  244: [[242, 3], [240, 5]],
+  246: [[240, 5], [245, 3]],
+  247: [[240, 5], [245, 3]],
+  249: [[240, 5], [248, 3]],
+  250: [[240, 5], [248, 3]],
+  251: [[243, 1], [244, 1]],
+  252: [[249, 1], [250, 1]],
+  253: [[246, 1], [247, 1]],
+  263: [[262, 3], [260, 5]],
+  264: [[263, 1], [265, 1]],
+  265: [[262, 3], [260, 5]],
+  267: [[260, 5], [266, 3]],
+  268: [[260, 5], [266, 3]],
+  270: [[260, 5], [269, 3]],
+  271: [[260, 5], [269, 3]],
+  272: [[267, 1], [268, 1]],
+  273: [[270, 1], [271, 1]],
+  283: [[280, 5], [282, 3]],
+  284: [[280, 5], [282, 3]],
+  286: [[280, 5], [285, 3]],
+  287: [[280, 5], [285, 3]],
+  289: [[280, 5], [288, 3]],
+  290: [[280, 5], [288, 3]],
+  291: [[283, 1], [284, 1]],
+  292: [[286, 1], [287, 1]],
+  303: [[302, 3], [300, 5]],
+  304: [[302, 3], [300, 5]],
+  306: [[305, 3], [300, 5]],
+  307: [[305, 3], [300, 5]],
+  309: [[308, 3], [300, 5]],
+  310: [[308, 3], [300, 5]],
+  311: [[309, 1], [310, 1]],
+  312: [[306, 1], [307, 1]],
+  313: [[303, 1], [304, 1]],
+  323: [[322, 3], [320, 5]],
+  324: [[322, 3], [320, 5]],
+  326: [[325, 3], [320, 5]],
+  327: [[325, 3], [320, 5]],
+  329: [[328, 3], [320, 5]],
+  330: [[328, 3], [320, 5]],
+  331: [[329, 1], [330, 1]],
+  332: [[323, 1], [324, 1]],
+  333: [[326, 1], [327, 1]],
+  343: [[342, 3], [340, 5]],
+  344: [[342, 3], [340, 5]],
+  346: [[345, 3], [340, 5]],
+  347: [[345, 3], [340, 5]],
+  349: [[340, 5], [348, 3]],
+  350: [[340, 5], [348, 3]],
+  351: [[343, 1], [344, 1]],
+  352: [[349, 1], [350, 1]],
+  353: [[346, 1], [347, 1]],
+  363: [[362, 3], [360, 5]],
+  364: [[362, 3], [360, 5]],
+  366: [[365, 3], [360, 5]],
+  367: [[365, 3], [360, 5]],
+  369: [[368, 3], [360, 5]],
+  370: [[368, 3], [360, 5]],
+  371: [[369, 1], [370, 1]],
+  372: [[363, 1], [364, 1]],
+  373: [[366, 1], [367, 1]],
 };
 
 export const TALENTS = RAW_TALENTS.map((t) => ({
@@ -536,38 +760,20 @@ export function computeTalentModifiers(talentPoints, equipment) {
     statBonuses: {},
     lifestealPercent: 0,
     armorPenPercent: 0,
+    armorPenFlat: 0,
     critChance: 0,
     critMultiplier: 1.5,
     damagePercent: 0,
     armorPercent: 0,
-    trueDamageChance: 0,
-    trueDamageAbilityDivisor: 0,
-    doubleAttackAbilityDivisor: 0,
+    trueDamageFlat: 0,
     trueDamageDoubled: false,
-    staffFreeCastChance: 0,
-    staffChargeDivisor: 0,
-    franticConjuryChance: 0,
     spellCooldownReductionPercent: 0,
-    fireCooldownReductionPercent: 0,
-    holyCooldownReductionPercent: 0,
-    waterCooldownReductionPercent: 0,
-    fireEnergyDamageBonusPercent: 0,
-    energyArrowDamageBonusPercent: 0,
     spellLifestealPercent: 0,
-    spellPowerBonus: 0,
-    diamondSkinValue: 0,
-    unstableAegisActive: false,
     healPowerBonusPercent: 0,
     healManaDiscountPercent: 0,
+    magicPercent: 0,
+    abilityPercent: 0,
 
-    // Adaga (restante)
-    doubleAttackAltDivisor: 0,
-    castAttackBurstChance: 0,
-    // Arco
-    bowFlatDamage: 0,
-    bowExplosiveChance: 0,
-    arrowCooldownReductionPercent: 0,
-    arrowBladeDamageBonusPercent: 0,
     // Luva
     gloveManaOnHitChance: 0,
     globalManaDiscountPercent: 0,
@@ -580,36 +786,91 @@ export function computeTalentModifiers(talentPoints, equipment) {
     supernaturalGambleActive: false,
     shapeOfWaterActive: false,
     oneWithApogeaGloveActive: false,
-    // Armadura Leve
-    freeCapacityAttackSpeedActive: false,
-    freeCapacityMagicThresholdDivisor: 0,
-    magicPercent: 0,
-    darknessEmbraceActive: false,
-    // Escudo
-    blockStaggerChance: 0,
-    blockHealFlat: 0,
-    defenseCooldownReductionPercent: 0,
-    monsterCandyActive: false,
-    blockEmpowerActive: false,
-    blockReflectActive: false,
-    physicalCastDoubleShieldActive: false,
-    // Armadura Pesada
-    capacityToArmorActive: false,
-    abilityPercent: 0,
-    healCooldownReductionPercent: 0,
-    healCastShieldPercent: 0,
-    // Espada
-    abilityToAttackSpeedDivisor: 0,
-    bladeCooldownReductionBigSwordActive: false,
-    bladeManaDiscountPercent: 0,
-    highlanderActive: false,
+
+    // ── Cajado ──
+    staffChargePct: 0,
+    franticConjuryChance: 0,
+    fireFlatDamage: 0,
+    earthWaterCooldownReductionPercent: 0,
+    magicThresholdAttackSpeedActive: false,
+    chosenOneActive: false,
+    friendOfApogeaActive: false,
+    warlockNewActive: false,
+
+    // ── Adaga ──
+    castAttackBurstChance: 0,
+    daggerExtraHitOnAttackChance: 0,
+    foreseenDecayActive: false,
+    poisonShivFlatTrueDamage: 0,
+    sweetSpotFlatDamage: 0,
+    darkBladePlusActive: false,
+    dualDaggerDamageActive: false,
+
+    // ── Arco ──
+    bowFlatDamageFromRank: 0,
+    bowExplosiveChance: 0,
+    bowSecondaryProcChance: 0,
+    arrowExtraHitChance: 0,
+    arrowBladeTrueDamageDivisor: 0,
+    arrowBladeHealDivisor: 0,
+
+    // ── Armadura Leve ──
+    lightArmorCapacity: 0,
+    lightArmorNoHelmetHpRegen: 0,
+    adventurersSpiritActive: false,
+    skalsfeetActive: false,
+    clothesOfTheDamned2Active: false,
+    mercColorsAbility: 0,
+    masqueActive: false,
+
+    // ── Escudo ──
+    shieldManaRegen: 0,
+    etchedGemsActive: false,
+    defenseConjureCooldownReductionPercent: 0,
+    shieldFlatDamage: 0,
+    innervatedManaActive: false,
+
+    // ── Armadura Pesada ──
+    heavyArmorCapacity: 0,
+    heavyArmorHpRegen: 0,
+    heavyArmorCountLifeleechActive: false,
+    loomingDreadArmorDivisor: 0,
+    healLightFlatDiscount: 0,
+    blessedPlateHealBoostActive: false,
+    stubbornWillChance: 0,
+    cannonBallActive: false,
+    endowedInSteel2Active: false,
+
+    // ── Espada ──
+    edgeLifeThresholdPercent: 0,
+    dualSwordPenaltyPercent: 0,
+    theExpertActive: false,
     ninjaExtraHitChance: 0,
-    // Arma Grande
-    berserkerBonusDamage: 0,
+    bladeManaDiscountFlat: 0,
+    primaDrawActive: false,
+    echoriadActive: false,
+    highlanderActive: false,
+
+    // ── Arma Grande ──
+    bloodbathHealPercent: 0,
+    berserkerScalingActive: false,
+    coreStrengthActive: false,
+    smiteOnCritTrueDamage: 0,
+    gemmedHiltActive: false,
+    magicBladeLifeManaActive: false,
+    survivalInstinctHpRegen: 0,
     overwhelmingForceChance: 0,
-    wreckingItBonus: 0,
-    manaLeechPercent: 0,
-    unfathomableRageActive: false,
+    preciseTearActive: false,
+    birthRevelationActive: false,
+    higherRulingActive: false,
+
+    // ── Orbe ──
+    diamondSkinValue: 0,
+    orbShieldProcActive: false,
+    unstableAegisActive: false,
+    healManaDiscount25Active: false,
+    holyFlatDamage: 0,
+    onyxScreenActive: false,
   };
 
   for (const [idStr, points] of Object.entries(talentPoints ?? {})) {
@@ -638,50 +899,14 @@ export function computeTalentModifiers(talentPoints, equipment) {
       case 'attackSpeedFlat':
         if (!Number.isNaN(rankValue)) mods.statBonuses.attackSpeed = (mods.statBonuses.attackSpeed ?? 0) + rankValue;
         break;
-      case 'trueDamageChance':
-        mods.trueDamageChance = TRUE_DAMAGE_CHANCE;
-        mods.trueDamageAbilityDivisor = TRUE_DAMAGE_ABILITY_DIVISOR;
-        break;
-      case 'doubleAttack':
-        mods.doubleAttackAbilityDivisor = DOUBLE_ATTACK_ABILITY_DIVISOR;
-        break;
       case 'trueDamageDouble':
         mods.trueDamageDoubled = true;
         break;
-      case 'staffFreeCast':
-        if (!Number.isNaN(rankValue)) mods.staffFreeCastChance = rankValue / 100;
-        break;
-      case 'staffCharge': {
-        const divisor = parseMagicDivisor(talent.ranks[Math.min(points, talent.maxPoints) - 1]);
-        if (!Number.isNaN(divisor)) mods.staffChargeDivisor = divisor;
-        break;
-      }
-      case 'franticConjury':
-        if (!Number.isNaN(rankValue)) mods.franticConjuryChance = rankValue / 100;
-        break;
       case 'spellCooldownReduction':
-        if (!Number.isNaN(rankValue)) mods.spellCooldownReductionPercent = rankValue;
-        break;
-      case 'fireCooldownReduction':
-        mods.fireCooldownReductionPercent = FIRE_CD_REDUCTION_PCT;
-        break;
-      case 'holyCooldownReduction':
-        mods.holyCooldownReductionPercent = HOLY_CD_REDUCTION_PCT;
-        break;
-      case 'waterCooldownReduction':
-        mods.waterCooldownReductionPercent = WATER_CD_REDUCTION_PCT;
-        break;
-      case 'elementalAoeBonus':
-        mods.fireEnergyDamageBonusPercent = WARLOCK_DAMAGE_BONUS_PCT;
-        break;
-      case 'projectileBounceBonus':
-        mods.energyArrowDamageBonusPercent = STEERING_INSIGHT_DAMAGE_BONUS_PCT;
+        if (!Number.isNaN(rankValue)) mods.spellCooldownReductionPercent += rankValue;
         break;
       case 'spellLifesteal':
         if (!Number.isNaN(rankValue)) mods.spellLifestealPercent += rankValue;
-        break;
-      case 'spellPowerBonus':
-        if (!Number.isNaN(rankValue)) mods.spellPowerBonus += rankValue;
         break;
       case 'diamondSkin':
         if (!Number.isNaN(rankValue)) mods.diamondSkinValue = rankValue;
@@ -690,43 +915,314 @@ export function computeTalentModifiers(talentPoints, equipment) {
         mods.unstableAegisActive = true;
         break;
       case 'healPowerBonus':
-        mods.healPowerBonusPercent = HEAL_POWER_BONUS_PCT;
+        if (!Number.isNaN(rankValue)) mods.healPowerBonusPercent = rankValue;
         break;
-      case 'healManaDiscount':
-        mods.healManaDiscountPercent = HEAL_MANA_DISCOUNT_PCT;
+      case 'highlander':
+        mods.highlanderActive = true;
         break;
       case 'standby':
         break;
 
-      // ── Adaga ────────────────────────────────────────────────────────────
-      case 'doubleAttackAlt':
-        mods.doubleAttackAltDivisor = DAGGER_DOUBLE_ATTACK_ALT_DIVISOR;
+      // ── Cajado ───────────────────────────────────────────────────────────
+      case 'staffTrueDamage':
+        if (!Number.isNaN(rankValue)) mods.trueDamageFlat += rankValue;
         break;
+      case 'staffChargePct':
+        if (!Number.isNaN(rankValue)) mods.staffChargePct = rankValue / 100;
+        break;
+      case 'franticConjury':
+        if (!Number.isNaN(rankValue)) mods.franticConjuryChance = rankValue / 100;
+        break;
+      case 'fireFlatDamage':
+        mods.fireFlatDamage += CONFLAGRATED_MIND_FLAT_DAMAGE;
+        break;
+      case 'earthWaterCooldownReduction':
+        if (!Number.isNaN(rankValue)) mods.earthWaterCooldownReductionPercent = rankValue;
+        break;
+      case 'magicThresholdAttackSpeed':
+        mods.magicThresholdAttackSpeedActive = true;
+        break;
+      case 'chosenOne':
+        mods.chosenOneActive = true;
+        mods.statBonuses.magic = (mods.statBonuses.magic ?? 0) + CHOSEN_ONE_STAT_BONUS;
+        mods.statBonuses.ability = (mods.statBonuses.ability ?? 0) + CHOSEN_ONE_STAT_BONUS;
+        break;
+      case 'friendOfApogea':
+        mods.friendOfApogeaActive = true;
+        mods.damagePercent -= FRIEND_OF_APOGEA_DAMAGE_PENALTY_PCT;
+        break;
+      case 'warlockNew':
+        mods.warlockNewActive = true;
+        mods.damagePercent += WARLOCK_DAMAGE_BONUS_PCT;
+        break;
+
+      // ── Adaga ────────────────────────────────────────────────────────────
       case 'castAttackBurst':
-        if (!Number.isNaN(rankValue)) mods.castAttackBurstChance = rankValue / 100;
+        if (!Number.isNaN(rankValue)) mods.castAttackBurstChance += rankValue / 100;
+        break;
+      case 'daggerExtraHitOnAttack':
+        if (!Number.isNaN(rankValue)) mods.daggerExtraHitOnAttackChance = rankValue / 100;
+        break;
+      case 'foreseenDecay':
+        mods.foreseenDecayActive = true;
+        mods.trueDamageFlat += FORESEEN_DECAY_TRUE_DAMAGE;
+        break;
+      case 'poisonShiv':
+        mods.poisonShivFlatTrueDamage = POISON_SHIV_TRUE_DAMAGE;
+        mods.trueDamageFlat += POISON_SHIV_TRUE_DAMAGE;
+        break;
+      case 'sweetSpotFlatDamage':
+        if (!Number.isNaN(rankValue)) mods.sweetSpotFlatDamage = rankValue;
+        break;
+      case 'darkBladePlus':
+        mods.darkBladePlusActive = true;
+        mods.trueDamageDoubled = true;
         break;
       case 'dualDaggerDamage':
-        if (isDualWieldCategory(equipment, 'dagger')) mods.damagePercent += 100;
+        if (isDualWieldCategory(equipment, 'dagger')) {
+          mods.dualDaggerDamageActive = true;
+          mods.damagePercent += DUAL_DAGGER_DAMAGE_BONUS_PCT;
+        }
         break;
 
       // ── Arco ─────────────────────────────────────────────────────────────
-      case 'bowCritChance':
-        if (!Number.isNaN(rankValue)) mods.critChance += rankValue / 100;
+      case 'bowFlatDamageRanked':
+        if (!Number.isNaN(rankValue)) mods.bowFlatDamageFromRank += rankValue;
         break;
-      case 'bowFlatDamage':
-        mods.statBonuses.damage = (mods.statBonuses.damage ?? 0) + (points > 0 ? 7 : 0);
+      case 'bowFlatDamage2':
+        if (!Number.isNaN(rankValue)) mods.bowFlatDamageFromRank += rankValue;
         break;
       case 'bowExplosiveChance':
         mods.bowExplosiveChance = BOW_EXPLOSIVE_CHANCE;
         break;
-      case 'arrowCooldownReduction':
-        if (!Number.isNaN(rankValue)) mods.arrowCooldownReductionPercent = rankValue;
+      case 'bowSecondaryProcChance':
+        mods.bowSecondaryProcChance = BOW_SECONDARY_PROC_CHANCE;
         break;
-      case 'arrowBladeDamageBonus':
-        mods.arrowBladeDamageBonusPercent = ARROW_BLADE_DAMAGE_BONUS_PCT;
+      case 'arrowExtraHitChance':
+        if (!Number.isNaN(rankValue)) mods.arrowExtraHitChance = rankValue / 100;
         break;
-      case 'flatAttackSpeed10':
-        mods.statBonuses.attackSpeed = (mods.statBonuses.attackSpeed ?? 0) + 10;
+      case 'arrowBladeTrueDamage':
+        mods.arrowBladeTrueDamageDivisor = BULLSEYE_ABILITY_DIVISOR;
+        break;
+      case 'arrowBladeHeal':
+        mods.arrowBladeHealDivisor = DEFERRED_REVERENCE_MAGIC_DIVISOR;
+        break;
+      case 'attackSpeedFlat12':
+        mods.statBonuses.attackSpeed = (mods.statBonuses.attackSpeed ?? 0) + TUNNELVISION_AS_FLAT;
+        break;
+
+      // ── Armadura Leve ────────────────────────────────────────────────────
+      case 'lightArmorMana':
+        if (!Number.isNaN(rankValue)) mods.statBonuses.mana = (mods.statBonuses.mana ?? 0) + rankValue;
+        break;
+      case 'lightArmorCapacity':
+        if (!Number.isNaN(rankValue)) mods.lightArmorCapacity = rankValue;
+        break;
+      case 'lightArmorNoHelmetHpRegen':
+        if (!Number.isNaN(rankValue) && !equipment?.head) {
+          mods.statBonuses.hpRegen = (mods.statBonuses.hpRegen ?? 0) + rankValue;
+        }
+        break;
+      case 'battleBootsCrit':
+        mods.critChance += BATTLE_BOOTS_CRIT_BONUS;
+        break;
+      case 'adventurersSpirit':
+        mods.adventurersSpiritActive = true;
+        break;
+      case 'skalsfeetNoBoots':
+        if (!equipment?.boots) {
+          mods.skalsfeetActive = true;
+          mods.statBonuses.magic = (mods.statBonuses.magic ?? 0) + SKALSFEET_STAT_BONUS;
+          mods.statBonuses.ability = (mods.statBonuses.ability ?? 0) + SKALSFEET_STAT_BONUS;
+        }
+        break;
+      case 'dressingWizardly2':
+        if (!Number.isNaN(rankValue)) {
+          mods.statBonuses.magic = (mods.statBonuses.magic ?? 0) + rankValue;
+          mods.statBonuses.mpRegen = (mods.statBonuses.mpRegen ?? 0) + rankValue;
+        }
+        break;
+      case 'clothesOfTheDamned2':
+        if (countArmorPieces(equipment, 'light') >= LIGHT_ARMOR_COUNT_THRESHOLD) {
+          mods.clothesOfTheDamned2Active = true;
+          mods.statBonuses.magic = (mods.statBonuses.magic ?? 0) + CLOTHES_OF_THE_DAMNED2_MAGIC;
+          mods.spellLifestealPercent += CLOTHES_OF_THE_DAMNED2_SPELLVAMP_PCT;
+        }
+        break;
+      case 'mercColorsNegativeStat': {
+        const hasNegativeLightArmor = ARMOR_SLOTS.some((slot) => {
+          const item = equipment?.[slot];
+          if (!item?.category?.startsWith('light')) return false;
+          return Object.values(item.stats ?? {}).some((v) => v < 0);
+        });
+        if (!Number.isNaN(rankValue) && hasNegativeLightArmor) {
+          mods.mercColorsAbility = rankValue;
+          mods.statBonuses.ability = (mods.statBonuses.ability ?? 0) + rankValue;
+        }
+        break;
+      }
+      case 'darknessEmbrace':
+        mods.darknessEmbraceActive = true;
+        break;
+      case 'masqueAllStats':
+        mods.masqueActive = true;
+        for (const stat of ['damage', 'armor', 'magic', 'ability', 'health', 'mana', 'attackSpeed']) {
+          mods.statBonuses[stat] = (mods.statBonuses[stat] ?? 0) + MASQUE_ALL_STATS_BONUS;
+        }
+        break;
+
+      // ── Escudo ───────────────────────────────────────────────────────────
+      case 'shieldManaRegen':
+        if (!Number.isNaN(rankValue)) mods.shieldManaRegen = rankValue;
+        break;
+      case 'etchedGemsShield':
+        mods.etchedGemsActive = true;
+        break;
+      case 'defenseConjureCooldownReduction':
+        if (!Number.isNaN(rankValue)) mods.defenseConjureCooldownReductionPercent = rankValue;
+        break;
+      case 'shieldFlatDamage':
+        if (!Number.isNaN(rankValue)) mods.shieldFlatDamage = rankValue;
+        break;
+      case 'innervatedMana':
+        mods.innervatedManaActive = true;
+        break;
+
+      // ── Armadura Pesada ──────────────────────────────────────────────────
+      case 'heavyArmorHealth':
+        if (!Number.isNaN(rankValue)) mods.statBonuses.health = (mods.statBonuses.health ?? 0) + rankValue;
+        break;
+      case 'heavyArmorCapacityRegen':
+        if (!Number.isNaN(rankValue)) {
+          mods.heavyArmorCapacity = rankValue;
+          mods.heavyArmorHpRegen = rankValue;
+        }
+        break;
+      case 'heavyArmorAbility':
+        if (!Number.isNaN(rankValue)) mods.statBonuses.ability = (mods.statBonuses.ability ?? 0) + rankValue;
+        break;
+      case 'heavyArmorCountLifeleech':
+        if (countArmorPieces(equipment, 'heavy') >= HEAVY_ARMOR_COUNT_THRESHOLD) {
+          mods.heavyArmorCountLifeleechActive = true;
+          mods.statBonuses.ability = (mods.statBonuses.ability ?? 0) + HEAVY_ARMOR_COUNT_ABILITY_PCT;
+          mods.lifestealPercent += HEAVY_ARMOR_COUNT_LIFESTEAL_PCT;
+        }
+        break;
+      case 'loomingDreadTrueDmg':
+        mods.loomingDreadArmorDivisor = LOOMING_DREAD_ARMOR_DIVISOR;
+        break;
+      case 'healLightFlatDiscount':
+        if (!Number.isNaN(rankValue)) mods.healLightFlatDiscount = rankValue;
+        break;
+      case 'blessedPlateHealBoost':
+        if (countArmorPieces(equipment, 'heavy') >= HEAVY_ARMOR_COUNT_THRESHOLD) mods.blessedPlateHealBoostActive = true;
+        break;
+      case 'stubbornWillShieldProc':
+        if (!Number.isNaN(rankValue)) mods.stubbornWillChance = rankValue / 100;
+        break;
+      case 'cannonBallThrash':
+        mods.cannonBallActive = true;
+        break;
+      case 'endowedInSteel2Count6':
+        if (countArmorPieces(equipment, 'heavy') >= ENDOWED_IN_STEEL2_ARMOR_COUNT_MIN) {
+          mods.endowedInSteel2Active = true;
+          mods.statBonuses.damage = (mods.statBonuses.damage ?? 0) + ENDOWED_IN_STEEL2_FLAT_DAMAGE;
+        }
+        break;
+
+      // ── Espada ───────────────────────────────────────────────────────────
+      case 'edgeLifeHeal':
+        if (!Number.isNaN(rankValue)) mods.edgeLifeThresholdPercent = rankValue;
+        break;
+      case 'dualSwordPenalty':
+        if (!Number.isNaN(rankValue) && isDualWieldCategory(equipment, 'sword')) {
+          mods.dualSwordPenaltyPercent = rankValue;
+          mods.damagePercent -= rankValue;
+        }
+        break;
+      case 'theExpertShieldProc':
+        mods.theExpertActive = true;
+        mods.statBonuses.attackSpeed = (mods.statBonuses.attackSpeed ?? 0) + THE_EXPERT_AS_FLAT;
+        break;
+      case 'ninjaExtraHit':
+        mods.ninjaExtraHitChance = NINJA_EXTRA_HIT_CHANCE;
+        mods.statBonuses.attackSpeed = (mods.statBonuses.attackSpeed ?? 0) + NINJA_AS_FLAT;
+        break;
+      case 'bladeManaDiscountFlat':
+        if (!Number.isNaN(rankValue)) mods.bladeManaDiscountFlat = rankValue;
+        break;
+      case 'primaDraw':
+        if (equipment?.weapon?.category === 'sword' && !SHIELD_CATEGORIES.includes(equipment?.offhand?.category)) {
+          mods.primaDrawActive = true;
+        }
+        break;
+      case 'armorPenFlat':
+        if (!Number.isNaN(rankValue)) mods.armorPenFlat += rankValue;
+        break;
+      case 'echoriadDualWield':
+        if (isDualWieldCategory(equipment, 'sword')) {
+          mods.echoriadActive = true;
+          mods.statBonuses.attackSpeed = (mods.statBonuses.attackSpeed ?? 0) + ECHORIAD_AS_FLAT;
+          mods.damagePercent -= ECHORIAD_DAMAGE_PENALTY_PCT;
+        }
+        break;
+
+      // ── Arma Grande ──────────────────────────────────────────────────────
+      case 'bloodbathHeal':
+        if (!Number.isNaN(rankValue)) mods.bloodbathHealPercent = rankValue;
+        break;
+      case 'berserkerScaling':
+        mods.berserkerScalingActive = true;
+        break;
+      case 'coreStrength':
+        mods.coreStrengthActive = true;
+        mods.lifestealPercent += CORE_STRENGTH_LIFESTEAL_PCT;
+        break;
+      case 'smiteOnCrit':
+        if (!Number.isNaN(rankValue)) mods.smiteOnCritTrueDamage = rankValue;
+        break;
+      case 'gemmedHilt':
+        mods.gemmedHiltActive = true;
+        mods.trueDamageFlat += 5;
+        mods.statBonuses.magic = (mods.statBonuses.magic ?? 0) + 3;
+        mods.statBonuses.mpRegen = (mods.statBonuses.mpRegen ?? 0) + 5;
+        mods.statBonuses.mana = (mods.statBonuses.mana ?? 0) + 25;
+        break;
+      case 'magicBladeLifeMana':
+        mods.magicBladeLifeManaActive = true;
+        mods.lifestealPercent += MAGIC_BLADE_LIFESTEAL_PCT;
+        break;
+      case 'survivalInstinctFlat':
+        if (!Number.isNaN(rankValue)) mods.survivalInstinctHpRegen = rankValue;
+        break;
+      case 'overwhelmingForceChance':
+        mods.overwhelmingForceChance = OVERWHELMING_FORCE_CHANCE;
+        break;
+      case 'preciseTear':
+        mods.preciseTearActive = true;
+        break;
+      case 'birthRevelationNoArmor':
+        if (ARMOR_SLOTS.every((slot) => !equipment?.[slot])) {
+          mods.birthRevelationActive = true;
+          mods.statBonuses.damage = (mods.statBonuses.damage ?? 0) + BIRTH_REVELATION_FLAT_DAMAGE;
+        }
+        break;
+      case 'higherRuling':
+        mods.higherRulingActive = true;
+        break;
+
+      // ── Orbe ─────────────────────────────────────────────────────────────
+      case 'orbShieldProc':
+        mods.orbShieldProcActive = true;
+        break;
+      case 'healManaDiscount25':
+        mods.healManaDiscount25Active = true;
+        break;
+      case 'holyFlatDamage':
+        mods.holyFlatDamage = HOLY_FLAT_DAMAGE;
+        break;
+      case 'onyxScreen':
+        mods.onyxScreenActive = true;
         break;
 
       // ── Luva ─────────────────────────────────────────────────────────────
@@ -781,140 +1277,6 @@ export function computeTalentModifiers(talentPoints, equipment) {
         mods.oneWithApogeaGloveActive = true;
         break;
 
-      // ── Armadura Leve ────────────────────────────────────────────────────
-      case 'lightArmorMana':
-        if (!Number.isNaN(rankValue)) mods.statBonuses.mana = (mods.statBonuses.mana ?? 0) + rankValue;
-        break;
-      case 'noHelmetAttackSpeed':
-        if (!Number.isNaN(rankValue) && !equipment?.head) {
-          mods.statBonuses.attackSpeed = (mods.statBonuses.attackSpeed ?? 0) + rankValue;
-        }
-        break;
-      case 'freeCapacityAttackSpeed':
-        mods.freeCapacityAttackSpeedActive = true;
-        break;
-      case 'battleBootsCrit':
-        mods.critChance += BATTLE_BOOTS_CRIT_BONUS;
-        break;
-      case 'lightArmorWeightMagic':
-        if (hasArmorPieceWeightCondition(equipment, 'light', 'under', 35)) {
-          mods.statBonuses.magic = (mods.statBonuses.magic ?? 0) + 1;
-        }
-        break;
-      case 'freeCapacityMagicPercent':
-        if (!Number.isNaN(rankValue)) mods.freeCapacityMagicThresholdDivisor = rankValue;
-        break;
-      case 'lightArmorCountMagicPercent':
-        mods.magicPercent += countArmorPieces(equipment, 'light') * 5;
-        break;
-      case 'darknessEmbrace':
-        mods.darknessEmbraceActive = true;
-        break;
-
-      // ── Escudo ───────────────────────────────────────────────────────────
-      case 'swordShieldDamage':
-        if (!Number.isNaN(rankValue) && hasSwordAndShield(equipment)) {
-          mods.statBonuses.damage = (mods.statBonuses.damage ?? 0) + rankValue;
-        }
-        break;
-      case 'blockStagger':
-        if (!Number.isNaN(rankValue)) mods.blockStaggerChance = rankValue / 100;
-        break;
-      case 'blockHeal':
-        mods.blockHealFlat = 5;
-        break;
-      case 'defenseCooldownReduction':
-        if (!Number.isNaN(rankValue)) mods.defenseCooldownReductionPercent = rankValue;
-        break;
-      case 'monsterCandy':
-        mods.monsterCandyActive = true;
-        mods.statBonuses.damage = (mods.statBonuses.damage ?? 0) - MONSTER_CANDY_DAMAGE_PENALTY;
-        break;
-      case 'blockEmpower':
-        mods.blockEmpowerActive = true;
-        break;
-      case 'blockReflect':
-        mods.blockReflectActive = true;
-        break;
-      case 'physicalCastDoubleShield':
-        mods.physicalCastDoubleShieldActive = true;
-        break;
-
-      // ── Armadura Pesada ──────────────────────────────────────────────────
-      case 'heavyArmorHealth':
-        if (!Number.isNaN(rankValue)) mods.statBonuses.health = (mods.statBonuses.health ?? 0) + rankValue;
-        break;
-      case 'heavyArmorCountHealth':
-        if (!Number.isNaN(rankValue)) {
-          mods.statBonuses.health = (mods.statBonuses.health ?? 0) + rankValue * countArmorPieces(equipment, 'heavy');
-        }
-        break;
-      case 'heavyArmorWeightAbility':
-        if (hasArmorPieceWeightCondition(equipment, 'heavy', 'over', 35)) {
-          mods.statBonuses.ability = (mods.statBonuses.ability ?? 0) + HEAVY_ARMOR_WEIGHT_ABILITY;
-        }
-        break;
-      case 'capacityToArmor':
-        mods.capacityToArmorActive = true;
-        break;
-      case 'heavyArmorCountAbilityPercent':
-        mods.abilityPercent += countArmorPieces(equipment, 'heavy') * HEAVY_ARMOR_COUNT_ABILITY_PCT;
-        break;
-      case 'healCooldownReduction':
-        if (!Number.isNaN(rankValue)) mods.healCooldownReductionPercent = rankValue;
-        break;
-      case 'healCastShield':
-        if (!Number.isNaN(rankValue)) mods.healCastShieldPercent = rankValue;
-        break;
-      case 'heavyArmorFlatStats':
-        mods.statBonuses.magic = (mods.statBonuses.magic ?? 0) + HEAVY_ARMOR_FLAT_MAGIC;
-        mods.statBonuses.mana = (mods.statBonuses.mana ?? 0) + HEAVY_ARMOR_FLAT_MANA;
-        break;
-      case 'bothHandsBonus':
-        if (hasBothHandsFree(equipment)) {
-          mods.statBonuses.damage = (mods.statBonuses.damage ?? 0) + BOTH_HANDS_BONUS;
-          mods.statBonuses.armor = (mods.statBonuses.armor ?? 0) + BOTH_HANDS_BONUS;
-          mods.statBonuses.ability = (mods.statBonuses.ability ?? 0) + BOTH_HANDS_BONUS;
-        }
-        break;
-
-      // ── Espada ───────────────────────────────────────────────────────────
-      case 'abilityToAttackSpeed':
-        if (!Number.isNaN(rankValue)) mods.abilityToAttackSpeedDivisor = rankValue;
-        break;
-      case 'bladeCooldownReductionBigSword':
-        if (hasBigSwordNoShield(equipment)) mods.bladeCooldownReductionBigSwordActive = true;
-        break;
-      case 'dualSwordPenalty':
-        if (!Number.isNaN(rankValue) && isDualWieldCategory(equipment, 'sword')) mods.damagePercent -= rankValue;
-        break;
-      case 'bladeManaDiscount':
-        mods.bladeManaDiscountPercent += 15;
-        break;
-      case 'highlander':
-        mods.highlanderActive = true;
-        break;
-      case 'ninjaExtraHit':
-        mods.ninjaExtraHitChance = NINJA_EXTRA_HIT_CHANCE;
-        break;
-
-      // ── Arma Grande ──────────────────────────────────────────────────────
-      case 'berserkerLowHealth':
-        if (!Number.isNaN(rankValue)) mods.berserkerBonusDamage = rankValue;
-        break;
-      case 'overwhelmingForceChance':
-        mods.overwhelmingForceChance = OVERWHELMING_FORCE_CHANCE;
-        break;
-      case 'wreckingIt':
-        if (!Number.isNaN(rankValue)) mods.wreckingItBonus = rankValue;
-        break;
-      case 'manaLeech':
-        mods.manaLeechPercent = 10;
-        break;
-      case 'unfathomableRage':
-        mods.unfathomableRageActive = true;
-        break;
-
       default: {
         if (!talent.effect) break;
         const { stat, perRank } = talent.effect;
@@ -934,18 +1296,26 @@ export function applyTalentEffects(stats, character) {
   const next = { ...stats };
   const equipment = character?.equipment;
 
-  // Powerful Space (Armadura Leve): % de Magic escalado pela capacidade LIVRE (Capacity
-  // final - peso carregado na mochila) — precisa do stat final de Capacity, por isso é
-  // resolvido aqui e somado no mods.magicPercent antes de aplicar o multiplicador.
-  if (mods.freeCapacityMagicThresholdDivisor) {
-    const invWeight = (character?.inventory ?? []).reduce((sum, i) => sum + (i.weight ?? 1) * i.quantity, 0);
-    const freeCapacity = Math.max(0, next.capacity - invWeight);
-    mods.magicPercent += Math.min(20, Math.floor(freeCapacity / mods.freeCapacityMagicThresholdDivisor) * 5);
-  }
-
   for (const [key, val] of Object.entries(mods.statBonuses)) {
     next[key] = Math.round(((next[key] ?? 0) + val) * 100) / 100;
   }
+  // Lightfoot/Carry your Might/Adventurer's Spirit/Skalsfeet/Masque dependem de stats
+  // já somados acima (Capacity) ou são flags simples — aplicados aqui, antes dos %.
+  if (mods.lightArmorCapacity) next.capacity = Math.round((next.capacity + mods.lightArmorCapacity) * 100) / 100;
+  if (mods.heavyArmorCapacity) next.capacity = Math.round((next.capacity + mods.heavyArmorCapacity) * 100) / 100;
+  if (mods.heavyArmorHpRegen) next.hpRegen = Math.round(((next.hpRegen ?? 0) + mods.heavyArmorHpRegen) * 100) / 100;
+  if (mods.survivalInstinctHpRegen) next.hpRegen = Math.round(((next.hpRegen ?? 0) + mods.survivalInstinctHpRegen) * 100) / 100;
+  if (mods.shieldManaRegen) next.mpRegen = Math.round(((next.mpRegen ?? 0) + mods.shieldManaRegen) * 100) / 100;
+  // Adventurer's Spirit (Armadura Leve): +1 Magic +1 Ability por 100 de Capacidade
+  // Máxima final, cap 10 cada — precisa da Capacity já somada, por isso é aqui.
+  if (mods.adventurersSpiritActive) {
+    const bonus = Math.min(ADVENTURERS_SPIRIT_STAT_CAP, Math.floor(next.capacity / ADVENTURERS_SPIRIT_CAPACITY_DIVISOR));
+    next.magic = Math.round((next.magic + bonus) * 100) / 100;
+    next.ability = Math.round((next.ability + bonus) * 100) / 100;
+  }
+  if (mods.bowFlatDamageFromRank) next.damage = Math.round((next.damage + mods.bowFlatDamageFromRank) * 100) / 100;
+  if (mods.sweetSpotFlatDamage) next.damage = Math.round((next.damage + mods.sweetSpotFlatDamage) * 100) / 100;
+
   if (mods.damagePercent) next.damage = Math.round(next.damage * (1 + mods.damagePercent / 100) * 100) / 100;
   if (mods.armorPercent) next.armor = Math.round(next.armor * (1 + mods.armorPercent / 100) * 100) / 100;
   if (mods.magicPercent) next.magic = Math.round(next.magic * (1 + mods.magicPercent / 100) * 100) / 100;
@@ -953,58 +1323,60 @@ export function applyTalentEffects(stats, character) {
 
   next.lifestealPercent = mods.lifestealPercent;
   next.armorPenPercent = mods.armorPenPercent;
+  next.armorPenFlat = mods.armorPenFlat;
   next.critChance = mods.critChance;
   next.critMultiplier = mods.critMultiplier;
-
-  // Jagged Rhythm/Luck Foreseen II/Dark Blade (adaga): dependem do stat final de
-  // Ability (já com todos os bônus aplicados), por isso são calculados aqui no fim,
-  // não dentro de computeTalentModifiers.
-  next.trueDamageChance = mods.trueDamageChance;
-  next.trueDamagePerHit = mods.trueDamageAbilityDivisor ? next.ability / mods.trueDamageAbilityDivisor : 0;
+  next.trueDamageFlat = mods.trueDamageFlat;
   next.trueDamageDoubled = mods.trueDamageDoubled;
-  // Luck Foreseen (13, /7) e Luck Foreseen II (68, /6) são caminhos PARALELOS do mesmo
-  // ramo — se o jogador investiu nos dois, as chances somam (cada Ability conta pras
-  // duas fontes independentemente).
-  const doubleAttackFromMain = mods.doubleAttackAbilityDivisor ? next.ability / mods.doubleAttackAbilityDivisor / 100 : 0;
-  const doubleAttackFromAlt = mods.doubleAttackAltDivisor ? next.ability / mods.doubleAttackAltDivisor / 100 : 0;
-  next.doubleAttackChance = Math.min(1, doubleAttackFromMain + doubleAttackFromAlt);
-
-  // Ramo Cajado: dependem do Magic final (staffChargeTrueDamage) ou só são flags/%
-  // repassadas direto pro combate/SPELL_CAST usarem.
-  next.staffFreeCastChance = mods.staffFreeCastChance;
-  next.staffChargeTrueDamage = mods.staffChargeDivisor ? next.magic / mods.staffChargeDivisor : 0;
-  next.franticConjuryChance = mods.franticConjuryChance;
   next.spellCooldownReductionPercent = mods.spellCooldownReductionPercent;
-  next.fireCooldownReductionPercent = mods.fireCooldownReductionPercent;
-  next.holyCooldownReductionPercent = mods.holyCooldownReductionPercent;
-  next.waterCooldownReductionPercent = mods.waterCooldownReductionPercent;
-  next.fireEnergyDamageBonusPercent = mods.fireEnergyDamageBonusPercent;
-  next.energyArrowDamageBonusPercent = mods.energyArrowDamageBonusPercent;
-
-  // Ramo Orbe
   next.spellLifestealPercent = mods.spellLifestealPercent;
-  next.spellPowerBonus = mods.spellPowerBonus;
-  next.diamondSkinValue = mods.diamondSkinValue;
-  next.unstableAegisActive = mods.unstableAegisActive;
   next.healPowerBonusPercent = mods.healPowerBonusPercent;
   next.healManaDiscountPercent = mods.healManaDiscountPercent;
+  next.diamondSkinValue = mods.diamondSkinValue;
+  next.unstableAegisActive = mods.unstableAegisActive;
+  next.highlanderActive = mods.highlanderActive;
+  if (mods.highlanderActive) {
+    next.damage = Math.round((next.damage + Math.floor(next.attackSpeed / HIGHLANDER_AS_TO_DAMAGE_DIVISOR)) * 100) / 100;
+  }
 
-  // ── Adaga (restante) ─────────────────────────────────────────────────────
+  // ── Cajado ───────────────────────────────────────────────────────────────
+  next.staffChargePct = mods.staffChargePct;
+  next.franticConjuryChance = mods.franticConjuryChance;
+  next.fireFlatDamage = mods.fireFlatDamage;
+  next.earthWaterCooldownReductionPercent = mods.earthWaterCooldownReductionPercent;
+  // Shift Wardens: +5 Attackspeed se Magic final >= 15 (aproximação: usamos o Magic
+  // FINAL, já com todos os bônus, em vez de só o "extra" — não dá pra isolar quanto do
+  // Magic veio de item/talento vs. base).
+  if (mods.magicThresholdAttackSpeedActive && next.magic >= SHIFT_WARDENS_MAGIC_THRESHOLD) {
+    next.attackSpeed = Math.round((next.attackSpeed + SHIFT_WARDENS_AS_BONUS) * 100) / 100;
+  }
+  next.friendOfApogeaActive = mods.friendOfApogeaActive;
+  next.warlockNewActive = mods.warlockNewActive;
+  if (mods.warlockNewActive) next.healPowerBonusPercent -= WARLOCK_HEAL_PENALTY_PCT;
+
+  // ── Adaga ────────────────────────────────────────────────────────────────
   next.castAttackBurstChance = mods.castAttackBurstChance;
+  next.daggerExtraHitOnAttackChance = mods.daggerExtraHitOnAttackChance;
+  next.foreseenDecayActive = mods.foreseenDecayActive;
+  next.darkBladePlusActive = mods.darkBladePlusActive;
+  next.dualDaggerDamageActive = mods.dualDaggerDamageActive;
 
   // ── Arco ─────────────────────────────────────────────────────────────────
   next.bowExplosiveChance = mods.bowExplosiveChance;
-  next.arrowCooldownReductionPercent = mods.arrowCooldownReductionPercent;
-  next.arrowBladeDamageBonusPercent = mods.arrowBladeDamageBonusPercent;
+  next.bowSecondaryProcChance = mods.bowSecondaryProcChance;
+  next.arrowExtraHitChance = mods.arrowExtraHitChance;
+  // Bullseye/Deferred Reverence: dependem do Ability/Magic FINAL. Como só existe 1 alvo
+  // nesse jogo (o "alvo atual" sempre é o único), a condição "dobrado se for o alvo
+  // atual" da fonte real vale SEMPRE aqui — por isso já aplicamos o fator 2.
+  next.arrowBladeTrueDamage = mods.arrowBladeTrueDamageDivisor ? 2 * (next.ability / mods.arrowBladeTrueDamageDivisor) : 0;
+  next.arrowBladeHeal = mods.arrowBladeHealDivisor ? 2 * (next.magic / mods.arrowBladeHealDivisor) : 0;
 
   // ── Luva ─────────────────────────────────────────────────────────────────
   next.gloveManaOnHitChance = mods.gloveManaOnHitChance;
   next.globalManaDiscountPercent = mods.globalManaDiscountPercent;
   next.gloveNextAttackTrueDamage = mods.gloveNextAttackTrueDamage;
-  // Arcane Trickster: Escudo Mágico = Mana máxima final / 10, cap 100.
   next.arcaneTricksterShieldGain = mods.arcaneTricksterShieldActive ? Math.min(MAGIC_STEEL_SHIELD_CAP, next.mana / 10) : 0;
   next.seerApparelActive = mods.seerApparelActive;
-  // Battle Mage (Luva): Dano Verdadeiro = Magic/3, capado em Damage/5 + Defense (final).
   next.gloveBattleMageDamage = mods.gloveBattleMageActive
     ? Math.min(next.magic / 3, next.damage / 5 + next.defense)
     : 0;
@@ -1014,53 +1386,46 @@ export function applyTalentEffects(stats, character) {
   next.oneWithApogeaGloveActive = mods.oneWithApogeaGloveActive;
 
   // ── Armadura Leve ────────────────────────────────────────────────────────
-  if (mods.freeCapacityAttackSpeedActive) {
-    const invWeight = (character?.inventory ?? []).reduce((sum, i) => sum + (i.weight ?? 1) * i.quantity, 0);
-    const freeCapacity = Math.max(0, next.capacity - invWeight);
-    next.attackSpeed = Math.round(
-      (next.attackSpeed + Math.min(FREE_CAPACITY_ATTACK_SPEED_CAP, Math.floor(freeCapacity / FREE_CAPACITY_ATTACK_SPEED_DIVISOR))) * 100,
-    ) / 100;
-  }
   next.darknessEmbraceActive = mods.darknessEmbraceActive;
 
   // ── Escudo ───────────────────────────────────────────────────────────────
   next.hasShieldEquipped = hasShieldEquipped(equipment);
   next.blockChance = next.hasShieldEquipped ? SHIELD_BASE_BLOCK_CHANCE : 0;
-  next.blockStaggerChance = mods.blockStaggerChance;
-  next.blockHealFlat = mods.blockHealFlat;
-  next.defenseCooldownReductionPercent = mods.defenseCooldownReductionPercent;
-  next.monsterCandyActive = mods.monsterCandyActive;
-  next.blockEmpowerActive = mods.blockEmpowerActive;
-  next.blockReflectActive = mods.blockReflectActive;
-  next.physicalCastDoubleShieldActive = mods.physicalCastDoubleShieldActive;
+  next.etchedGemsActive = mods.etchedGemsActive;
+  next.defenseConjureCooldownReductionPercent = mods.defenseConjureCooldownReductionPercent;
+  if (mods.shieldFlatDamage) next.damage = Math.round((next.damage + mods.shieldFlatDamage) * 100) / 100;
+  next.innervatedManaActive = mods.innervatedManaActive;
 
   // ── Armadura Pesada ──────────────────────────────────────────────────────
-  if (mods.capacityToArmorActive) {
-    next.armor = Math.round((next.armor + Math.min(CAPACITY_TO_ARMOR_CAP, Math.floor(next.capacity / CAPACITY_TO_ARMOR_DIVISOR))) * 100) / 100;
-  }
-  next.healCooldownReductionPercent = mods.healCooldownReductionPercent;
-  next.healCastShieldPercent = mods.healCastShieldPercent;
+  next.loomingDreadArmorDivisor = mods.loomingDreadArmorDivisor;
+  next.healLightFlatDiscount = mods.healLightFlatDiscount;
+  next.blessedPlateHealBoostActive = mods.blessedPlateHealBoostActive;
+  next.stubbornWillChance = mods.stubbornWillChance;
+  next.cannonBallActive = mods.cannonBallActive;
 
   // ── Espada ───────────────────────────────────────────────────────────────
-  if (mods.abilityToAttackSpeedDivisor) {
-    next.attackSpeed = Math.round(
-      (next.attackSpeed + Math.min(HAND_FINESSE_AS_CAP, Math.floor(next.ability / mods.abilityToAttackSpeedDivisor))) * 100,
-    ) / 100;
-  }
-  next.bladeCooldownReductionBigSwordActive = mods.bladeCooldownReductionBigSwordActive;
-  next.bladeManaDiscountPercent = mods.bladeManaDiscountPercent;
-  next.highlanderActive = mods.highlanderActive;
-  if (mods.highlanderActive) {
-    next.damage = Math.round((next.damage + Math.floor(next.attackSpeed / HIGHLANDER_AS_TO_DAMAGE_DIVISOR)) * 100) / 100;
-  }
+  next.edgeLifeThresholdPercent = mods.edgeLifeThresholdPercent;
+  next.theExpertActive = mods.theExpertActive;
   next.ninjaExtraHitChance = mods.ninjaExtraHitChance;
+  next.bladeManaDiscountFlat = mods.bladeManaDiscountFlat;
+  next.primaDrawActive = mods.primaDrawActive;
 
   // ── Arma Grande ──────────────────────────────────────────────────────────
-  next.berserkerBonusDamage = mods.berserkerBonusDamage;
+  next.bloodbathHealPercent = mods.bloodbathHealPercent;
+  next.berserkerScalingActive = mods.berserkerScalingActive;
+  next.coreStrengthActive = mods.coreStrengthActive;
+  next.smiteOnCritTrueDamage = mods.smiteOnCritTrueDamage;
+  next.magicBladeLifeManaActive = mods.magicBladeLifeManaActive;
   next.overwhelmingForceChance = mods.overwhelmingForceChance;
-  next.wreckingItBonus = mods.wreckingItBonus;
-  next.manaLeechPercent = mods.manaLeechPercent;
-  next.unfathomableRageActive = mods.unfathomableRageActive;
+  next.preciseTearActive = mods.preciseTearActive;
+  next.higherRulingActive = mods.higherRulingActive;
+
+  // ── Orbe ─────────────────────────────────────────────────────────────────
+  next.orbShieldProcActive = mods.orbShieldProcActive;
+  next.healManaDiscount25Active = mods.healManaDiscount25Active;
+  if (next.healManaDiscount25Active) next.healManaDiscountPercent += HEAL_MANA_DISCOUNT_25_PCT;
+  next.holyFlatDamage = mods.holyFlatDamage;
+  next.onyxScreenActive = mods.onyxScreenActive;
 
   return next;
 }
