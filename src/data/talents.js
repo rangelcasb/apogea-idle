@@ -175,13 +175,22 @@ const MECHANICS = {
   21: 'arrowBladeDamageBonus', // Bullseye — bônus de dano em magias Arrow/Blade (sem "alvo focado" real)
   70: 'flatAttackSpeed10', // Tunnelvision — +10 Attackspeed (sem a trava de não poder se mover, N/A no idle)
 
-  // ── Luva ─────────────────────────────────────────────────────────────────
-  71: 'gloveRegen', // Glove Passion — +10 MP Regen com luvas (simplificado: sempre mana, a fonte deixa a critério do item na outra mão)
-  72: 'attackManaRegen', // True Grip — atacar regenera mana (com luvas)
-  73: 'globalManaDiscountGlove', // Elvish Practice — magias custam menos mana (com luvas)
-  74: 'castBlockBuff', // Arcane Trickster — sem magia Mystic/Time: qualquer cast tem chance de bloquear o próximo golpe do monstro
-  75: 'manaToTrueDamage', // Battle Mage — cada 50 de Mana máxima vira 1 de Dano Verdadeiro fixo por golpe
-  76: 'standby', // One With Apogea — combo de risco/troca complexo demais — em standby
+  // ── Luva — dados reais do cliente (traits.json), todos os valores por rank já são
+  // os oficiais, não aproximação nossa (exceto onde marcado "homebrew").
+  71: 'gloveHpRegen', // Glove Passion — +HP Regen com luvas (real: 1/2/4/6/10)
+  72: 'gloveManaOnHitChance', // True Grip — chance de regenerar 3 Mana por golpe (real: 35/50/75%)
+  73: 'globalManaDiscountGlove', // Elvish Practice — magias custam menos mana (real: 7/10/15%)
+  74: 'gloveNextAttackTrueDamage', // Unnatural Flow (Luva) — cast de QUALQUER magia carrega o próximo golpe com Dano Verdadeiro (real: 5/7/10)
+  75: 'martialArtsAttackSpeed', // Martial Arts — +Attackspeed (real: 1/2/4)
+  76: 'arcaneTricksterShield', // Arcane Trickster — cast dá Escudo Mágico = MaxMana/10, cap 100 (real)
+  100: 'standby', // Clear Drift — depende de Dash/Teleport, que não existem nesse jogo — em standby
+  101: 'seerApparel', // Seer Apparel — Escudo Mágico absorve o dobro + golpes causam +5 Dano Verdadeiro fixo (real)
+  102: 'gloveBattleMage', // Battle Mage (Luva) — golpes causam Dano Verdadeiro = Magic/3, capado em Damage/5+Defense (real)
+  103: 'powerStance', // Power Stance — homebrew (descrição real não especifica os bônus)
+  104: 'drunkStyle', // Drunk Style — Spellvamp fixo + chance de "Fire Breath" (magia não documentada, dano homebrew)
+  105: 'supernaturalGamble', // Supernatural Gamble — magias -50% mana, 50% chance de explodir e causar dano em você mesmo (real)
+  106: 'shapeOfWater', // Shape of Water — +5 AS, ataque gasta 3 mana por +5 Dano Verdadeiro, mas Mana vira 25 e Magic vira 5 (real, trade-off pesado)
+  107: 'oneWithApogeaGlove', // One With Apogea (Luva) — Mana vira Dano Verdadeiro (1 a cada 35), mas zera o dano físico (real)
 
   // ── Armadura Leve ────────────────────────────────────────────────────────
   25: 'lightArmorMana', // Cozy and Useful — Armadura Leve dá mana extra (valor real do rank, não o genérico)
@@ -289,9 +298,23 @@ const HIGHLANDER_AS_TO_DAMAGE_DIVISOR = 2; // real: 2 Attackspeed = 1 Dano
 const NINJA_EXTRA_HIT_CHANCE = 0.25; // To Be Ninja (real % — era boost de Movespeed)
 export const BERSERKER_HEALTH_THRESHOLD_PCT = 66; // real
 const OVERWHELMING_FORCE_CHANCE = 0.35; // real (sem área de efeito)
-const MANA_TO_TRUE_DAMAGE_DIVISOR = 50; // Battle Mage (real: 50 mana = 1 dano verdadeiro)
 export const UNFATHOMABLE_RAGE_DAMAGE_TO_MANA_DIVISOR = 2; // real: 2 dano recebido = 1 mana
 export const UNFATHOMABLE_RAGE_SPELL_COST_MULTIPLIER = 2; // real: dobra custo das magias
+
+// Ramo Luva — valores reais confirmados no cliente (traits.json) pros nós de 1 ponto.
+export const DRUNK_STYLE_SPELLVAMP_PCT = 10;
+// "Fire Breath" não é uma das 34 magias documentadas com fórmula — sem valor de dano
+// oficial, aproximado (homebrew) como uma explosão de dano fixo baseada no Dano médio.
+export const DRUNK_STYLE_FIRE_BREATH_CHANCE = 0.35;
+export const SEER_APPAREL_TRUE_DAMAGE = 5; // real
+export const SHAPE_OF_WATER_ATTACK_SPEED = 5; // real
+export const SHAPE_OF_WATER_MANA_COST = 3; // real
+export const SHAPE_OF_WATER_TRUE_DAMAGE = 5; // real
+export const SHAPE_OF_WATER_MANA_CAP = 25; // real
+export const SHAPE_OF_WATER_MAGIC_CAP = 5; // real
+export const SUPERNATURAL_GAMBLE_MANA_DISCOUNT_PCT = 50; // real
+export const SUPERNATURAL_GAMBLE_SELF_DAMAGE_CHANCE = 0.5; // real
+export const ONE_WITH_APOGEA_GLOVE_MANA_DIVISOR = 35; // real
 
 // Valores fixos das 3 mecânicas de dano-verdadeiro/ataque-duplo da adaga (não escalam
 // por rank — são talentos de 1 ponto só, o valor real vem direto da descrição).
@@ -345,17 +368,26 @@ const RAW_TALENTS = [
   { id: 21, name: 'Bullseye', parent: 20, branch: 'bow', description: 'Increases the Damage of Arrow and Blade spells against enemies you have currently targeted', ranks: [] },
   { id: 70, name: 'Tunnelvision', parent: 21, branch: 'bow', description: 'Gain 10 Attackspeed, but you can no longer move while targeting an enemy', ranks: [] },
 
-  // ── Luva (NOVO ramo — não existia na fonte antiga) ──────────────────────────
-  { id: 71, name: 'Glove Passion', parent: 0, branch: 'glove', description: "While wearing gloves, gain 10 Mana or Health Regen depending on the item you're holding", ranks: [] },
-  // True Grip e Elvish Practice tinham 3 ranks projetados, mas o pai (Glove Passion,
-  // id71) só tem 1 rank possível — a trava real (filho nunca ultrapassa o NÍVEL ATUAL
-  // do pai) prendia os dois pra sempre em 1/3, mesmo investindo tudo. Reduzido pra 1
-  // rank só (valor mais forte da curva antiga), que é o único nível alcançável de verdade.
-  { id: 72, name: 'True Grip', parent: 71, branch: 'glove', description: 'While wearing Gloves, attacking regenerates Mana', ranks: ['4'] },
-  { id: 73, name: 'Elvish Practice', parent: 72, branch: 'glove', description: 'Spells cost 15% less mana', ranks: ['15%'] },
-  { id: 74, name: 'Arcane Trickster', parent: 73, branch: 'glove', description: 'While using Gloves, casting a Time or Mystic spell has a 50% chance of blocking all physical damage for 4 seconds', ranks: [] },
-  { id: 75, name: 'Battle Mage', parent: 74, branch: 'glove', description: 'Converts 50 Max Mana into 1 extra True Damage', ranks: [] },
-  { id: 76, name: 'One With Apogea', parent: 75, branch: 'glove', description: 'Mana damage is reduced in half, all spells cost 5 times more', ranks: [] },
+  // ── Luva ─────────────────────────────────────────────────────────────────
+  // Reconstruída do zero com dados extraídos DIRETO do cliente do jogo (Apogea 3.2.6,
+  // scriptables_assets_traits — fonte: apogeawiki.info/data/traits.json, "authoritative":
+  // true), bem melhor que a imagem da wiki usada antes. A árvore real tem 14 nós (a
+  // versão anterior, com só 6, era um chute baseado numa fonte mais fraca — nomes,
+  // valores por rank e até a estrutura de pré-requisito estavam errados).
+  { id: 71, name: 'Glove Passion', parent: 0, branch: 'glove', description: 'Gloves have extra HP Regen', ranks: ['1', '2', '4', '6', '10'] },
+  { id: 72, name: 'True Grip', parent: 71, branch: 'glove', description: 'While wearing Gloves, attacks have a chance of regenerating 3 Mana', ranks: ['35%', '50%', '75%'] },
+  { id: 73, name: 'Elvish Practice', parent: 72, branch: 'glove', description: 'Spells cost less Mana', ranks: ['7%', '10%', '15%'] },
+  { id: 74, name: 'Unnatural Flow', parent: 72, branch: 'glove', description: 'Casting a spell will make your next attack deal extra True Damage', ranks: ['5', '7', '10'] },
+  { id: 75, name: 'Martial Arts', parent: 72, branch: 'glove', description: 'Gain extra Attackspeed', ranks: ['1', '2', '4'] },
+  { id: 76, name: 'Arcane Trickster', parent: 73, branch: 'glove', description: 'Casting a Time or Mystic spell will give you a Magic Shield equal to (Max Mana / 10) capping at 100', ranks: [] },
+  { id: 100, name: 'Clear Drift', parent: 73, branch: 'glove', description: 'Dashing or Teleporting will Cleanse one random debuff from you and heal units it passes by', ranks: [] },
+  { id: 101, name: 'Seer Apparel', parent: 74, branch: 'glove', description: 'While wearing Gloves all Mana Shield damage is cut in half. Additionally, your attacks deal +5 True Damage', ranks: [] },
+  { id: 102, name: 'Battle Mage', parent: 74, branch: 'glove', description: 'Your attacks will deal extra True Damage equal to (Magic / 3), capped at (Damage / 5 + Defense)', ranks: [] },
+  { id: 103, name: 'Power Stance', parent: 75, branch: 'glove', description: 'Attacking using both your hands gives you multiple stat boosts', ranks: [] },
+  { id: 104, name: 'Drunk Style', parent: 75, branch: 'glove', description: 'Attacking using both your hands gives you Spellvamp and a chance of casting "Fire Breath"', ranks: [] },
+  { id: 105, name: 'Supernatural Gamble', parent: 76, branch: 'glove', description: 'Spells cost 50% less Mana, but have a 50% chance of blowing up dealing Damage to yourself equal to half its Mana cost', ranks: [] },
+  { id: 106, name: 'Shape of Water', parent: 104, branch: 'glove', description: 'Gain +5 Attackspeed, additionally your attacks spend 3 Mana to deal +5 True Damage — but your Mana is set to 25 and Magic to 5', ranks: [] },
+  { id: 107, name: 'One With Apogea', parent: 102, branch: 'glove', description: 'Gain +1 True Damage per 35 Mana points, but you no longer deal physical damage', ranks: [] },
 
   // ── Armadura Leve ────────────────────────────────────────────────────────
   { id: 25, name: 'Cozy and Useful', parent: 0, branch: 'lightarmor', description: 'Light Armor has extra mana', ranks: ['1', '3', '6', '10', '15'] },
@@ -435,6 +467,19 @@ const EXTRA_REQUIREMENTS = {
   13: [[10, 5], [12, 3]],
   15: [[10, 5], [14, 3]],
   21: [[16, 5], [20, 3]],
+  // Ramo Luva — pré-requisitos reais extraídos do cliente (traits.json): os 6 nós de
+  // tier 4 exigem o pai direto MAXIMIZADO + Glove Passion também maximizado (não só
+  // com 1 ponto, como a trava básica já garantiria); os 3 capstones de tier 5 exigem
+  // os 2 nós de tier 4 do mesmo sub-ramo, ambos investidos.
+  76: [[73, 3], [71, 5]],
+  100: [[73, 3], [71, 5]],
+  101: [[74, 3], [71, 5]],
+  102: [[74, 3], [71, 5]],
+  103: [[75, 3], [71, 5]],
+  104: [[75, 3], [71, 5]],
+  105: [[76, 1], [100, 1]],
+  106: [[104, 1], [103, 1]],
+  107: [[102, 1], [101, 1]],
 };
 
 export const TALENTS = RAW_TALENTS.map((t) => ({
@@ -524,11 +569,17 @@ export function computeTalentModifiers(talentPoints, equipment) {
     arrowCooldownReductionPercent: 0,
     arrowBladeDamageBonusPercent: 0,
     // Luva
-    gloveRegenFlat: 0,
-    attackManaRegenFlat: 0,
+    gloveManaOnHitChance: 0,
     globalManaDiscountPercent: 0,
-    castBlockChance: 0,
-    manaToTrueDamageDivisor: 0,
+    gloveNextAttackTrueDamage: 0,
+    arcaneTricksterShieldActive: false,
+    seerApparelActive: false,
+    gloveBattleMageActive: false,
+    powerStanceActive: false,
+    drunkStyleActive: false,
+    supernaturalGambleActive: false,
+    shapeOfWaterActive: false,
+    oneWithApogeaGloveActive: false,
     // Armadura Leve
     freeCapacityAttackSpeedActive: false,
     freeCapacityMagicThresholdDivisor: 0,
@@ -679,20 +730,55 @@ export function computeTalentModifiers(talentPoints, equipment) {
         break;
 
       // ── Luva ─────────────────────────────────────────────────────────────
-      case 'gloveRegen':
-        mods.statBonuses.mpRegen = (mods.statBonuses.mpRegen ?? 0) + 10;
+      case 'gloveHpRegen':
+        if (!Number.isNaN(rankValue)) mods.statBonuses.hpRegen = (mods.statBonuses.hpRegen ?? 0) + rankValue;
         break;
-      case 'attackManaRegen':
-        if (!Number.isNaN(rankValue)) mods.attackManaRegenFlat = rankValue;
+      case 'gloveManaOnHitChance':
+        if (!Number.isNaN(rankValue)) mods.gloveManaOnHitChance = rankValue / 100;
         break;
       case 'globalManaDiscountGlove':
         if (!Number.isNaN(rankValue)) mods.globalManaDiscountPercent += rankValue;
         break;
-      case 'castBlockBuff':
-        mods.castBlockChance = 0.5;
+      case 'gloveNextAttackTrueDamage':
+        if (!Number.isNaN(rankValue)) mods.gloveNextAttackTrueDamage = rankValue;
         break;
-      case 'manaToTrueDamage':
-        mods.manaToTrueDamageDivisor = MANA_TO_TRUE_DAMAGE_DIVISOR;
+      case 'martialArtsAttackSpeed':
+        if (!Number.isNaN(rankValue)) mods.statBonuses.attackSpeed = (mods.statBonuses.attackSpeed ?? 0) + rankValue;
+        break;
+      case 'arcaneTricksterShield':
+        mods.arcaneTricksterShieldActive = true;
+        break;
+      case 'seerApparel':
+        mods.seerApparelActive = true;
+        break;
+      case 'gloveBattleMage':
+        mods.gloveBattleMageActive = true;
+        break;
+      // Power Stance/Drunk Style: "attacking using both your hands" = sem item na mão
+      // secundária (offhand vazio) enquanto usa luvas — mesmo padrão do Endowed in
+      // Steel (Armadura Pesada).
+      case 'powerStance':
+        if (hasBothHandsFree(equipment)) {
+          mods.statBonuses.damage = (mods.statBonuses.damage ?? 0) + BOTH_HANDS_BONUS;
+          mods.statBonuses.armor = (mods.statBonuses.armor ?? 0) + BOTH_HANDS_BONUS;
+          mods.statBonuses.ability = (mods.statBonuses.ability ?? 0) + BOTH_HANDS_BONUS;
+        }
+        break;
+      case 'drunkStyle':
+        if (hasBothHandsFree(equipment)) {
+          mods.spellLifestealPercent += DRUNK_STYLE_SPELLVAMP_PCT;
+          mods.drunkStyleActive = true;
+        }
+        break;
+      case 'supernaturalGamble':
+        mods.supernaturalGambleActive = true;
+        break;
+      case 'shapeOfWater':
+        mods.shapeOfWaterActive = true;
+        mods.statBonuses.attackSpeed = (mods.statBonuses.attackSpeed ?? 0) + SHAPE_OF_WATER_ATTACK_SPEED;
+        break;
+      case 'oneWithApogeaGlove':
+        mods.oneWithApogeaGloveActive = true;
         break;
 
       // ── Armadura Leve ────────────────────────────────────────────────────
@@ -912,11 +998,20 @@ export function applyTalentEffects(stats, character) {
   next.arrowBladeDamageBonusPercent = mods.arrowBladeDamageBonusPercent;
 
   // ── Luva ─────────────────────────────────────────────────────────────────
-  next.attackManaRegenFlat = mods.attackManaRegenFlat;
+  next.gloveManaOnHitChance = mods.gloveManaOnHitChance;
   next.globalManaDiscountPercent = mods.globalManaDiscountPercent;
-  next.castBlockChance = mods.castBlockChance;
-  // Battle Mage: cada 50 de Mana MÁXIMA final vira 1 de Dano Verdadeiro fixo por golpe.
-  next.manaToTrueDamage = mods.manaToTrueDamageDivisor ? Math.floor(next.mana / mods.manaToTrueDamageDivisor) : 0;
+  next.gloveNextAttackTrueDamage = mods.gloveNextAttackTrueDamage;
+  // Arcane Trickster: Escudo Mágico = Mana máxima final / 10, cap 100.
+  next.arcaneTricksterShieldGain = mods.arcaneTricksterShieldActive ? Math.min(MAGIC_STEEL_SHIELD_CAP, next.mana / 10) : 0;
+  next.seerApparelActive = mods.seerApparelActive;
+  // Battle Mage (Luva): Dano Verdadeiro = Magic/3, capado em Damage/5 + Defense (final).
+  next.gloveBattleMageDamage = mods.gloveBattleMageActive
+    ? Math.min(next.magic / 3, next.damage / 5 + next.defense)
+    : 0;
+  next.drunkStyleActive = mods.drunkStyleActive;
+  next.supernaturalGambleActive = mods.supernaturalGambleActive;
+  next.shapeOfWaterActive = mods.shapeOfWaterActive;
+  next.oneWithApogeaGloveActive = mods.oneWithApogeaGloveActive;
 
   // ── Armadura Leve ────────────────────────────────────────────────────────
   if (mods.freeCapacityAttackSpeedActive) {

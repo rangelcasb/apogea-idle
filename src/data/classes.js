@@ -1,4 +1,4 @@
-import { applyTalentEffects } from './talents.js';
+import { applyTalentEffects, SHAPE_OF_WATER_MANA_CAP, SHAPE_OF_WATER_MAGIC_CAP } from './talents.js';
 import { applySatietyBonus } from './satiety.js';
 
 // Base REAL do Squire nível 1, extraída do código-fonte da calculadora da comunidade
@@ -163,6 +163,13 @@ export function computeFinalStats(character) {
     stats.damage = Math.round((stats.damage + stats.magic / 5) * 100) / 100;
   }
   const talented = applyTalentEffects(stats, character);
+  // Shape of Water (Luva): "sua Mana vira 25 e Magic vira 5" — trade-off real e pesado
+  // do capstone (não é cap, é um valor FIXO, sobrescrevendo qualquer bônus de outro
+  // lugar). Aplicado depois de tudo pra valer por cima de qualquer outro bônus.
+  if (talented.shapeOfWaterActive) {
+    talented.mana = SHAPE_OF_WATER_MANA_CAP;
+    talented.magic = SHAPE_OF_WATER_MAGIC_CAP;
+  }
   const withSatiety = applySatietyBonus(talented, character.satiety);
   // Piso de segurança: talentos com penalidade fixa de Dano (ex: Monster Candy, -99)
   // são pensados pra personagens de nível alto com Damage bem maior — em nível baixo

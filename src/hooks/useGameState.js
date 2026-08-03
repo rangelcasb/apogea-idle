@@ -53,6 +53,13 @@ import {
   UNFATHOMABLE_RAGE_DAMAGE_TO_MANA_DIVISOR,
   UNFATHOMABLE_RAGE_SPELL_COST_MULTIPLIER,
   BERSERKER_HEALTH_THRESHOLD_PCT,
+  DRUNK_STYLE_FIRE_BREATH_CHANCE,
+  SEER_APPAREL_TRUE_DAMAGE,
+  SHAPE_OF_WATER_MANA_COST,
+  SHAPE_OF_WATER_TRUE_DAMAGE,
+  SUPERNATURAL_GAMBLE_MANA_DISCOUNT_PCT,
+  SUPERNATURAL_GAMBLE_SELF_DAMAGE_CHANCE,
+  ONE_WITH_APOGEA_GLOVE_MANA_DIVISOR,
 } from '../data/talents';
 import {
   onAuthChange,
@@ -658,6 +665,8 @@ function reducer(state, action) {
           if (['Heal', 'Light', 'Holy'].includes(spell.type)) manaCostMultiplier += DARKNESS_EMBRACE_HEAL_SURCHARGE_PCT / 100;
         }
         manaCostMultiplier -= (charStats.globalManaDiscountPercent ?? 0) / 100;
+        // Supernatural Gamble (Luva, capstone): -50% de mana em TODAS as magias.
+        if (charStats.supernaturalGambleActive) manaCostMultiplier -= SUPERNATURAL_GAMBLE_MANA_DISCOUNT_PCT / 100;
         manaCostMultiplier = Math.max(0.05, manaCostMultiplier);
         if (charStats.unfathomableRageActive) manaCostMultiplier *= UNFATHOMABLE_RAGE_SPELL_COST_MULTIPLIER;
         const effectiveManaCost = spell.manaCost * manaCostMultiplier;
@@ -688,14 +697,28 @@ function reducer(state, action) {
         cdReductionPct = Math.min(90, cdReductionPct);
         spellCooldowns = { ...spellCooldowns, [spellId]: now + spell.cooldownMs * (1 - cdReductionPct / 100) };
 
-        // Gaff Hack (Adaga) / Arcane Trickster (Luva): sem magia Mystic/Time nesse
-        // jogo, então qualquer cast tem chance de ativar o buff de 1 uso pro próximo
-        // golpe (extra hit) ou pro próximo ataque do monstro (bloqueio garantido).
+        // Gaff Hack (Adaga): sem magia Mystic/Time nesse jogo, qualquer cast tem chance
+        // de ativar o buff de 1 uso pro próximo golpe (extra hit).
         if (charStats.castAttackBurstChance > 0 && Math.random() < charStats.castAttackBurstChance) {
           workingChar = { ...workingChar, castAttackBurstBuff: true };
         }
-        if (charStats.castBlockChance > 0 && Math.random() < charStats.castBlockChance) {
-          workingChar = { ...workingChar, castBlockBuff: true };
+        // Unnatural Flow (Luva): QUALQUER cast carrega o próximo golpe com Dano
+        // Verdadeiro extra — mesmo buff do Charge the Staff/Wrecking It, soma.
+        if (charStats.gloveNextAttackTrueDamage > 0) {
+          workingChar = { ...workingChar, staffChargeBuff: (workingChar.staffChargeBuff ?? 0) + charStats.gloveNextAttackTrueDamage };
+        }
+        // Supernatural Gamble (Luva, capstone): 50% de chance da magia "explodir" e
+        // causar em você mesmo metade do custo de mana que você pagou, em dano.
+        if (charStats.supernaturalGambleActive && !spell.hpCast && Math.random() < SUPERNATURAL_GAMBLE_SELF_DAMAGE_CHANCE) {
+          const selfDmg = effectiveManaCost / 2;
+          workingChar = { ...workingChar, currentHealth: Math.max(1, workingChar.currentHealth - selfDmg) };
+          log = pushLog(log, `Supernatural Gamble: a magia explodiu! Você sofreu ${selfDmg.toFixed(1)} de dano.`);
+        }
+        // Arcane Trickster (Luva): QUALQUER cast dá Escudo Mágico (Mana máxima / 10, cap 100).
+        if (charStats.arcaneTricksterShieldGain > 0) {
+          const newShield = Math.min(MAGIC_STEEL_SHIELD_CAP, (workingChar.shieldPoints ?? 0) + charStats.arcaneTricksterShieldGain);
+          workingChar = { ...workingChar, shieldPoints: newShield };
+          log = pushLog(log, `Arcane Trickster: +${charStats.arcaneTricksterShieldGain.toFixed(1)} de escudo.`);
         }
 
         if (spell.kind === 'heal') {
@@ -867,7 +890,11 @@ function reducer(state, action) {
         // Fórmula real de Armadura (apogean.eu/lists/formulae): (Dano - Armadura/2) /
         // (1 + Armadura/100) — tem uma parte flat ANTES da percentual, não só a %.
         const effectiveArmor = Math.max(0, currentMonster.armor * (1 - (charStats.armorPenPercent ?? 0) / 100));
-        const damage = Math.max(1, (dmg - effectiveArmor / 2) / (1 + effectiveArmor / 100));
+        // One With Apogea (Luva): "você não causa mais dano físico" — zera o físico de
+        // verdade (não é o mínimo de 1 de sempre), a mana vira todo o dano em troca.
+        const damage = charStats.oneWithApogeaGloveActive
+          ? 0
+          : Math.max(1, (dmg - effectiveArmor / 2) / (1 + effectiveArmor / 100));
 
         // Jagged Rhythm: 50% de chance de causar (Ability/4) de dano verdadeiro extra,
         // ignorando a armadura. Dark Blade dobra esse dano verdadeiro, mas você recebe
@@ -884,6 +911,17 @@ function reducer(state, action) {
         }
         if (charStats.overwhelmingForceChance && Math.random() < charStats.overwhelmingForceChance) {
           trueDamage += (maxDamage - minDamage) * 0.5;
+        }
+        // Seer Apparel (Luva): +5 de Dano Verdadeiro fixo por golpe (real).
+        if (charStats.seerApparelActive) trueDamage += SEER_APPAREL_TRUE_DAMAGE;
+        // Drunk Style (Luva): chance de "Fire Breath" — magia sem fórmula documentada,
+        // aproximada (homebrew) como estouro de dano verdadeiro.
+        if (charStats.drunkStyleActive && Math.random() < DRUNK_STYLE_FIRE_BREATH_CHANCE) {
+          trueDamage += (maxDamage - minDamage) * 0.5;
+        }
+        // One With Apogea (Luva): +1 de Dano Verdadeiro a cada 35 de Mana máxima.
+        if (charStats.oneWithApogeaGloveActive) {
+          trueDamage += Math.floor(charStats.mana / ONE_WITH_APOGEA_GLOVE_MANA_DIVISOR);
         }
         const selfTrueDamage = charStats.trueDamageDoubled && trueDamage > 0 ? trueDamage : 0;
 
@@ -917,17 +955,29 @@ function reducer(state, action) {
         franticConjuryDamage = Math.max(1, (rawConjureDamage - effectiveArmorForConjure / 2) / (1 + effectiveArmorForConjure / 100));
       }
 
-      // Battle Mage (Luva): cada 50 de Mana máxima vira 1 de Dano Verdadeiro fixo, todo golpe.
-      const battleMageDamage = charStats.manaToTrueDamage ?? 0;
+      // Battle Mage (Luva): Dano Verdadeiro fixo (Magic/3, capado), todo golpe.
+      const gloveBattleMageDamage = charStats.gloveBattleMageDamage ?? 0;
 
-      const playerDamage = hits.reduce((sum, h) => sum + h.damage, 0) + totalTrueDamage + staffChargeDamage + franticConjuryDamage + battleMageDamage;
+      // Shape of Water (Luva, capstone): gasta 3 de mana no golpe pra causar +5 de
+      // Dano Verdadeiro — só se tiver mana suficiente (não é obrigatório).
+      const shapeOfWaterActive = charStats.shapeOfWaterActive && char.currentMana >= SHAPE_OF_WATER_MANA_COST;
+      const shapeOfWaterDamage = shapeOfWaterActive ? SHAPE_OF_WATER_TRUE_DAMAGE : 0;
+      const shapeOfWaterManaCost = shapeOfWaterActive ? SHAPE_OF_WATER_MANA_COST : 0;
+
+      const playerDamage = hits.reduce((sum, h) => sum + h.damage, 0) + totalTrueDamage + staffChargeDamage + franticConjuryDamage + gloveBattleMageDamage + shapeOfWaterDamage;
       const monsterHealth = Math.max(0, currentMonster.currentHealth - playerDamage);
 
       const lifestealHeal = playerDamage * ((charStats.lifestealPercent ?? 0) / 100);
       // Magic Blade (Arma Grande): Manaleech — recupera mana baseado no dano causado.
       const manaLeechGain = playerDamage * ((charStats.manaLeechPercent ?? 0) / 100);
-      // True Grip (Luva): atacar regenera mana fixa (por golpe, incluindo golpes extras).
-      const trueGripManaGain = (charStats.attackManaRegenFlat ?? 0) * hits.length;
+      // True Grip (Luva): cada golpe (incluindo golpes extras) tem uma CHANCE de
+      // regenerar 3 de mana — não é garantido como antes, é uma rolagem por rank.
+      let trueGripManaGain = 0;
+      if (charStats.gloveManaOnHitChance > 0) {
+        for (let i = 0; i < hits.length; i++) {
+          if (Math.random() < charStats.gloveManaOnHitChance) trueGripManaGain += 3;
+        }
+      }
 
       let log = pushLog(
         state.log,
@@ -942,8 +992,11 @@ function reducer(state, action) {
       if (franticConjuryDamage > 0) {
         log = pushLog(log, `Frantic Conjury: Conjure Fire de graça causou +${franticConjuryDamage.toFixed(1)}.`);
       }
-      if (battleMageDamage > 0) {
-        log = pushLog(log, `Battle Mage: +${battleMageDamage.toFixed(1)} de dano verdadeiro.`);
+      if (gloveBattleMageDamage > 0) {
+        log = pushLog(log, `Battle Mage: +${gloveBattleMageDamage.toFixed(1)} de dano verdadeiro.`);
+      }
+      if (shapeOfWaterDamage > 0) {
+        log = pushLog(log, `Shape of Water: +${shapeOfWaterDamage} de dano verdadeiro (-${shapeOfWaterManaCost} mana).`);
       }
       if (gaffHackTriggered) {
         log = pushLog(log, 'Gaff Hack: golpe extra!');
@@ -957,13 +1010,16 @@ function reducer(state, action) {
       if (manaLeechGain > 0) {
         log = pushLog(log, `Manaleech: +${manaLeechGain.toFixed(1)} de mana.`);
       }
+      if (trueGripManaGain > 0) {
+        log = pushLog(log, `True Grip: +${trueGripManaGain} de mana.`);
+      }
 
       if (staffManaCost > 0) {
         log = pushLog(log, `Ataque com cajado consumiu ${staffManaCost} de mana.`);
       }
 
       // Buffs de 1 uso do golpe são consumidos aqui, independente do resultado (matou
-      // o monstro ou não). Mana: custo do cajado sai, leech/regen entram.
+      // o monstro ou não). Mana: custo do cajado/Shape of Water sai, leech/regen entram.
       const charWithBuffsConsumed = {
         ...char,
         staffChargeBuff: 0,
@@ -971,7 +1027,7 @@ function reducer(state, action) {
         castAttackBurstBuff: false,
         currentMana: Math.min(
           charStats.mana,
-          char.currentMana - staffManaCost + manaLeechGain + trueGripManaGain,
+          char.currentMana - staffManaCost - shapeOfWaterManaCost + manaLeechGain + trueGripManaGain,
         ),
       };
 
@@ -1058,10 +1114,13 @@ function reducer(state, action) {
 
       // Diamond Skin (Orbe): escudo acumulado por conjurar magia de Energia absorve
       // esse dano ANTES da vida (só relevante se não bloqueou — bloqueio já zerou tudo).
+      // Seer Apparel (Luva): "todo dano no Escudo Mágico é cortado pela metade" — cada
+      // ponto de escudo absorve o DOBRO de dano (o escudo rende mais, dura mais).
+      const shieldEfficiency = charStats.seerApparelActive ? 2 : 1;
       const shieldBefore = workingChar.shieldPoints ?? 0;
-      const absorbed = Math.min(shieldBefore, monsterDamage);
+      const absorbed = Math.min(shieldBefore * shieldEfficiency, monsterDamage);
       const damageToHealth = monsterDamage - absorbed;
-      const shieldAfter = shieldBefore - absorbed;
+      const shieldAfter = shieldBefore - absorbed / shieldEfficiency;
 
       if (!blocked) {
         log = pushLog(
