@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { EQUIP_SLOTS, EQUIP_GRID_LAYOUT, RARITY_BORDER_COLORS } from '../data/gameData';
+import { EQUIP_SLOTS, EQUIP_GRID_LAYOUT, RARITY_BORDER_COLORS, FARMABLE_ITEM_NAMES, zonesForItem } from '../data/gameData';
 import MonsterIcon from './MonsterIcon';
 import ItemIcon from './ItemIcon';
 
@@ -189,6 +189,89 @@ function Floaters({ floaters, side }) {
   );
 }
 
+// Caixa "Item Farm": escolhe um item e filtra só as zonas onde algum monstro dropa
+// ele, mostrando exatamente qual monstro — clicar já troca de zona e liga a caçada,
+// igual o botão "CAÇAR" normal da lista de zonas.
+function ItemFarmBox({ character, changeZone, setAutoCombat }) {
+  const [selectedItem, setSelectedItem] = useState('');
+  const matches = selectedItem ? zonesForItem(selectedItem) : [];
+
+  return (
+    <div className="bg-wood-light border border-wood-lighter rounded-lg p-4">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div>
+          <h3 className="text-gold font-semibold tracking-wide">◆ ITEM FARM</h3>
+          <p className="text-[11px] text-neutral-500">Escolha um item pra ver só as zonas onde ele cai.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            list="item-farm-names"
+            value={selectedItem}
+            onChange={(e) => setSelectedItem(e.target.value)}
+            placeholder="Nome do item..."
+            className="w-56 bg-wood border border-wood-lighter rounded px-2.5 py-1.5 text-sm text-neutral-100
+                       placeholder:text-neutral-500 focus:outline-none focus:border-gold"
+          />
+          <datalist id="item-farm-names">
+            {FARMABLE_ITEM_NAMES.map((name) => (
+              <option key={name} value={name} />
+            ))}
+          </datalist>
+          {selectedItem && (
+            <button
+              onClick={() => setSelectedItem('')}
+              className="text-[11px] font-medium bg-wood-lighter px-2.5 py-1.5 rounded cursor-pointer hover:text-blood"
+            >
+              LIMPAR
+            </button>
+          )}
+        </div>
+      </div>
+
+      {selectedItem && (
+        <div className="mt-3">
+          {matches.length === 0 ? (
+            <p className="text-xs text-neutral-500">
+              Nenhum monstro conhecido dropa "{selectedItem}" (pode ser item de loja, craft, ou raro demais pra estar mapeado).
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {matches.map(({ zone, monsterNames }) => {
+                const locked = character.level < zone.minLevel;
+                return (
+                  <div
+                    key={zone.id}
+                    className={`bg-wood border rounded-lg p-2.5 flex items-center justify-between gap-2
+                      ${locked ? 'border-wood-lighter opacity-50' : 'border-wood-lighter'}`}
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm text-neutral-100 truncate">{zone.name}</p>
+                      <p className="text-[10px] text-neutral-500 truncate">{monsterNames.join(', ')}</p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (locked) return;
+                        changeZone(zone.id);
+                        setAutoCombat(true);
+                      }}
+                      disabled={locked}
+                      className="bg-gold text-wood text-[11px] font-semibold px-2.5 py-1.5 rounded shrink-0
+                                 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer hover:bg-yellow-500"
+                    >
+                      {locked ? `🔒 ${zone.minLevel}` : 'CAÇAR'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Cacada({ character, monster, log, autoCombat, setAutoCombat, zones, changeZone }) {
   const isDead = character.currentHealth <= 0;
   const floaters = useFloatingNumbers(log);
@@ -362,7 +445,10 @@ export default function Cacada({ character, monster, log, autoCombat, setAutoCom
   }
 
   return (
-    <div className="flex-1">
+    <div className="flex-1 flex flex-col gap-4">
+      <ItemFarmBox character={character} changeZone={changeZone} setAutoCombat={setAutoCombat} />
+
+      <div>
       <h3 className="text-gold font-semibold tracking-wide mb-3">◆ ZONAS DE CAÇA</h3>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {zones.map((zone) => {
@@ -410,6 +496,7 @@ export default function Cacada({ character, monster, log, autoCombat, setAutoCom
             </div>
           );
         })}
+      </div>
       </div>
     </div>
   );

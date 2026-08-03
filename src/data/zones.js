@@ -1,4 +1,5 @@
 import { MONSTERS_BY_NAME } from './monsters.js';
+import { resolveRealItemName } from './lootItems.js';
 
 // Zonas de caça REAIS (nome, região, descrição, xp/h, gold/h) — transcritas da tela
 // "Zonas de Caça" que o usuário enviou (apogean.eu). O jogo real não expõe qual monstro
@@ -149,3 +150,39 @@ export const ZONES = [...REAL_ZONES, ...EXTRA_ZONES].map((zone) => ({
   ...zone,
   monsters: zone.monsterNames.map((name) => MONSTERS_BY_NAME[name]).filter(Boolean),
 }));
+
+// Índice item canônico -> zonas onde ele pode cair (e quais monstros especificamente
+// dropam ali) — usado pelo "Item Farm" da aba Caçada. As tabelas de loot dos monstros
+// usam grafia antiga pra alguns itens (mesmo caso já corrigido no rollLoot), então
+// resolve pro nome canônico antes de indexar, senão o filtro não bateria com o nome
+// que o jogador escolhe (que vem do catálogo real, items.js).
+const ITEM_FARM_INDEX = {};
+for (const zone of ZONES) {
+  for (const monster of zone.monsters) {
+    for (const drop of monster.loot ?? []) {
+      if (drop.name === 'Gold') continue;
+      const resolvedName = resolveRealItemName(drop.name);
+      if (!ITEM_FARM_INDEX[resolvedName]) ITEM_FARM_INDEX[resolvedName] = [];
+      let entry = ITEM_FARM_INDEX[resolvedName].find((e) => e.zoneId === zone.id);
+      if (!entry) {
+        entry = { zoneId: zone.id, monsterNames: [] };
+        ITEM_FARM_INDEX[resolvedName].push(entry);
+      }
+      if (!entry.monsterNames.includes(monster.name)) entry.monsterNames.push(monster.name);
+    }
+  }
+}
+
+// Devolve, pra um nome de item canônico, a lista de zonas (objeto ZONES completo) que
+// têm pelo menos um monstro que dropa ele, junto com quais monstros especificamente.
+export function zonesForItem(itemName) {
+  const entries = ITEM_FARM_INDEX[itemName] ?? [];
+  return entries
+    .map((e) => ({ zone: ZONES.find((z) => z.id === e.zoneId), monsterNames: e.monsterNames }))
+    .filter((e) => e.zone);
+}
+
+// Todo item que aparece em pelo menos uma tabela de loot — usado pro seletor do Item
+// Farm mostrar só itens que fazem sentido buscar (em vez da lista inteira do catálogo,
+// que também tem item de loja/craft sem monstro nenhum dropando).
+export const FARMABLE_ITEM_NAMES = Object.keys(ITEM_FARM_INDEX).sort();
