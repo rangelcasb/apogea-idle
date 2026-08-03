@@ -1,6 +1,21 @@
-import { TALENTS, TALENT_BRANCHES, TALENTS_BY_ID, canInvestTalent, meetsTalentRequirement } from '../data/talents';
+import { TALENTS, TALENT_BRANCHES, TALENTS_BY_ID, EXTRA_REQUIREMENTS, canInvestTalent, meetsTalentRequirement } from '../data/talents';
 
-function TalentNode({ talent, points, canInvest, isActive, onInvest }) {
+// Alguns talentos finais (capstone) têm um requisito REAL escondido: além do pai direto
+// na árvore, precisam de outros 1-2 talentos específicos (às vezes de outro sub-ramo)
+// investidos — dado extraído do cliente do jogo. Sem mostrar isso, o botão fica cinza
+// sem explicação nenhuma, parecendo bugado.
+function extraRequirementLabel(talentId, talentPoints) {
+  const extra = EXTRA_REQUIREMENTS[talentId];
+  if (!extra) return null;
+  return extra.map(([reqId, reqLevel]) => {
+    const reqTalent = TALENTS_BY_ID[reqId];
+    const current = talentPoints?.[reqId] ?? 0;
+    const done = current >= reqLevel;
+    return { text: `${reqTalent?.name ?? reqId} (${current}/${reqLevel})`, done };
+  });
+}
+
+function TalentNode({ talent, points, canInvest, isActive, extraReqs, onInvest }) {
   const isMaxed = points >= talent.maxPoints;
   return (
     <div
@@ -17,6 +32,15 @@ function TalentNode({ talent, points, canInvest, isActive, onInvest }) {
         <p className={`text-[10px] ${isActive ? 'text-green-500' : 'text-blood'}`}>
           {talent.requirementLabel}
           {points > 0 && (isActive ? ' — ativo' : ' — inativo agora')}
+        </p>
+      )}
+      {extraReqs && !isMaxed && (
+        <p className="text-[10px] text-neutral-600">
+          Também exige: {extraReqs.map((r, i) => (
+            <span key={i} className={r.done ? 'text-green-600' : 'text-blood'}>
+              {r.text}{i < extraReqs.length - 1 ? ', ' : ''}
+            </span>
+          ))}
         </p>
       )}
       {talent.ranks.length > 0 && (
@@ -78,10 +102,18 @@ export default function Talentos({ character, talentPointsAvailable, investTalen
                 const canInvest = talentPointsAvailable > 0 && canInvestTalent(talentPoints, talent.id);
                 const parentName = talent.parent !== null ? TALENTS_BY_ID[talent.parent]?.name : null;
                 const isActive = meetsTalentRequirement(character.equipment, talent.branch);
+                const extraReqs = extraRequirementLabel(talent.id, talentPoints);
                 return (
                   <div key={talent.id} className="flex flex-col gap-1">
                     {parentName && <p className="text-[10px] text-neutral-600">↳ requer {parentName}</p>}
-                    <TalentNode talent={talent} points={points} canInvest={canInvest} isActive={isActive} onInvest={investTalent} />
+                    <TalentNode
+                      talent={talent}
+                      points={points}
+                      canInvest={canInvest}
+                      isActive={isActive}
+                      extraReqs={extraReqs}
+                      onInvest={investTalent}
+                    />
                   </div>
                 );
               })}

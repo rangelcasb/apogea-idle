@@ -605,7 +605,7 @@ const RAW_TALENTS = [
 // no nível 3 — mas id18 só tem 1 rank possível, então essa trava tornava o talento
 // PERMANENTEMENTE inalcançável (bug real, achado por simulação). Removida — agora só
 // vale a trava básica (filho nunca ultrapassa o pai), que já é suficiente aqui.
-const EXTRA_REQUIREMENTS = {
+export const EXTRA_REQUIREMENTS = {
   // Ramo Luva — pré-requisitos reais extraídos do cliente (traits.json): os 6 nós de
   // tier 4 exigem o pai direto MAXIMIZADO + Glove Passion também maximizado (não só
   // com 1 ponto, como a trava básica já garantiria); os 3 capstones de tier 5 exigem
