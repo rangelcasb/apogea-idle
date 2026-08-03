@@ -23,20 +23,97 @@ function searchItemAcrossMerchants(query) {
   return results;
 }
 
+function clampQty(value) {
+  const n = Math.floor(Number(value));
+  if (Number.isNaN(n)) return 1;
+  return Math.max(1, Math.min(999, n));
+}
+
+// Popup de quantidade: abre ao clicar em COMPRAR, some ao confirmar/cancelar/clicar
+// fora. Se a quantidade pedida passar do que o gold ou a mochila permitem, o reducer
+// (BUY_ITEM) não recusa a compra inteira — compra o máximo possível e avisa no log.
+function BuyQuantityModal({ merchantName, itemName, price, weight, gold, freeCapacity, buyItem, onClose }) {
+  const [qty, setQty] = useState(1);
+  const maxByGold = Math.max(0, Math.floor(gold / price));
+  const maxByCapacity = weight > 0 ? Math.max(0, Math.floor(freeCapacity / weight)) : 999;
+  const maxAffordable = Math.min(999, maxByGold, maxByCapacity);
+
+  function confirm() {
+    buyItem(merchantName, itemName, qty);
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onClose}>
+      <div
+        className="bg-wood border border-gold rounded-lg max-w-xs w-full p-5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-2 mb-1">
+          <ItemIcon name={itemName} />
+          <h3 className="text-gold font-semibold">{itemName}</h3>
+        </div>
+        <p className="text-xs text-neutral-400 mb-4">{price}g cada · você tem {gold}g</p>
+
+        <label className="flex flex-col gap-1 mb-2">
+          <span className="text-[11px] text-neutral-400">Quantidade</span>
+          <input
+            type="number"
+            autoFocus
+            min={1}
+            max={999}
+            value={qty}
+            onChange={(e) => setQty(clampQty(e.target.value))}
+            className="w-full bg-wood-light border border-wood-lighter rounded px-2.5 py-1.5 text-sm
+                       text-neutral-100 focus:outline-none focus:border-gold"
+          />
+        </label>
+        {maxAffordable > 0 && (
+          <button
+            onClick={() => setQty(maxAffordable)}
+            className="text-[10px] text-gold hover:underline cursor-pointer mb-3"
+          >
+            máximo possível: {maxAffordable}x
+          </button>
+        )}
+
+        <p className="text-sm text-neutral-200 mb-1">
+          Total: <span className="text-gold font-medium">{price * qty}g</span>
+        </p>
+        {qty > maxAffordable && (
+          <p className="text-[11px] text-blood mb-3">
+            Você só consegue {maxAffordable}x agora ({maxByGold < maxByCapacity ? 'gold insuficiente' : 'mochila cheia'})
+            — a compra vai trazer só o que der.
+          </p>
+        )}
+
+        <div className="flex gap-2 mt-3">
+          <button
+            onClick={onClose}
+            className="flex-1 text-xs font-medium bg-wood-lighter px-3 py-1.5 rounded cursor-pointer hover:border-blood hover:text-blood"
+          >
+            CANCELAR
+          </button>
+          <button
+            onClick={confirm}
+            disabled={maxAffordable <= 0}
+            className="flex-1 text-xs font-medium bg-green-700 text-white px-3 py-1.5 rounded
+                       disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer hover:bg-green-600"
+          >
+            COMPRAR
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Mercador({ character, buyItem, sellToMerchant, autoCombat }) {
   const [selectedName, setSelectedName] = useState(MERCHANTS[0].name);
   const [search, setSearch] = useState('');
-  // Quantidade usada em TODOS os botões "COMPRAR" da tela (1 a 999). Se pedir mais do
-  // que o gold ou o espaço na mochila permitem, o reducer compra automaticamente o
-  // máximo possível em vez de recusar a compra inteira.
-  const [buyQty, setBuyQty] = useState(1);
+  // Item selecionado pro popup de quantidade — null quando fechado.
+  const [buyTarget, setBuyTarget] = useState(null);
   const merchant = MERCHANTS.find((m) => m.name === selectedName);
-
-  function clampQty(value) {
-    const n = Math.floor(Number(value));
-    if (Number.isNaN(n)) return 1;
-    return Math.max(1, Math.min(999, n));
-  }
 
   // Pré-visualiza os atributos de cada item à venda/compra (raridade "common" — a
   // loja vende um item fixo, sem sortear raridade como um drop de monstro).
@@ -57,6 +134,19 @@ export default function Mercador({ character, buyItem, sellToMerchant, autoComba
 
   return (
     <div className="flex-1 flex flex-col lg:flex-row gap-4">
+      {buyTarget && (
+        <BuyQuantityModal
+          merchantName={buyTarget.merchantName}
+          itemName={buyTarget.itemName}
+          price={buyTarget.price}
+          weight={itemWeight(buyTarget.itemName)}
+          gold={character.gold}
+          freeCapacity={freeCapacity}
+          buyItem={buyItem}
+          onClose={() => setBuyTarget(null)}
+        />
+      )}
+
       <div className="w-full lg:w-56 shrink-0">
         <h3 className="text-gold font-semibold tracking-wide mb-3">◆ MERCADORES</h3>
         <input
@@ -67,21 +157,6 @@ export default function Mercador({ character, buyItem, sellToMerchant, autoComba
           className="w-full bg-wood-light border border-wood-lighter rounded px-2.5 py-1.5 text-xs mb-2
                      text-neutral-100 placeholder:text-neutral-500 focus:outline-none focus:border-gold"
         />
-        <label className="flex items-center gap-2 mb-2">
-          <span className="text-[11px] text-neutral-400 shrink-0">Quantidade p/ comprar</span>
-          <input
-            type="number"
-            min={1}
-            max={999}
-            value={buyQty}
-            onChange={(e) => setBuyQty(clampQty(e.target.value))}
-            className="w-16 bg-wood-light border border-wood-lighter rounded px-2 py-1 text-xs
-                       text-neutral-100 focus:outline-none focus:border-gold"
-          />
-        </label>
-        <p className="text-[10px] text-neutral-600 mb-2">
-          Se pedir mais do que o gold/espaço permitir, compra automaticamente o máximo possível.
-        </p>
         <div className="flex flex-col gap-1 max-h-[70vh] overflow-y-auto pr-1">
           {MERCHANTS.map((m) => (
             <button
@@ -124,12 +199,10 @@ export default function Mercador({ character, buyItem, sellToMerchant, autoComba
                     </div>
                     <div className="flex flex-col items-end gap-0.5 shrink-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-gold">
-                          {offer.price}g{buyQty > 1 ? ` (${offer.price * buyQty}g p/ ${buyQty}x)` : ''}
-                        </span>
+                        <span className="text-xs text-gold">{offer.price}g</span>
                         {kind === 'sell' ? (
                           <button
-                            onClick={() => buyItem(m.name, offer.name, buyQty)}
+                            onClick={() => setBuyTarget({ merchantName: m.name, itemName: offer.name, price: offer.price })}
                             disabled={autoCombat || character.gold < offer.price || itemWeight(offer.name) > freeCapacity}
                             className="text-[11px] font-medium bg-green-700 text-white px-2 py-0.5 rounded
                                        disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer hover:bg-green-600"
@@ -199,11 +272,9 @@ export default function Mercador({ character, buyItem, sellToMerchant, autoComba
                     </div>
                     <div className="flex flex-col items-end gap-0.5 shrink-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-gold">
-                          {offer.price}g{buyQty > 1 ? ` (${offer.price * buyQty}g p/ ${buyQty}x)` : ''}
-                        </span>
+                        <span className="text-xs text-gold">{offer.price}g</span>
                         <button
-                          onClick={() => buyItem(merchant.name, offer.name, buyQty)}
+                          onClick={() => setBuyTarget({ merchantName: merchant.name, itemName: offer.name, price: offer.price })}
                           disabled={autoCombat || character.gold < offer.price || itemWeight(offer.name) > freeCapacity}
                           className="text-[11px] font-medium bg-green-700 text-white px-2 py-0.5 rounded
                                      disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer hover:bg-green-600"
