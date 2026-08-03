@@ -1544,15 +1544,38 @@ function reducer(state, action) {
       if (!offer) {
         return { ...state, log: pushLog(state.log, `${merchant?.name ?? action.merchantName} não vende ${action.itemName}.`) };
       }
-      if (char.gold < offer.price) {
-        return {
-          ...state,
-          log: pushLog(state.log, `Gold insuficiente: ${action.itemName} custa ${offer.price}g, você tem ${char.gold}g.`),
-        };
+
+      // Quantidade pedida (1 a 999). Se não der pra comprar tudo — falta gold ou não
+      // cabe na mochila — compra automaticamente o MÁXIMO possível em vez de recusar
+      // a compra inteira (só recusa de verdade se nem 1 unidade couber).
+      const requestedQty = Math.max(1, Math.min(999, Math.floor(action.quantity ?? 1)));
+      const def = getShopItemDefinition(action.itemName);
+      const addedWeightPerItem = def.weight ?? 1;
+      const currentWeight = inventoryWeight(char.inventory);
+      const stats = computeFinalStats(char);
+      const freeCapacity = Math.max(0, stats.capacity - currentWeight);
+
+      const maxByGold = Math.floor(char.gold / offer.price);
+      const maxByCapacity = addedWeightPerItem > 0 ? Math.floor(freeCapacity / addedWeightPerItem) : requestedQty;
+      const quantity = Math.min(requestedQty, maxByGold, maxByCapacity);
+
+      if (quantity <= 0) {
+        if (maxByGold <= 0) {
+          return {
+            ...state,
+            log: pushLog(state.log, `Gold insuficiente: ${action.itemName} custa ${offer.price}g, você tem ${char.gold}g.`),
+          };
+        }
+        return { ...state, log: pushLog(state.log, `Mochila cheia! Não coube ${action.itemName}.`) };
       }
 
-      const def = getShopItemDefinition(action.itemName);
-      const log = pushLog(state.log, `Você comprou ${action.itemName} de ${merchant.name} por ${offer.price} gold.`);
+      const totalPrice = offer.price * quantity;
+      const log = pushLog(
+        state.log,
+        quantity < requestedQty
+          ? `Você comprou ${quantity}x ${action.itemName} de ${merchant.name} por ${totalPrice} gold (pediu ${requestedQty}, limitado por ${maxByGold < requestedQty ? 'gold' : 'espaço na mochila'}).`
+          : `Você comprou ${quantity}x ${action.itemName} de ${merchant.name} por ${totalPrice} gold.`,
+      );
       const satiety = char.satiety;
 
       // Comida comprada sempre vai pra mochila (não é mais comida na hora) — quem
@@ -1565,21 +1588,15 @@ function reducer(state, action) {
       // loot que já foi corrigido.
       const resolvedName = resolveRealItemName(action.itemName);
       const id = `${slugify(resolvedName)}-${def.rarity}`;
-      const addedWeight = def.weight ?? 1;
-      const currentWeight = inventoryWeight(char.inventory);
-      const stats = computeFinalStats(char);
-      if (currentWeight + addedWeight > stats.capacity) {
-        return { ...state, log: pushLog(state.log, `Mochila cheia! Não coube ${action.itemName}.`) };
-      }
 
       const idx = char.inventory.findIndex((i) => i.id === id);
       const inventory = idx >= 0
-        ? char.inventory.map((i, ix) => (ix === idx ? { ...i, quantity: i.quantity + 1 } : i))
-        : [...char.inventory, { id, name: resolvedName, quantity: 1, ...def }];
+        ? char.inventory.map((i, ix) => (ix === idx ? { ...i, quantity: i.quantity + quantity } : i))
+        : [...char.inventory, { id, name: resolvedName, quantity, ...def }];
 
       return {
         ...state,
-        character: { ...char, gold: char.gold - offer.price, inventory, satiety },
+        character: { ...char, gold: char.gold - totalPrice, inventory, satiety },
         log,
       };
     }
@@ -2152,7 +2169,10 @@ export function useGameState() {
   const investTalent = useCallback((talentId) => dispatch({ type: 'INVEST_TALENT', talentId }), []);
   const changeZone = useCallback((zoneId) => dispatch({ type: 'CHANGE_ZONE', zoneId }), []);
   const claimQuest = useCallback((questId) => dispatch({ type: 'CLAIM_QUEST', questId }), []);
-  const buyItem = useCallback((merchantName, itemName) => dispatch({ type: 'BUY_ITEM', merchantName, itemName }), []);
+  const buyItem = useCallback(
+    (merchantName, itemName, quantity = 1) => dispatch({ type: 'BUY_ITEM', merchantName, itemName, quantity }),
+    [],
+  );
   const sellToMerchant = useCallback(
     (merchantName, itemId) => dispatch({ type: 'SELL_TO_MERCHANT', merchantName, itemId }),
     [],
