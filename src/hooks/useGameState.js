@@ -744,6 +744,27 @@ function reducer(state, action) {
       let log = state.log;
       let combatPauseUntil = state.combatPauseUntil;
 
+      // Reserva de mana pra Cura: se tiver magia de Cura equipada (e ela gastar Mana,
+      // não Vida), as outras magias de dano não vão gastar mana até o ponto de deixar
+      // menos do que precisa pra 1 cast dela — sem isso, dano "fura a fila" no
+      // auto-cast e a Cura fica sem mana bem na hora que a vida mais precisa. Usa a
+      // mesma fórmula de desconto de mana da Cura (ver dentro do loop abaixo).
+      const healSpellId = equipped.find((id) => SPELLS_BY_ID[id]?.kind === 'heal' && !SPELLS_BY_ID[id]?.hpCast);
+      let healReserveManaCost = 0;
+      if (healSpellId) {
+        const healSpell = SPELLS_BY_ID[healSpellId];
+        let healMultiplier = 1 - (charStats.healManaDiscountPercent ?? 0) / 100;
+        if (charStats.darknessEmbraceActive) healMultiplier += DARKNESS_EMBRACE_HEAL_SURCHARGE_PCT / 100;
+        healMultiplier -= (charStats.globalManaDiscountPercent ?? 0) / 100;
+        if (charStats.supernaturalGambleActive) healMultiplier -= SUPERNATURAL_GAMBLE_MANA_DISCOUNT_PCT / 100;
+        healMultiplier = Math.max(0.05, healMultiplier);
+        let healCost = healSpell.manaCost * healMultiplier;
+        if (['Heal', 'Light'].includes(healSpell.type) && charStats.healLightFlatDiscount > 0) {
+          healCost = Math.max(1, healCost - charStats.healLightFlatDiscount);
+        }
+        healReserveManaCost = healCost;
+      }
+
       for (const spellId of equipped) {
         const spell = SPELLS_BY_ID[spellId];
         if (!spell) continue;
@@ -786,6 +807,13 @@ function reducer(state, action) {
 
         const costPool = spell.hpCast ? workingChar.currentHealth : workingChar.currentMana;
         if (costPool < effectiveManaCost) continue;
+
+        // Reserva de mana pra Cura (calculada antes do loop): magia de dano que gasta
+        // Mana pula a vez se fosse deixar menos do que 1 cast de Cura disponível — a
+        // própria Cura (e magias hpCast, que pagam com Vida) não são afetadas por isso.
+        if (spell.kind !== 'heal' && !spell.hpCast && healReserveManaCost > 0) {
+          if (workingChar.currentMana - effectiveManaCost < healReserveManaCost) continue;
+        }
 
         // Magia de cura só entra em ação quando a vida cair pra igual ou abaixo do
         // limiar configurado pelo jogador (senão ficaria curando 5% de quase nada toda
