@@ -80,6 +80,37 @@ const MONSTER_TEMPLATES = [
   { name: 'Walking Boletus', health: 165, damage: 15, armor: 14, xp: 75 },
   { name: 'Wolf', health: 65, damage: 16, armor: 5, xp: 35 },
   { name: 'Young Amphitere', health: 1350, damage: 65, armor: 55, xp: 770 },
+
+  // 24 monstros reais que faltavam (achados comparando com apogeawiki.info/data/
+  // monster_stats.json, mesma fonte autoritativa extraída do cliente já usada pra
+  // árvore de talentos e itens). Ficaram de fora nessa leva, por não serem monstros
+  // "de caça" de verdade: Battle Dummy (boneco de treino, 0 XP/loot), Frozen Chest
+  // Big/Small, Golden Plea e Diamond Plea (baús/eventos disfarçados de monstro, HP
+  // baixíssimo ou 0 dano e sem loot de combate real).
+  { name: 'Bridge Troll', health: 2500, damage: 25, armor: 25, xp: 75 },
+  { name: 'Brother Rossi', health: 6000, damage: 30, armor: 25, xp: 3000 },
+  { name: 'Cold Baron', health: 550, damage: 7, armor: 20, xp: 475 },
+  { name: 'Conquest Champion', health: 20000, damage: 100, armor: 70, xp: 10000 },
+  { name: 'Fallen Wings', health: 550, damage: 10, armor: 10, xp: 480 },
+  { name: 'Faun', health: 200, damage: 17, armor: 17, xp: 185 },
+  { name: 'Ghost', health: 150, damage: 20, armor: 255, xp: 72 },
+  { name: 'Ghoul', health: 220, damage: 24, armor: 8, xp: 40 },
+  { name: 'Great Lintwurm (Static)', health: 20000, damage: 35, armor: 50, xp: 3500 },
+  { name: 'Huntsman', health: 175, damage: 25, armor: 13, xp: 105 },
+  { name: 'Lava Snoop', health: 235, damage: 0, armor: 20, xp: 325 },
+  { name: 'Minerva', health: 5000, damage: 25, armor: 100, xp: 5000 },
+  { name: 'Omen', health: 800, damage: 0, armor: 40, xp: 740 },
+  { name: 'Queen Zoe', health: 2000, damage: 15, armor: 20, xp: 3500 },
+  { name: 'Rotwurm', health: 800, damage: 40, armor: 35, xp: 525 },
+  { name: 'Skal Brawler', health: 500, damage: 25, armor: 10, xp: 350 },
+  { name: 'Skal Traitor', health: 1450, damage: 50, armor: 40, xp: 750 },
+  { name: 'Smelt Ooze', health: 200, damage: 30, armor: 28, xp: 200 },
+  { name: 'Swamp Tentacle', health: 200, damage: 0, armor: 5, xp: 26 },
+  { name: 'The Black Knight', health: 10000, damage: 55, armor: 25, xp: 3500 },
+  { name: 'Thug', health: 255, damage: 25, armor: 10, xp: 36 },
+  { name: 'Titan', health: 10000, damage: 150, armor: 80, xp: 6000 },
+  { name: 'Unstable Quartz', health: 500, damage: 0, armor: 20, xp: 150 },
+  { name: 'Wisp', health: 150, damage: 10, armor: 15, xp: 300 },
 ].map((m) => ({ ...m, loot: LOOT_TABLES[m.name] ?? [] }));
 
 export const MONSTERS_BY_NAME = Object.fromEntries(MONSTER_TEMPLATES.map((m) => [m.name, m]));

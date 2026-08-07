@@ -25,7 +25,7 @@ const REAL_ZONES = [
     id: 'esgotos-de-basile', name: 'Esgotos de Basile', region: 'Basile', minLevel: 3,
     description: 'Túneis úmidos sob a cidade. Esqueletos, lobos perdidos e bandidos se escondem na escuridão.',
     xpPerHour: 1959, goldPerHour: 306,
-    monsterNames: ['Skeleton', 'Wolf', 'Occultist Apprentice', 'Bandit'],
+    monsterNames: ['Skeleton', 'Wolf', 'Occultist Apprentice', 'Bandit', 'Swamp Tentacle'],
   },
   // Zona custom a pedido do usuário — não é uma zona da imagem oficial do jogo, é um
   // "meio-termo" entre Fazendas (nível 1) e Esgotos (nível 3), só com Rat e Skeleton
@@ -40,7 +40,7 @@ const REAL_ZONES = [
     id: 'floresta-de-basile', name: 'Floresta de Basile', region: 'Basile', minLevel: 5,
     description: 'A mata fecha e cavernas escondem aranhas. Goblins e ocultistas iniciantes rondam as trilhas.',
     xpPerHour: 3571, goldPerHour: 92,
-    monsterNames: ['Cave Spider', 'Goblin', 'Tock', 'Occultist Acolyte'],
+    monsterNames: ['Cave Spider', 'Goblin', 'Tock', 'Occultist Acolyte', 'Lava Snoop', 'Wisp'],
   },
   {
     id: 'estrada-da-caravana', name: 'Estrada da Caravana', region: 'Caravan', minLevel: 8,
@@ -52,37 +52,37 @@ const REAL_ZONES = [
     id: 'colinas-dos-goblins', name: 'Colinas dos Goblins', region: 'Nordha', minLevel: 10,
     description: 'Acampamentos goblins e ratos gigantes espalhados pelas colinas a caminho de Nordha.',
     xpPerHour: 7000, goldPerHour: 430,
-    monsterNames: ['Mireling', 'Crazed Occultist', 'Giant Rat', 'Lintwurm'],
+    monsterNames: ['Mireling', 'Crazed Occultist', 'Giant Rat', 'Lintwurm', 'Faun', 'Huntsman'],
   },
   {
     id: 'cavernas-de-nordha', name: 'Cavernas de Nordha', region: 'Nordha', minLevel: 12,
     description: 'Cavernas escuras cheias de goblins viscosos e ocultistas errantes.',
     xpPerHour: 8188, goldPerHour: 376,
-    monsterNames: ['Viscid Goblin', 'Conquest Fowler', 'Occultist Scholar', 'Sunskin'],
+    monsterNames: ['Viscid Goblin', 'Conquest Fowler', 'Occultist Scholar', 'Sunskin', 'Ghoul', 'Thug'],
   },
   {
     id: 'pantano-de-vecan', name: 'Pântano de Vecan', region: 'Swamp', minLevel: 15,
     description: 'Águas paradas onde imps, monges corrompidos e ursos ferozes espreitam.',
     xpPerHour: 11384, goldPerHour: 340,
-    monsterNames: ['Imp', 'Monk', 'Digger', 'Bear'],
+    monsterNames: ['Imp', 'Monk', 'Digger', 'Bear', 'Smelt Ooze', 'Unstable Quartz'],
   },
   {
     id: 'circulo-ocultista', name: 'Círculo Ocultista', region: 'Plains', minLevel: 17,
     description: 'Cultistas e criaturas da pestilência se reúnem em círculos de pedra para rituais proibidos.',
     xpPerHour: 10921, goldPerHour: 472,
-    monsterNames: ['Pestilence Spawn', 'Pestilence Stinger', 'Rat Shipper', 'Occultist Enforcer', 'Cube Of Doom'],
+    monsterNames: ['Pestilence Spawn', 'Pestilence Stinger', 'Rat Shipper', 'Occultist Enforcer', 'Cube Of Doom', 'Fallen Wings', 'Cold Baron'],
   },
   {
     id: 'monasterio-abandonado', name: 'Monastério Abandonado', region: 'Plains', minLevel: 30,
     description: 'O olho da pestilência vigia entre amphiteres jovens e o bandido Capozzi nos corredores sagrados.',
     xpPerHour: 15000, goldPerHour: 600,
-    monsterNames: ['Eye Of Pestilence', 'Young Amphitere', 'Pestilence Plague', 'Capozzi The Bandit'],
+    monsterNames: ['Eye Of Pestilence', 'Young Amphitere', 'Pestilence Plague', 'Capozzi The Bandit', 'Skal Traitor', 'Queen Zoe'],
   },
   {
     id: 'trilha-da-pestilencia', name: 'Trilha da Pestilência', region: 'Swamp', minLevel: 35,
     description: 'A doença se espalha por esta trilha — aranhas do terror e o temido Gaglio à solta.',
     xpPerHour: 18000, goldPerHour: 700,
-    monsterNames: ['Deadly Webcap', 'Gaglio The Bandit', 'The Gardener', 'The Broodmother', 'Obelisk'],
+    monsterNames: ['Deadly Webcap', 'Gaglio The Bandit', 'The Gardener', 'The Broodmother', 'Obelisk', 'Minerva', 'Brother Rossi'],
   },
   {
     id: 'toca-do-alpha-wolf', name: 'Toca do Alpha Wolf', region: 'Nordha', minLevel: 20, boss: true,
@@ -94,7 +94,7 @@ const REAL_ZONES = [
     id: 'tundra-de-dorosam', name: 'Tundra de Dorosam', region: 'Dorosam', minLevel: 22,
     description: 'O frio do norte esconde sacerdotisas, ratos da tundra e serpentes ancestrais.',
     xpPerHour: 9500, goldPerHour: 420,
-    monsterNames: ['Conquest Priestess', 'Tundra Rat', 'Ancient Snake', 'Sunskin Enchanter'],
+    monsterNames: ['Conquest Priestess', 'Tundra Rat', 'Ancient Snake', 'Sunskin Enchanter', 'Skal Brawler'],
   },
 ];
 
@@ -106,7 +106,7 @@ const EXTRA_ZONES = [
     id: 'deserto-de-sunskin', name: 'Deserto de Sunskin', region: 'Desert', minLevel: 24,
     description: 'Areias escaldantes onde criaturas devoradoras de ossos e xamãs orc espreitam.',
     xpPerHour: 13500, goldPerHour: 550,
-    monsterNames: ['Bone Eater', 'Tomb Diviner', 'Orc Shaman', 'Mireling Noble'],
+    monsterNames: ['Bone Eater', 'Tomb Diviner', 'Orc Shaman', 'Mireling Noble', 'Omen'],
   },
   {
     id: 'acampamento-orc', name: 'Acampamento Orc', region: 'Nordha', minLevel: 25,
@@ -118,7 +118,7 @@ const EXTRA_ZONES = [
     id: 'ruinas-da-conquista', name: 'Ruínas da Conquista', region: 'Plains', minLevel: 27,
     description: 'Vestígios de um exército derrotado — corvos, trabalhadores e guardiões tumulares assombram o local.',
     xpPerHour: 17200, goldPerHour: 680,
-    monsterNames: ['Conquest Crow', 'Tomb Worker', 'Tomb Guardian', 'Orc Berserker'],
+    monsterNames: ['Conquest Crow', 'Tomb Worker', 'Tomb Guardian', 'Orc Berserker', 'Ghost', 'Rotwurm'],
   },
   {
     id: 'covil-dos-foras-da-lei', name: 'Covil dos Foras-da-Lei', region: 'Caravan', minLevel: 28,
@@ -130,7 +130,7 @@ const EXTRA_ZONES = [
     id: 'covil-da-amphitere', name: 'Covil da Amphitere', region: 'Dorosam', minLevel: 33,
     description: 'Generais orc e trolls do pântano guardam esse ninho nas montanhas geladas.',
     xpPerHour: 24000, goldPerHour: 750,
-    monsterNames: ['Orc General', 'Swamp Troll', 'Mateo The Bandit', 'Terror Spider'],
+    monsterNames: ['Orc General', 'Swamp Troll', 'Mateo The Bandit', 'Terror Spider', 'Bridge Troll'],
   },
   {
     id: 'fortaleza-pestilenta', name: 'Fortaleza Pestilenta', region: 'Swamp', minLevel: 40, boss: true,
@@ -142,7 +142,10 @@ const EXTRA_ZONES = [
     id: 'dominio-esquecido', name: 'Domínio Esquecido', region: 'Plains', minLevel: 45,
     description: 'Guardiões antigos e a lendária Amphitere ainda vigiam ruínas esquecidas.',
     xpPerHour: 45000, goldPerHour: 1000,
-    monsterNames: ['The Blackhat', 'The Augur', 'Amphitere', 'Great Lintwurm (Cave)', 'Great Lintwurm'],
+    monsterNames: [
+      'The Blackhat', 'The Augur', 'Amphitere', 'Great Lintwurm (Cave)', 'Great Lintwurm',
+      'The Black Knight', 'Titan', 'Great Lintwurm (Static)', 'Conquest Champion',
+    ],
   },
 ];
 
