@@ -1,12 +1,24 @@
 import { useState } from 'react';
 import { getMonsterImageUrl } from '../data/monsterImages';
 import { DROP_CHANCE } from '../data/gameData';
+import { CUSTOM_MONSTER_SVG } from './monsterIconsSvg';
 
-// Mesmo esquema do ItemIcon: ícone real (apogea-tools.lubien.dev), com fallback
-// pra emoji se a imagem não existir/falhar.
+// Mesmo esquema do ItemIcon: ícone real (apogea-tools.lubien.dev) quando existe;
+// pros 24 monstros adicionados depois (sem arte oficial disponível em nenhuma das
+// fontes que usamos), cai num SVG simples próprio (ver monsterIconsSvg.jsx); só cai
+// no emoji genérico se nem isso existir.
 function Icon({ name, className }) {
   const url = getMonsterImageUrl(name);
   const [failed, setFailed] = useState(false);
+  const CustomSvg = CUSTOM_MONSTER_SVG[name];
+
+  if ((!url || failed) && CustomSvg) {
+    return (
+      <span className={`${className} shrink-0 inline-block`}>
+        <CustomSvg />
+      </span>
+    );
+  }
   if (!url || failed) {
     return <span className={`${className} flex items-center justify-center text-neutral-600 shrink-0`}>👹</span>;
   }
