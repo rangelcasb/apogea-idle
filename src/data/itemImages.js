@@ -203,6 +203,7 @@ export const ITEM_IMAGES = {
   "Winged Boots": "/images/items/wingedboots.png",
   "Wizard Hat": "/images/items/wizardhat.png",
   "Wizard Robe": "/images/items/wizardrobe.png",
+  "Wolf Helmet": "/images/items/wolf-helmet.png",
   "Wood Twigs": "/images/items/woodtwigs.png",
   "Wooden Bow": "/images/items/woodenbow.png",
   "Wooden Bowl": "/images/items/woodenbowl.png",
@@ -218,4 +219,36 @@ export const ITEM_IMAGES = {
 export function getItemImageUrl(name) {
   const path = ITEM_IMAGES[name];
   return path ? ITEM_IMAGE_BASE + path : null;
+}
+
+// Alguns itens não têm ícone individual no apogea-tools.lubien.dev (fonte acima) —
+// pra esses, caem num sprite sheet real do próprio cliente do jogo (mesma fonte
+// autoritativa usada pra talentos/itens/monstros): apogeawiki.info/atlas/item_atlas.png,
+// grade de 32 colunas x 17 linhas, célula de 32px. Cada item tem um índice de célula
+// (extraído de apogeawiki.info/data/items.json) que dá pra converter em posição %.
+export const ITEM_SPRITE_BASE = 'https://apogeawiki.info/atlas/item_atlas.png';
+export const ITEM_SPRITE_GRID = { cols: 32, rows: 17 };
+export const ITEM_SPRITE_CELLS = {
+  'Mireling Armor': 314,
+  'Mireling Boots': 96,
+  'Mireling Helmet': 430,
+  'Mireling Legs': 397,
+};
+
+// Devolve o estilo CSS (background-image/position/size) pra mostrar só a célula certa
+// do sprite sheet — técnica de "sprite em %" (background-size em múltiplo de 100%,
+// background-position em fração da célula dentro do total de colunas/linhas).
+export function getItemSpriteStyle(name) {
+  const cell = ITEM_SPRITE_CELLS[name];
+  if (cell === undefined) return null;
+  const { cols, rows } = ITEM_SPRITE_GRID;
+  const cellX = cell % cols;
+  const cellY = Math.floor(cell / cols);
+  return {
+    backgroundImage: `url(${ITEM_SPRITE_BASE})`,
+    backgroundSize: `${cols * 100}% ${rows * 100}%`,
+    backgroundPosition: `${(cellX / (cols - 1)) * 100}% ${(cellY / (rows - 1)) * 100}%`,
+    backgroundRepeat: 'no-repeat',
+    imageRendering: 'pixelated',
+  };
 }
