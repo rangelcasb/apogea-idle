@@ -148,11 +148,22 @@ export function allocatePoint(levelBatches, stat) {
 export function computeFinalStats(character) {
   const spent = sumSpentPoints(character.levelBatches);
   const stats = computeAllocatedStats(character.class, spent);
+  // O multiplicador de classe (ex: Knight +50% Armor/Defense, Mage +100% Mana/Magic/
+  // MP Regen e -25% Health/Ability/Armor/Defense/HP Regen/Capacity) só era aplicado
+  // sobre a base + pontos alocados — bônus e PENALIDADES de equipamento (a fonte real
+  // de quase toda Armor/Defense/Regen do jogo) passavam direto, sem multiplicar. Isso
+  // deixava boa parte da identidade de cada classe sem efeito nenhum na prática
+  // (ex: Knight não ficava mais "tanque" nem vestindo armadura pesada). Corrigido:
+  // cada stat de item passa pelo MESMO multiplicador da classe, positivo ou negativo,
+  // igual já acontecia com os pontos — 'damage' fica de fora (nenhuma classe tem
+  // multiplicador pra ele, sempre foi por design escalar via Ability/Magic, não class).
+  const classMult = CLASSES[character.class]?.multipliers ?? {};
   const equippedItems = Object.values(character.equipment ?? {}).filter(Boolean);
   for (const item of equippedItems) {
     if (!item.stats) continue;
     for (const [key, val] of Object.entries(item.stats)) {
-      stats[key] = Math.round(((stats[key] ?? 0) + val) * 100) / 100;
+      const mult = classMult[key] ?? 1;
+      stats[key] = Math.round(((stats[key] ?? 0) + val * mult) * 100) / 100;
     }
   }
   // Fórmula real da Staff (apogean.eu/lists/formulae): "WeaponDamage + Magic / 5" —
