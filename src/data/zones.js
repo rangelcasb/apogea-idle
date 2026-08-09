@@ -161,11 +161,46 @@ const EXTRA_ZONES = [
     xpPerHour: 31600, goldPerHour: 950,
     monsterNames: ['Conquest Champion'],
   },
+  // Os 6 monstros que sobraram em "Domínio Esquecido" também viraram covil solo, a
+  // pedido do usuário — mesmo raciocínio dos 3 extraídos acima, só que aplicado ao
+  // resto da zona inteira em vez de só aos maiores outliers. xp/h e gold/h escalados
+  // pela mesma proporção (poder/poder do Pestilence Knight × xp/gold da Fortaleza
+  // Pestilenta), minLevel crescente conforme o poder de cada um.
   {
-    id: 'dominio-esquecido', name: 'Domínio Esquecido', region: 'Plains', minLevel: 45,
-    description: 'Guardiões antigos e a lendária Amphitere ainda vigiam ruínas esquecidas.',
-    xpPerHour: 45000, goldPerHour: 1000,
-    monsterNames: ['The Blackhat', 'The Augur', 'Amphitere', 'Great Lintwurm (Cave)', 'Great Lintwurm', 'Great Lintwurm (Static)'],
+    id: 'covil-do-chapeu-negro', name: 'Covil do Chapéu Negro', region: 'Plains', minLevel: 44, boss: true,
+    description: 'BOSS — O misterioso Blackhat ainda ronda essas ruínas, escondendo segredos antigos.',
+    xpPerHour: 11400, goldPerHour: 340,
+    monsterNames: ['The Blackhat'],
+  },
+  {
+    id: 'torre-do-augur', name: 'Torre do Augur', region: 'Plains', minLevel: 44, boss: true,
+    description: 'BOSS — O Augur enxerga o futuro do alto de sua torre isolada.',
+    xpPerHour: 11400, goldPerHour: 340,
+    monsterNames: ['The Augur'],
+  },
+  {
+    id: 'ninho-da-amphitere', name: 'Ninho da Amphitere', region: 'Plains', minLevel: 45, boss: true,
+    description: 'BOSS — A lendária Amphitere ainda vigia seu ninho nas ruínas esquecidas.',
+    xpPerHour: 13400, goldPerHour: 400,
+    monsterNames: ['Amphitere'],
+  },
+  {
+    id: 'caverna-do-grande-lintwurm', name: 'Caverna do Grande Lintwurm', region: 'Plains', minLevel: 46, boss: true,
+    description: 'BOSS — Nas profundezas da caverna, um Lintwurm gigante espera.',
+    xpPerHour: 23000, goldPerHour: 690,
+    monsterNames: ['Great Lintwurm (Cave)'],
+  },
+  {
+    id: 'covil-do-grande-lintwurm', name: 'Covil do Grande Lintwurm', region: 'Plains', minLevel: 47, boss: true,
+    description: 'BOSS — O maior dos Lintwurms guarda seu covil sozinho.',
+    xpPerHour: 30500, goldPerHour: 915,
+    monsterNames: ['Great Lintwurm'],
+  },
+  {
+    id: 'cripta-do-lintwurm-cristalizado', name: 'Cripta do Lintwurm Cristalizado', region: 'Plains', minLevel: 48, boss: true,
+    description: 'BOSS — Uma variante cristalizada do Grande Lintwurm, imóvel mas mortal.',
+    xpPerHour: 30600, goldPerHour: 920,
+    monsterNames: ['Great Lintwurm (Static)'],
   },
 ];
 
