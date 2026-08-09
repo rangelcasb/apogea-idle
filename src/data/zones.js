@@ -138,14 +138,34 @@ const EXTRA_ZONES = [
     xpPerHour: 40000, goldPerHour: 1200,
     monsterNames: ['Pestilence Knight'],
   },
+  // 3 áreas de boss novas — antes esses 3 estavam amontoados dentro de "Domínio
+  // Esquecido" junto com monstros bem mais fracos (Amphitere/The Augur/The Blackhat).
+  // São os únicos 3, fora Pestilence Knight e Alpha Wolf, com "poder" (health +
+  // dano×8 + armadura×4, mesma fórmula usada pra montar todas as zonas) muito acima
+  // da média — mereciam covil próprio em vez de dividir zona com bicho fraco.
+  {
+    id: 'covil-do-cavaleiro-negro', name: 'Covil do Cavaleiro Negro', region: 'Plains', minLevel: 36, boss: true,
+    description: 'BOSS — A armadura enegrecida do Cavaleiro Negro ainda protege esse covil esquecido.',
+    xpPerHour: 15600, goldPerHour: 475,
+    monsterNames: ['The Black Knight'],
+  },
+  {
+    id: 'trono-do-titan', name: 'Trono do Titã', region: 'Plains', minLevel: 38, boss: true,
+    description: 'BOSS — Um gigante de pedra e fúria guarda o que restou de um trono antigo.',
+    xpPerHour: 17300, goldPerHour: 520,
+    monsterNames: ['Titan'],
+  },
+  {
+    id: 'fortim-da-conquista', name: 'Fortim da Conquista', region: 'Plains', minLevel: 42, boss: true,
+    description: 'BOSS — O último general de um exército derrotado ainda defende seu fortim, quase tão perigoso quanto o Pestilence Knight.',
+    xpPerHour: 31600, goldPerHour: 950,
+    monsterNames: ['Conquest Champion'],
+  },
   {
     id: 'dominio-esquecido', name: 'Domínio Esquecido', region: 'Plains', minLevel: 45,
     description: 'Guardiões antigos e a lendária Amphitere ainda vigiam ruínas esquecidas.',
     xpPerHour: 45000, goldPerHour: 1000,
-    monsterNames: [
-      'The Blackhat', 'The Augur', 'Amphitere', 'Great Lintwurm (Cave)', 'Great Lintwurm',
-      'The Black Knight', 'Titan', 'Great Lintwurm (Static)', 'Conquest Champion',
-    ],
+    monsterNames: ['The Blackhat', 'The Augur', 'Amphitere', 'Great Lintwurm (Cave)', 'Great Lintwurm', 'Great Lintwurm (Static)'],
   },
 ];
 
