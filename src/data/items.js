@@ -150,6 +150,7 @@ export const REAL_ITEMS = [
 {"name":"Meaty Dish","slot":null,"category":"SpecialFood","variants":[{"rarity":"common","weight":6,"sellPrice":3,"stats":{"hpRegen":15,"mpRegen":6}}]},
 {"name":"Meaty Stew","slot":null,"category":"SpecialFood","variants":[{"rarity":"common","weight":5,"sellPrice":3,"stats":{"hpRegen":10,"mpRegen":4}}]},
 {"name":"Merchants Bag","slot":"backpack","category":"container","variants":[{"rarity":"common","weight":5.5,"sellPrice":4,"stats":{"health":20,"capacity":5}},{"rarity":"uncommon","weight":46,"sellPrice":31,"stats":{"health":24}},{"rarity":"rare","weight":39.5,"sellPrice":45,"stats":{"health":26}},{"rarity":"epic","weight":33,"sellPrice":76,"stats":{"health":28}}]},
+{"name":"Mireling Legs","slot":"legs","category":"heavylegs","variants":[{"rarity":"common","weight":42,"sellPrice":18,"stats":{"armor":6,"ability":2}}]},
 {"name":"Moon Ingot","slot":null,"category":"ForgeProducts","variants":[{"rarity":"common","weight":10,"sellPrice":5}]},
 {"name":"Nightshade","slot":null,"category":"Flowers","variants":[{"rarity":"common","weight":0.3,"sellPrice":1}]},
 {"name":"Nightshade Kilt","slot":"legs","category":"lightlegs","variants":[{"rarity":"common","weight":11,"sellPrice":6,"stats":{"armor":5,"mana":35,"ability":-3}}]},

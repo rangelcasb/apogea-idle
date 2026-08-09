@@ -21,7 +21,11 @@ import {
   QUESTS_BY_ID,
   isQuestComplete,
   isQuestClaimed,
+  SPECIAL_QUESTS_BY_ID,
+  isSpecialQuestComplete,
+  specialQuestRewardItemName,
   getShopItemDefinition,
+  getItemDefinition,
   resolveRealItemName,
   slugify,
   MERCHANTS_BY_NAME,
@@ -1916,6 +1920,32 @@ function reducer(state, action) {
     case 'CLAIM_QUEST': {
       const char = state.character;
       if (!char) return state;
+
+      // Quests especiais (marco de nível / abate de monstro específico, ver
+      // quests.js) dão um ITEM de recompensa em vez de só gold/xp — sorteado com
+      // raridade aleatória igual um drop de monstro real (getItemDefinition).
+      const specialQuest = SPECIAL_QUESTS_BY_ID[action.questId];
+      if (specialQuest) {
+        if (isQuestClaimed(char, specialQuest) || !isSpecialQuestComplete(char, specialQuest)) return state;
+        const itemName = specialQuestRewardItemName(char, specialQuest);
+        const def = getItemDefinition(itemName);
+        const id = `${slugify(itemName)}-${def.rarity}`;
+        const currentWeight = inventoryWeight(char.inventory);
+        const stats = computeFinalStats(char);
+        if (currentWeight + (def.weight ?? 1) > stats.capacity) {
+          return { ...state, log: pushLog(state.log, `Mochila cheia! Não coube a recompensa (${itemName}) — libere espaço e resgate de novo.`) };
+        }
+        const idx = char.inventory.findIndex((i) => i.id === id);
+        const inventory = idx >= 0
+          ? char.inventory.map((i, ix) => (ix === idx ? { ...i, quantity: i.quantity + 1 } : i))
+          : [...char.inventory, { id, name: itemName, quantity: 1, ...def }];
+        return {
+          ...state,
+          character: { ...char, inventory, claimedQuests: [...char.claimedQuests, specialQuest.id] },
+          log: pushLog(state.log, `Quest concluída: ${specialQuest.label} — ganhou ${itemName} (${RARITY_LABELS[def.rarity] ?? def.rarity}).`),
+        };
+      }
+
       const quest = QUESTS_BY_ID[action.questId];
       if (!quest || isQuestClaimed(char, quest) || !isQuestComplete(char, quest)) return state;
 
