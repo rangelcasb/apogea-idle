@@ -78,9 +78,6 @@ const STORAGE_KEY = 'apogea-idle-character';
 // fonte real, só confirmado que existe (daí o talento "Staff Mastery": chance de
 // atirar sem esse custo). Fixo e moderado, pra não esvaziar a mana rápido demais.
 const STAFF_BASIC_ATTACK_MANA_COST = 3;
-// Balanceamento nosso: Magic vira multiplicador da cura das magias de Cura (a cada
-// 100 de Magic, dobra) — não é uma fórmula real do jogo.
-const HEAL_MAGIC_MULTIPLIER_DIVISOR = 100;
 
 // Constantes REAIS espelhadas de src/data/talents.js — não são exportadas de lá (são
 // consts internas do módulo, só os valores "% por rank" que dependem de investimento
@@ -877,18 +874,16 @@ function reducer(state, action) {
         }
 
         if (spell.kind === 'heal') {
-          const missingHealth = charStats.health - workingChar.currentHealth;
-          // Magic entra como multiplicador da cura (balanceamento nosso, a pedido do
-          // usuário — a fonte real não faz Magic escalar o Heal, só magias de dano):
-          // cada 100 pontos de Magic dobra a cura. Magic Touch (Orbe) some por cima.
-          const magicMultiplier = 1 + (charStats.magic ?? 0) / HEAL_MAGIC_MULTIPLIER_DIVISOR;
-          // Blessed Plate (Armadura Pesada): abaixo de 35% de vida, cura do próprio
-          // feitiço Heal +35% mais forte — soma com Magic Touch (Orbe).
+          // Fórmula de cura (balanceamento nosso, a pedido do usuário — a fonte real
+          // não documenta Magic/Ability escalando o Heal): 1 de cura por ponto de
+          // Magic + 0,5 de cura por ponto de Ability, ambos já com todos os bônus de
+          // talento/equipamento aplicados. Magic Touch (Orbe)/Blessed Plate (Armadura
+          // Pesada) continuam entrando como % em cima desse total.
           let healPowerBonusPercent = charStats.healPowerBonusPercent ?? 0;
           if (charStats.blessedPlateHealBoostActive && (workingChar.currentHealth / charStats.health) * 100 < BLESSED_PLATE2_HEALTH_THRESHOLD_PCT) {
             healPowerBonusPercent += BLESSED_PLATE2_HEAL_BONUS_PCT;
           }
-          const healAmount = missingHealth * ((spell.missingHealthPct ?? 0) / 100) * magicMultiplier * (1 + healPowerBonusPercent / 100);
+          const healAmount = ((charStats.magic ?? 0) * 1 + (charStats.ability ?? 0) * 0.5) * (1 + healPowerBonusPercent / 100);
           const currentHealth = spell.hpCast
             ? Math.max(1, workingChar.currentHealth - effectiveManaCost)
             : workingChar.currentHealth;

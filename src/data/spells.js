@@ -37,10 +37,9 @@ export const SPELLS = [
   { id: 'DarkBind', bookName: 'DarkBind', book: 'Evil Spellbook: DarkBind', color: 'Evil', type: 'Death', magicReq: 15, abilityReq: 0, manaCost: 500, cooldownMs: 7000, hpCast: true, kind: 'damage', base: 50, magicPct: 50 },
   { id: 'Berserk', bookName: 'Berserk', book: 'Red Spellbook: Berserk', color: 'Red', type: 'Blade', magicReq: 1, abilityReq: 20, manaCost: 35, cooldownMs: 7000, hpCast: true, kind: 'damage', base: 15, damagePct: 35 },
   { id: 'Taunt', bookName: 'Taunt', book: 'Green Spellbook: Taunt', color: 'Green', type: 'Conjure', magicReq: 1, abilityReq: 0, manaCost: 25, cooldownMs: DEFAULT_COOLDOWN_MS, hpCast: true, kind: 'damage', base: 10, damagePct: 5 },
-  // missingHealthPct real é 5% (confirmado na fonte) — na prática é fraco demais pro
-  // idle (cura tipo 3 de vida com 113 de HP base). Balanceamento nosso, a pedido do
-  // usuário: subimos pra 15%, não é o valor oficial do jogo.
-  { id: 'Heal', bookName: 'Heal', book: 'Blue Spellbook: Heal', color: 'Blue', type: 'Heal', magicReq: 2, abilityReq: 0, manaCost: 25, cooldownMs: 1500, hpCast: false, kind: 'heal', missingHealthPct: 15 },
+  // Cura escala com Magic/Ability do personagem (1:1 e 0,5:1), não com % de vida
+  // faltando — balanceamento nosso, a pedido do usuário (ver fórmula em useGameState.js).
+  { id: 'Heal', bookName: 'Heal', book: 'Blue Spellbook: Heal', color: 'Blue', type: 'Heal', magicReq: 2, abilityReq: 0, manaCost: 25, cooldownMs: 1500, hpCast: false, kind: 'heal' },
   { id: 'ShieldBlock', bookName: 'ShieldBlock', book: 'Yellow Spellbook: ShieldBlock', color: 'Yellow', type: 'Defense', magicReq: 2, abilityReq: 10, manaCost: 30, cooldownMs: 5000, hpCast: false, kind: 'damage', base: 25, magicPct: 35 },
   { id: 'Charge', bookName: 'Charge', book: 'Red Spellbook: Charge', color: 'Red', type: 'Physical', magicReq: 3, abilityReq: 30, manaCost: 75, cooldownMs: DEFAULT_COOLDOWN_MS, hpCast: false, kind: 'damage', base: 25, damagePct: 50 },
   { id: 'PreciseShot', bookName: 'PreciseShot', book: 'Red Spellbook: PreciseShot', color: 'Red', type: 'Arrow', magicReq: 5, abilityReq: 10, manaCost: 40, cooldownMs: DEFAULT_COOLDOWN_MS, hpCast: false, kind: 'damage', base: 15, magicPct: 10, damagePct: 20 },
