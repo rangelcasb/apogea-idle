@@ -112,7 +112,7 @@ export default function Magias({
                   <div className="min-w-0">
                     <p className="text-sm font-semibold truncate">{spell.id}</p>
                     <p className="text-[10px] text-neutral-500">
-                      {spell.color} · {spell.kind === 'heal' ? 'Cura' : 'Dano'} · custo {spell.manaCost}
+                      {spell.color} · {spell.kind === 'heal' ? 'Cura' : spell.kind === 'buff' ? 'Golpe extra' : 'Dano'} · custo {spell.manaCost}
                       {spell.hpCast ? ' HP' : ' mana'} · cd {(spell.cooldownMs / 1000).toFixed(1)}s
                     </p>
                     <p className="text-[10px] text-neutral-500">

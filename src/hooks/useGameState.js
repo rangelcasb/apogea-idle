@@ -818,6 +818,12 @@ function reducer(state, action) {
         if (spell.type === 'Blade' && charStats.highlanderActive) {
           manaCostMultiplier -= HIGHLANDER_MANA_DISCOUNT_PCT / 100;
         }
+        // Meditation (Arco): "Time and Mystic spells cost X% less Mana" — ficava sem
+        // efeito por não existir magia Time/Mystic castável nesse jogo; agora Quick
+        // Attack (Time) existe, então isso passa a valer de verdade.
+        if (spell.type === 'Time' && charStats.timeManaDiscountPercent) {
+          manaCostMultiplier -= charStats.timeManaDiscountPercent / 100;
+        }
         if (charStats.friendOfApogeaActive && ['Earth', 'Water', 'Light'].includes(spell.type)) {
           manaCostMultiplier -= FRIEND_OF_APOGEA_MANA_DISCOUNT_PCT / 100;
         }
@@ -865,6 +871,9 @@ function reducer(state, action) {
         if (['Earth', 'Water'].includes(spell.type)) cdReductionPct += charStats.earthWaterCooldownReductionPercent ?? 0;
         if (['Defense', 'Conjure'].includes(spell.type)) cdReductionPct += charStats.defenseConjureCooldownReductionPercent ?? 0;
         if (['Blade', 'Physical'].includes(spell.type) && charStats.primaDrawActive) cdReductionPct += PRIMA_DRAW_CD_REDUCTION_PCT;
+        // Chrono Conversion (Cajado): "reduces cooldown of Time and Mystic spells by
+        // 35%" — mesma situação da Meditation, agora vale de verdade pra Quick Attack.
+        if (spell.type === 'Time') cdReductionPct += charStats.timeCooldownReductionPercent ?? 0;
         cdReductionPct = Math.min(90, cdReductionPct);
         spellCooldowns = { ...spellCooldowns, [spellId]: now + spell.cooldownMs * (1 - cdReductionPct / 100) };
 
@@ -943,6 +952,31 @@ function reducer(state, action) {
           if (charStats.innervatedManaActive) {
             workingChar = { ...workingChar, currentMana: 0 };
             log = pushLog(log, 'Innervated Mana: sua Mana foi zerada.');
+          }
+          continue;
+        }
+
+        // Quick Attack (real: "+6 Attackspeed for 4 seconds") — sem sistema de buff
+        // temporizado de combate nesse jogo, aproximado como 1 golpe básico extra
+        // imediato no alvo focado (mesmo padrão já usado pro Swiftstride).
+        if (spell.kind === 'buff') {
+          workingChar = { ...workingChar, currentMana: workingChar.currentMana - effectiveManaCost };
+          log = pushLog(log, `Você conjurou ${spell.id}!`);
+          if (workingMonsters.length > 0) {
+            const extraDamage = computeExtraBasicHitDamage(charStats, workingMonster, workingChar.monsterKills?.[workingMonster.name]);
+            log = pushLog(log, `Quick Attack: golpe extra causou ${extraDamage.toFixed(1)} de dano em ${workingMonster.name}.`);
+            const monsterHealthAfterExtra = Math.max(0, workingMonster.currentHealth - extraDamage);
+            if (monsterHealthAfterExtra <= 0) {
+              const result = defeatMonster(workingChar, workingMonsters, workingMonster, log);
+              workingChar = result.character;
+              workingMonsters = result.monsters;
+              workingMonster = workingMonsters[0];
+              log = result.log;
+              combatPauseUntil = result.combatPauseUntil;
+            } else {
+              workingMonsters = workingMonsters.map((m, i) => (i === 0 ? { ...m, currentHealth: monsterHealthAfterExtra } : m));
+              workingMonster = workingMonsters[0];
+            }
           }
           continue;
         }

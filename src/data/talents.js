@@ -139,7 +139,7 @@ const MECHANICS = {
   206: 'standby', // Geomancer — depende de "estar na água" e magias Geyser/Rock Shield não documentadas — sem efeito
   207: 'standby', // Serene Retribution — depende de "Water Wave", magia não documentada — sem efeito
   208: 'attackSpeedFlat', // Wizard Studies — Cajado/Varinha +Attackspeed fixo (real)
-  209: 'standby', // Chrono Conversion — depende de Movespeed extra e magias Time/Mystic, que não existem aqui — sem efeito
+  209: 'timeCooldownReduction', // Chrono Conversion — só a parte "reduz cooldown de magias Time/Mystic em 35%" está ativa (real, agora que Quick Attack existe); a parte "+15 Magic com 5+ Movespeed extra" continua sem efeito, sem sistema de Movespeed
   210: 'magicThresholdAttackSpeed', // Shift Wardens — +5 AS se Magic final >=15 (real, parte de Dash/Teleport pulada — não existem aqui)
   211: 'chosenOne', // Chosen One — +15 Magic +15 Ability fixos (real; "monstros miram 50% mais" não tem efeito, não existe sistema de mira)
   212: 'friendOfApogea', // Friend of Apogea — Terra/Água/Luz custam 35% menos mana, mas todo dano de magia -25% (real)
@@ -167,7 +167,7 @@ const MECHANICS = {
   242: 'bowFlatDamage2', // Artisanal Arsenal — +dano fixo (real; chance de recuperar munição pulada, sem sistema de flechas)
   243: 'bowExplosiveChance', // Explosive Ammo — sem área de efeito: chance de dano bônus no golpe (homebrew, reaproveita mecânica antiga)
   244: 'bowSecondaryProcChance', // Mahogany Build — mesmo raciocínio de Explosive Ammo, chance de dano bônus separada (homebrew)
-  245: 'standby', // Meditation — reduz custo de magias Time/Mystic, que não existem nesse jogo — sem efeito possível
+  245: 'timeManaDiscount', // Meditation — magias Time custam menos mana (real, agora que Quick Attack existe)
   246: 'standby', // Chasing Prey — depende de Movespeed — sem efeito
   247: 'standby', // Hunt Prep — depende de magia Time/Mystic e "Grand Trap" não documentada — sem efeito
   248: 'arrowExtraHitChance', // Swiftstride — cast de magia tipo Arrow tem chance de dar 1 golpe extra (homebrew: era cast de "Haste", sem timers vira golpe extra na hora)
@@ -793,6 +793,7 @@ export function computeTalentModifiers(talentPoints, equipment) {
     fireFlatDamage: 0,
     fireAoeActive: false, // Conflagrated Mind: magias Fire acertam +1 alvo extra
     earthWaterCooldownReductionPercent: 0,
+    timeCooldownReductionPercent: 0, // Chrono Conversion
     magicThresholdAttackSpeedActive: false,
     chosenOneActive: false,
     friendOfApogeaActive: false,
@@ -814,6 +815,7 @@ export function computeTalentModifiers(talentPoints, equipment) {
     arrowExtraHitChance: 0,
     arrowBladeTrueDamageDivisor: 0,
     arrowBladeHealDivisor: 0,
+    timeManaDiscountPercent: 0, // Meditation
 
     // ── Armadura Leve ──
     lightArmorCapacity: 0,
@@ -945,6 +947,12 @@ export function computeTalentModifiers(talentPoints, equipment) {
       case 'earthWaterCooldownReduction':
         if (!Number.isNaN(rankValue)) mods.earthWaterCooldownReductionPercent = rankValue;
         break;
+      // Chrono Conversion: só a redução de cooldown de magia Time está ativa (real,
+      // 35% fixo — nó de 1 ponto só); o "+15 Magic com 5+ Movespeed extra" continua
+      // sem efeito, sem sistema de Movespeed nesse jogo.
+      case 'timeCooldownReduction':
+        mods.timeCooldownReductionPercent = 35;
+        break;
       case 'magicThresholdAttackSpeed':
         mods.magicThresholdAttackSpeedActive = true;
         break;
@@ -994,6 +1002,9 @@ export function computeTalentModifiers(talentPoints, equipment) {
       // ── Arco ─────────────────────────────────────────────────────────────
       case 'bowFlatDamageRanked':
         if (!Number.isNaN(rankValue)) mods.bowFlatDamageFromRank += rankValue;
+        break;
+      case 'timeManaDiscount':
+        if (!Number.isNaN(rankValue)) mods.timeManaDiscountPercent = rankValue;
         break;
       case 'bowFlatDamage2':
         if (!Number.isNaN(rankValue)) mods.bowFlatDamageFromRank += rankValue;
@@ -1358,6 +1369,7 @@ export function applyTalentEffects(stats, character) {
   next.fireFlatDamage = mods.fireFlatDamage;
   next.fireAoeActive = mods.fireAoeActive;
   next.earthWaterCooldownReductionPercent = mods.earthWaterCooldownReductionPercent;
+  next.timeCooldownReductionPercent = mods.timeCooldownReductionPercent;
   // Shift Wardens: +5 Attackspeed se Magic final >= 15 (aproximação: usamos o Magic
   // FINAL, já com todos os bônus, em vez de só o "extra" — não dá pra isolar quanto do
   // Magic veio de item/talento vs. base).
@@ -1379,6 +1391,7 @@ export function applyTalentEffects(stats, character) {
   next.bowExplosiveChance = mods.bowExplosiveChance;
   next.bowSecondaryProcChance = mods.bowSecondaryProcChance;
   next.arrowExtraHitChance = mods.arrowExtraHitChance;
+  next.timeManaDiscountPercent = mods.timeManaDiscountPercent;
   // Bullseye/Deferred Reverence: dependem do Ability/Magic FINAL. Como só existe 1 alvo
   // nesse jogo (o "alvo atual" sempre é o único), a condição "dobrado se for o alvo
   // atual" da fonte real vale SEMPRE aqui — por isso já aplicamos o fator 2.

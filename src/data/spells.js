@@ -3,9 +3,10 @@
 // encontramos com fórmula, requisito de Magic/Ability, custo de mana e cooldown.
 //
 // Só entram como "castable" (usáveis pelo auto-cast) as magias com fórmula de dano ou
-// cura clara. Magias de utilidade puras (Dash, Haste, Taunt-sem-dano, Magic Wall, Mana
-// Shield, Slow, buffs de Attack Speed, etc.) não têm um efeito numérico que dê pra
-// simular direito num jogo idle sem posicionamento/tempo real — ficam de fora da v1.
+// cura clara, ou (caso de QuickAttack, `kind: 'buff'`) um efeito bem definido que dê
+// pra aproximar sem precisar de um sistema de buff temporizado de verdade. Magias de
+// utilidade puras sem efeito numérico aproximável (Dash, Haste, Taunt-sem-dano, Magic
+// Wall, Mana Shield, Slow, etc.) continuam de fora.
 //
 // bookName é o sufixo usado nos itens "<Cor> Spellbook: <bookName>" em items.js.
 //
@@ -36,6 +37,14 @@ export const SPELLS = [
   { id: 'ConjureDeath', bookName: 'ConjureDeath', book: 'Evil Spellbook: ConjureDeath', color: 'Evil', type: 'Death', magicReq: 5, abilityReq: 0, manaCost: 200, cooldownMs: 2000, hpCast: true, kind: 'damage', base: 5, magicPct: 8 },
   { id: 'DarkBind', bookName: 'DarkBind', book: 'Evil Spellbook: DarkBind', color: 'Evil', type: 'Death', magicReq: 15, abilityReq: 0, manaCost: 500, cooldownMs: 7000, hpCast: true, kind: 'damage', base: 50, magicPct: 50 },
   { id: 'Berserk', bookName: 'Berserk', book: 'Red Spellbook: Berserk', color: 'Red', type: 'Blade', magicReq: 1, abilityReq: 20, manaCost: 35, cooldownMs: 7000, hpCast: true, kind: 'damage', base: 15, damagePct: 35 },
+  // Quick Attack é do tipo Time/Mystic (a PRIMEIRA magia castável dessa categoria nesse
+  // jogo) — real: "Increases your Attackspeed by 6 for 4 seconds". Esse jogo não tem
+  // buff temporizado de combate de verdade (o loop de ataque roda num timer recalculado
+  // só quando o personagem muda), então vira `kind: 'buff'`, tratado à parte em
+  // useGameState.js: aproximado como 1 golpe básico extra imediato no alvo focado (a
+  // mesma ideia de "atacar mais rápido por um instante", sem precisar de um sistema de
+  // buff temporizado só pra essa magia).
+  { id: 'QuickAttack', bookName: 'QuickAttack', book: 'Red Spellbook: QuickAttack', color: 'Red', type: 'Time', magicReq: 6, abilityReq: 35, manaCost: 70, cooldownMs: 7000, hpCast: false, kind: 'buff' },
   { id: 'Taunt', bookName: 'Taunt', book: 'Green Spellbook: Taunt', color: 'Green', type: 'Conjure', magicReq: 1, abilityReq: 0, manaCost: 25, cooldownMs: DEFAULT_COOLDOWN_MS, hpCast: true, kind: 'damage', base: 10, damagePct: 5 },
   // Cura escala com Magic/Ability do personagem (1:1 e 0,5:1), não com % de vida
   // faltando — balanceamento nosso, a pedido do usuário (ver fórmula em useGameState.js).
