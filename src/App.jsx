@@ -40,7 +40,7 @@ function ComingSoon({ label }) {
 export default function App() {
   const {
     character,
-    monster,
+    monsters,
     log,
     autoCombat,
     setAutoCombat,
@@ -71,6 +71,7 @@ export default function App() {
     unspentPoints,
     weight,
     changeZone,
+    setGroupSize,
     claimQuest,
     buyItem,
     sellToMerchant,
@@ -194,12 +195,13 @@ export default function App() {
         {activeTab === 'cacada' && (
           <Cacada
             character={character}
-            monster={monster}
+            monsters={monsters}
             log={log}
             autoCombat={autoCombat}
             setAutoCombat={setAutoCombat}
             zones={zones}
             changeZone={changeZone}
+            setGroupSize={setGroupSize}
           />
         )}
         {activeTab === 'personagem' && (

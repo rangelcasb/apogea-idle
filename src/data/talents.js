@@ -134,7 +134,7 @@ const MECHANICS = {
   201: 'staffChargePct', // Charge the Stick — cast Elemental carrega o próximo golpe com X% da Mana gasta em Dano Verdadeiro (real)
   202: 'franticConjury', // Frantic Conjury — acertar magia de Fogo/Energia tem chance de conjurar Conjure Fire de graça no próximo golpe (real, ampliado pra Fogo OU Energia)
   203: 'standby', // Charged Body — depende de "Conjure Energy"/"Charged Ground", magias não documentadas — sem efeito
-  204: 'fireFlatDamage', // Conflagrated Mind — magias de Fogo +10 de dano base (real, sem a parte de Área de Efeito)
+  204: 'fireFlatDamage', // Conflagrated Mind — magias de Fogo +10 de dano base + AoE (agora ativa: 1 alvo extra)
   205: 'earthWaterCooldownReduction', // Gallop's Fall — reduz cooldown de Terra e Água (real, Gallop's Fall antes só cobria Água)
   206: 'standby', // Geomancer — depende de "estar na água" e magias Geyser/Rock Shield não documentadas — sem efeito
   207: 'standby', // Serene Retribution — depende de "Water Wave", magia não documentada — sem efeito
@@ -217,7 +217,7 @@ const MECHANICS = {
   283: 'standby', // Elemental Plate — buff vago "baseado no elemento", sem fórmula — sem efeito
   284: 'etchedGemsShield', // Etched Gems — gastar mais de 50% da Mana máxima num cast dá +20 Escudo Mágico (real)
   285: 'defenseConjureCooldownReduction', // Royal Attire — reduz cooldown de Defense e Conjure (real, ampliado pra incluir Conjure)
-  286: 'standby', // Divine Pull — depende de magia não documentada — sem efeito
+  286: 'tauntAoe', // Divine Pull — só a parte "Taunt gains +1 Area of Effect" está ativa (+1 alvo extra); o cast de "Divine Pull"/debuff de Movespeed continua sem efeito, sem dados/sistema de Movespeed
   287: 'standby', // Guard Training — depende de "Knight's Vow", não documentada — sem efeito
   288: 'shieldFlatDamage', // Swing Maneuver — Escudos dão Dano extra fixo (real)
   289: 'standby', // Bulwark Leap — agora depende de Dash/Teleport (mudou de mecânica) — sem efeito
@@ -236,7 +236,7 @@ const MECHANICS = {
   327: 'standby', // Runic Adornments — reduziria dano de magia recebido, mas monstros não têm ataques mágicos nesse jogo — sem efeito possível
   328: 'stubbornWillShieldProc', // Stubborn Will — tomar dano tem chance de dar Escudo Mágico (real)
   329: 'cannonBallThrash', // Cannon Ball — a magia Thrash ganha +10 de dano base fixo (real; Área/Alcance pulados)
-  330: 'standby', // Indecent Gesture — sem valor numérico de dano/efeito quantificável na descrição real — sem efeito
+  330: 'tauntAoe', // Indecent Gesture — só a parte "Taunt gains +1 Area of Effect" está ativa (+1 alvo extra); o debuff de Movespeed continua sem efeito, sem sistema de Movespeed
   331: 'standby', // Congenital Growth — só teria a parte NEGATIVA implementável (perde Movespeed/AS/Magic) sem a positiva (Range/Pull Force) — injusto implementar só o lado ruim, sem efeito
   332: 'endowedInSteelCount6', // Endowed in Steel — +35 Dano com 6+ Armadura Pesada (real; nosso sistema só tem 4 slots de armadura, então na prática é inalcançável — documentado, não alterei o número real)
   333: 'standby', // Impeccable Set — depende de "Glowing Light", magia não documentada — sem efeito
@@ -284,7 +284,7 @@ const MECHANICS = {
   367: 'standby', // Vessel of Vigor — mesmo motivo — sem efeito
   368: 'healPowerBonus', // Magic Touch — magias de Cura curam mais (real, agora escalando por rank)
   369: 'healManaDiscount25', // Shining Front — magias de Cura custam 25% menos mana (real; "Healing Wind" pulado)
-  370: 'holyFlatDamage', // Thorough Judgment — magias Holy +10 de dano base (real; Área pulada)
+  370: 'holyFlatDamage', // Thorough Judgment — magias Holy +10 de dano base + AoE (agora ativa: 1 alvo extra)
   371: 'standby', // Child's Channel — depende de curar OUTROS jogadores, sem multiplayer — sem efeito
   372: 'onyxScreen', // Onyx Screen — dobra ganho de Escudo Mágico (cap 200), mas dobra o dano normal recebido (real, risco/recompensa)
   373: 'standby', // Inzil's Fate — exige 2 Orbes ao mesmo tempo, mas nosso sistema só permite 1 Orbe (mão secundária) — condição inalcançável, sem efeito
@@ -791,6 +791,7 @@ export function computeTalentModifiers(talentPoints, equipment) {
     staffChargePct: 0,
     franticConjuryChance: 0,
     fireFlatDamage: 0,
+    fireAoeActive: false, // Conflagrated Mind: magias Fire acertam +1 alvo extra
     earthWaterCooldownReductionPercent: 0,
     magicThresholdAttackSpeedActive: false,
     chosenOneActive: false,
@@ -870,7 +871,11 @@ export function computeTalentModifiers(talentPoints, equipment) {
     unstableAegisActive: false,
     healManaDiscount25Active: false,
     holyFlatDamage: 0,
+    holyAoeActive: false, // Thorough Judgment: magias Holy acertam +1 alvo extra
     onyxScreenActive: false,
+
+    // ── AoE (Escudo/Armadura Pesada: Taunt) ──
+    tauntAoeExtraTargets: 0,
   };
 
   for (const [idStr, points] of Object.entries(talentPoints ?? {})) {
@@ -935,6 +940,7 @@ export function computeTalentModifiers(talentPoints, equipment) {
         break;
       case 'fireFlatDamage':
         mods.fireFlatDamage += CONFLAGRATED_MIND_FLAT_DAMAGE;
+        mods.fireAoeActive = true;
         break;
       case 'earthWaterCooldownReduction':
         if (!Number.isNaN(rankValue)) mods.earthWaterCooldownReductionPercent = rankValue;
@@ -1220,6 +1226,13 @@ export function computeTalentModifiers(talentPoints, equipment) {
         break;
       case 'holyFlatDamage':
         mods.holyFlatDamage = HOLY_FLAT_DAMAGE;
+        mods.holyAoeActive = true;
+        break;
+      // Divine Pull (Escudo) + Indecent Gesture (Armadura Pesada): só a parte "Taunt
+      // gains +1 Area of Effect" está implementada — somam entre si (ramos diferentes,
+      // não são mutuamente exclusivos).
+      case 'tauntAoe':
+        mods.tauntAoeExtraTargets += 1;
         break;
       case 'onyxScreen':
         mods.onyxScreenActive = true;
@@ -1343,6 +1356,7 @@ export function applyTalentEffects(stats, character) {
   next.staffChargePct = mods.staffChargePct;
   next.franticConjuryChance = mods.franticConjuryChance;
   next.fireFlatDamage = mods.fireFlatDamage;
+  next.fireAoeActive = mods.fireAoeActive;
   next.earthWaterCooldownReductionPercent = mods.earthWaterCooldownReductionPercent;
   // Shift Wardens: +5 Attackspeed se Magic final >= 15 (aproximação: usamos o Magic
   // FINAL, já com todos os bônus, em vez de só o "extra" — não dá pra isolar quanto do
@@ -1425,7 +1439,11 @@ export function applyTalentEffects(stats, character) {
   next.healManaDiscount25Active = mods.healManaDiscount25Active;
   if (next.healManaDiscount25Active) next.healManaDiscountPercent += HEAL_MANA_DISCOUNT_25_PCT;
   next.holyFlatDamage = mods.holyFlatDamage;
+  next.holyAoeActive = mods.holyAoeActive;
   next.onyxScreenActive = mods.onyxScreenActive;
+
+  // ── AoE (Taunt) ──────────────────────────────────────────────────────────
+  next.tauntAoeExtraTargets = mods.tauntAoeExtraTargets;
 
   return next;
 }

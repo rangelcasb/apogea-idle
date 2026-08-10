@@ -274,6 +274,9 @@ function createCharacter(name) {
     currentHealth: 0,
     currentMana: 0,
     zoneId: ZONES[0].id,
+    // Quantos monstros simultâneos o jogador escolheu enfrentar numa zona normal (1 a
+    // 10) — zona de boss sempre trava em 1, independente desse valor (ver pickMonsterGroup).
+    groupSize: 1,
     satiety: { remainingMs: 0, bonus: null, foodName: null },
     claimedQuests: [],
     autoCombat: false,
@@ -328,6 +331,7 @@ function migrateCharacter(char) {
     levelBatches: char.levelBatches ?? [],
     talentPoints: char.talentPoints ?? {},
     equipment: char.equipment ?? emptyEquipment(),
+    groupSize: Math.max(1, Math.min(10, Math.floor(char.groupSize ?? 1))),
     currentMana: char.currentMana ?? 0,
     satiety: char.satiety ?? { remainingMs: 0, bonus: null, foodName: null },
     claimedQuests: char.claimedQuests ?? [],
@@ -360,10 +364,23 @@ function migrateCharacter(char) {
   };
 }
 
-function pickMonster(zoneId) {
+// Sorteia o GRUPO de monstros que o jogador enfrenta numa zona — modelo de "onda":
+// zona de boss (só 1 tipo de monstro na zona) trava SEMPRE em 1, ignorando o
+// groupSize escolhido; zona normal sorteia `groupSize` monstros INDEPENDENTES (com
+// reposição — pode repetir o mesmo template mais de uma vez), cada um virando uma
+// instância própria (instanceId único) com sua vida cheia.
+function pickMonsterGroup(zoneId, groupSize) {
   const zone = ZONES.find((z) => z.id === zoneId) ?? ZONES[0];
-  const template = zone.monsters[Math.floor(Math.random() * zone.monsters.length)];
-  return { ...template, currentHealth: template.health, maxHealth: template.health };
+  const size = zone.boss ? 1 : Math.max(1, Math.min(10, groupSize ?? 1));
+  return Array.from({ length: size }, (_, i) => {
+    const template = zone.monsters[Math.floor(Math.random() * zone.monsters.length)];
+    return {
+      ...template,
+      instanceId: `${Date.now()}-${i}-${Math.random().toString(36).slice(2)}`,
+      currentHealth: template.health,
+      maxHealth: template.health,
+    };
+  });
 }
 
 function pushLog(log, message) {
@@ -375,7 +392,7 @@ function init() {
   const character = saved ? migrateCharacter(JSON.parse(saved)) : null;
   return {
     character,
-    monster: character ? pickMonster(character.zoneId) : null,
+    monsters: character ? pickMonsterGroup(character.zoneId, character.groupSize) : null,
     log: [],
     // Retoma o combate automático de onde parou — se estava caçando quando a aba
     // fechou (e não morreu), continua caçando ao reabrir.
@@ -443,14 +460,20 @@ const MONSTER_TRANSITION_MS = 2000;
 // Derrota de um monstro: XP, gold, drops (respeitando blacklist), auto-come comida e
 // sobe de nível — usado tanto por PLAYER_ATTACK (golpe normal) quanto por SPELL_CAST
 // (magia matando o monstro), pra não duplicar essa lógica toda em dois lugares.
-function defeatMonster(char, currentMonster, log, { lifestealHeal = 0, selfDamage = 0 } = {}) {
-  const boosted = getDailyBoostedMonster().name === currentMonster.name;
+//
+// Modelo de "onda": recebe o GRUPO inteiro (`monsters`) + qual instância específica
+// morreu (`deadMonster`, por instanceId). Remove só ela do grupo — se sobrar alguém,
+// o grupo continua (os outros já estavam ali, não precisam ser re-sorteados); se o
+// grupo inteiro morreu, sorteia um grupo NOVO (pickMonsterGroup) e só aí aplica a
+// pausa de transição (MONSTER_TRANSITION_MS) — matar 1 de vários não pausa o combate.
+function defeatMonster(char, monsters, deadMonster, log, { lifestealHeal = 0, selfDamage = 0 } = {}) {
+  const boosted = getDailyBoostedMonster().name === deadMonster.name;
   const boostMult = boosted ? BOOSTED_MULTIPLIER : 1;
-  const { gold: rawGold, items: rawItemDrops } = rollLoot(currentMonster);
+  const { gold: rawGold, items: rawItemDrops } = rollLoot(deadMonster);
   const goldDrop = Math.round(rawGold * boostMult);
-  const xpGain = Math.round(currentMonster.xp * boostMult);
+  const xpGain = Math.round(deadMonster.xp * boostMult);
 
-  log = pushLog(log, `${currentMonster.name} derrotado! +${xpGain} XP.${boosted ? ' (boosted do dia!)' : ''}`);
+  log = pushLog(log, `${deadMonster.name} derrotado! +${xpGain} XP.${boosted ? ' (boosted do dia!)' : ''}`);
   if (goldDrop > 0) log = pushLog(log, `+${goldDrop} gold.`);
 
   // Itens na blacklist simplesmente não são pegos — nem entram na checagem de
@@ -499,7 +522,7 @@ function defeatMonster(char, currentMonster, log, { lifestealHeal = 0, selfDamag
   const zoneKills = { ...char.zoneKills, [char.zoneId]: (char.zoneKills[char.zoneId] ?? 0) + 1 };
   const monsterKills = {
     ...char.monsterKills,
-    [currentMonster.name]: (char.monsterKills?.[currentMonster.name] ?? 0) + 1,
+    [deadMonster.name]: (char.monsterKills?.[deadMonster.name] ?? 0) + 1,
   };
 
   const updatedChar = {
@@ -520,7 +543,7 @@ function defeatMonster(char, currentMonster, log, { lifestealHeal = 0, selfDamag
 
   // Bloodbath (Arma Grande): matar um monstro cura % da vida MÁXIMA dele, cap 50.
   const bloodbathHeal = charStats.bloodbathHealPercent > 0
-    ? Math.min(BLOODBATH_HEAL_CAP, currentMonster.maxHealth * (charStats.bloodbathHealPercent / 100))
+    ? Math.min(BLOODBATH_HEAL_CAP, deadMonster.maxHealth * (charStats.bloodbathHealPercent / 100))
     : 0;
   // Higher Ruling (Arma Grande): o golpe que MATA o monstro causa Magic×5 em você
   // mesmo — risco real do talento, independente de ter sido morto por golpe ou magia.
@@ -539,11 +562,17 @@ function defeatMonster(char, currentMonster, log, { lifestealHeal = 0, selfDamag
     : Math.max(1, Math.min(newStats.health, char.currentHealth + totalLifestealHeal) - totalSelfDamage);
   updatedChar.currentMana = leveledUp ? newStats.mana : Math.min(newStats.mana, char.currentMana);
 
+  const remaining = monsters.filter((m) => m.instanceId !== deadMonster.instanceId);
+  const groupWiped = remaining.length === 0;
+  const nextMonsters = groupWiped ? pickMonsterGroup(char.zoneId, char.groupSize) : remaining;
+
   return {
     character: updatedChar,
-    monster: pickMonster(char.zoneId),
+    monsters: nextMonsters,
     log,
-    combatPauseUntil: Date.now() + MONSTER_TRANSITION_MS,
+    // Só pausa (respiro pra vida regenerar) quando o grupo INTEIRO morreu e um novo
+    // grupo acabou de nascer — matar 1 de vários não interrompe o ritmo do combate.
+    combatPauseUntil: groupWiped ? Date.now() + MONSTER_TRANSITION_MS : 0,
   };
 }
 
@@ -558,7 +587,7 @@ function reducer(state, action) {
       const character = createCharacter(action.name);
       return {
         character,
-        monster: pickMonster(character.zoneId),
+        monsters: pickMonsterGroup(character.zoneId, character.groupSize),
         log: pushLog([], `${character.name} chegou como Squire! Junte ${VOCATION_COST} gold pra escolher uma vocação.`),
         autoCombat: false,
       };
@@ -588,14 +617,14 @@ function reducer(state, action) {
       const character = migrateCharacter(action.character);
       return {
         character,
-        monster: pickMonster(character.zoneId),
+        monsters: pickMonsterGroup(character.zoneId, character.groupSize),
         log: pushLog([], `Personagem sincronizado! Bem-vindo de volta, ${character.name}.`),
         autoCombat: character.autoCombat && character.currentHealth > 0,
       };
     }
 
     case 'RESET':
-      return { character: null, monster: null, log: [], autoCombat: false };
+      return { character: null, monsters: null, log: [], autoCombat: false };
 
     case 'SET_AUTO_COMBAT': {
       const value = typeof action.valueOrFn === 'function' ? action.valueOrFn(state.autoCombat) : action.valueOrFn;
@@ -730,8 +759,8 @@ function reducer(state, action) {
     // ataque físico — cada magia equipada tem seu próprio cooldown (spellCooldowns,
     // fora do personagem: é estado de combate efêmero, não precisa ser salvo).
     case 'SPELL_CAST': {
-      const { character: char, monster: currentMonster } = state;
-      if (!char || !currentMonster || char.currentHealth <= 0 || !char.autoCastSpells) return state;
+      const { character: char, monsters: currentMonsters } = state;
+      if (!char || !currentMonsters || currentMonsters.length === 0 || char.currentHealth <= 0 || !char.autoCastSpells) return state;
       if (state.combatPauseUntil && Date.now() < state.combatPauseUntil) return state;
 
       const charStats = computeFinalStats(char);
@@ -741,7 +770,7 @@ function reducer(state, action) {
 
       let spellCooldowns = state.spellCooldowns;
       let workingChar = char;
-      let workingMonster = currentMonster;
+      let workingMonsters = currentMonsters;
       let log = state.log;
       let combatPauseUntil = state.combatPauseUntil;
 
@@ -769,7 +798,11 @@ function reducer(state, action) {
       for (const spellId of equipped) {
         const spell = SPELLS_BY_ID[spellId];
         if (!spell) continue;
-        if (!workingMonster || workingChar.currentHealth <= 0) break;
+        if (workingMonsters.length === 0 || workingChar.currentHealth <= 0) break;
+        // Alvo focado: sempre o PRIMEIRO monstro vivo do grupo (foco automático, sem
+        // escolha manual). Reavaliado a cada iteração porque um golpe extra anterior
+        // (Swiftstride) pode ter matado o foco e trazido outro monstro pra posição 0.
+        let workingMonster = workingMonsters[0];
         if ((spellCooldowns[spellId] ?? 0) > now) continue;
         if (!canCastSpell(spell, charStats)) continue;
 
@@ -843,14 +876,16 @@ function reducer(state, action) {
           log = pushLog(log, `Swiftstride: golpe extra causou ${extraDamage.toFixed(1)} de dano em ${workingMonster.name}.`);
           const monsterHealthAfterExtra = Math.max(0, workingMonster.currentHealth - extraDamage);
           if (monsterHealthAfterExtra <= 0) {
-            const result = defeatMonster(workingChar, workingMonster, log);
+            const result = defeatMonster(workingChar, workingMonsters, workingMonster, log);
             workingChar = result.character;
-            workingMonster = result.monster;
+            workingMonsters = result.monsters;
+            workingMonster = workingMonsters[0];
             log = result.log;
             combatPauseUntil = result.combatPauseUntil;
             continue;
           }
-          workingMonster = { ...workingMonster, currentHealth: monsterHealthAfterExtra };
+          workingMonsters = workingMonsters.map((m, i) => (i === 0 ? { ...m, currentHealth: monsterHealthAfterExtra } : m));
+          workingMonster = workingMonsters[0];
         }
 
         // Gaff Hack (Adaga): sem magia Mystic/Time nesse jogo, qualquer cast tem chance
@@ -920,6 +955,14 @@ function reducer(state, action) {
         if (spell.type === 'Holy') flatSpellBonus += charStats.holyFlatDamage ?? 0;
         if (spell.id === 'Thrash' && charStats.cannonBallActive) flatSpellBonus += CANNON_BALL_FLAT_DAMAGE;
         const rawDamage = computeSpellEffect(spell, charStats, avgWeaponDamage) + flatSpellBonus;
+        // Área de Efeito: Conflagrated Mind (Fire), Thorough Judgment (Holy), Cannon
+        // Ball (só Thrash) e Divine Pull/Indecent Gesture (só Taunt, somam +1 cada) —
+        // quantos alvos ADICIONAIS (além do foco) essa magia acerta com o MESMO dano.
+        let aoeExtraTargets = 0;
+        if (spell.type === 'Fire' && charStats.fireAoeActive) aoeExtraTargets = 1;
+        else if (spell.type === 'Holy' && charStats.holyAoeActive) aoeExtraTargets = 1;
+        else if (spell.id === 'Thrash' && charStats.cannonBallActive) aoeExtraTargets = 1;
+        else if (spell.id === 'Taunt' && (charStats.tauntAoeExtraTargets ?? 0) > 0) aoeExtraTargets = charStats.tauntAoeExtraTargets;
         // Fórmula real de Armadura, com Resonant Blow (armorPenFlat) subtraindo um
         // valor FIXO de Armor antes do armorPenPercent entrar como redução percentual.
         const armorAfterFlat = Math.max(0, workingMonster.armor - (charStats.armorPenFlat ?? 0));
@@ -998,18 +1041,51 @@ function reducer(state, action) {
         log = pushLog(log, `Você conjurou ${spell.id} e causou ${spellDamage.toFixed(1)} de dano em ${workingMonster.name}.`);
 
         const monsterHealth = Math.max(0, workingMonster.currentHealth - spellDamage);
+        // Se essa morte esvaziou o grupo inteiro, um grupo NOVO já nasceu dentro de
+        // defeatMonster — nesse caso pulamos o acerto de Área de Efeito nessa mesma
+        // rodada (os alvos "extras" seriam de uma onda nova, sem relação com o cast
+        // que acabou de acontecer).
+        let skipAoeThisCast = false;
         if (monsterHealth <= 0) {
-          const result = defeatMonster(workingChar, workingMonster, log);
+          const wasLastInGroup = workingMonsters.length === 1;
+          const result = defeatMonster(workingChar, workingMonsters, workingMonster, log);
           workingChar = result.character;
-          workingMonster = result.monster;
+          workingMonsters = result.monsters;
+          workingMonster = workingMonsters[0];
           log = result.log;
           combatPauseUntil = result.combatPauseUntil;
+          skipAoeThisCast = wasLastInGroup;
         } else {
-          workingMonster = { ...workingMonster, currentHealth: monsterHealth };
+          workingMonsters = workingMonsters.map((m, i) => (i === 0 ? { ...m, currentHealth: monsterHealth } : m));
+          workingMonster = workingMonsters[0];
+        }
+
+        // Área de Efeito: acerta até `aoeExtraTargets` alvos adicionais do grupo
+        // (começando por workingMonsters[1]), com o MESMO dano calculado pro foco,
+        // recalculando a mitigação de Armor pro armor de CADA alvo específico. Não
+        // aplica lifesteal/escudo/etc desses hits extras — só o dano em si.
+        if (!skipAoeThisCast && aoeExtraTargets > 0) {
+          for (let n = 0; n < aoeExtraTargets && workingMonsters.length > 1; n++) {
+            const aoeTarget = workingMonsters[1];
+            const aoeArmorAfterFlat = Math.max(0, aoeTarget.armor - (charStats.armorPenFlat ?? 0));
+            const aoeEffectiveArmor = Math.max(0, aoeArmorAfterFlat * (1 - (charStats.armorPenPercent ?? 0) / 100));
+            const aoeDamage = Math.max(1, (rawDamage - aoeEffectiveArmor / 2) / (1 + aoeEffectiveArmor / 100));
+            log = pushLog(log, `${spell.id} (Área de Efeito): causou ${aoeDamage.toFixed(1)} de dano em ${aoeTarget.name}.`);
+            const aoeTargetHealthAfter = Math.max(0, aoeTarget.currentHealth - aoeDamage);
+            if (aoeTargetHealthAfter <= 0) {
+              const result = defeatMonster(workingChar, workingMonsters, aoeTarget, log);
+              workingChar = result.character;
+              workingMonsters = result.monsters;
+              log = result.log;
+            } else {
+              workingMonsters = workingMonsters.map((m, i) => (i === 1 ? { ...m, currentHealth: aoeTargetHealthAfter } : m));
+            }
+          }
+          workingMonster = workingMonsters[0];
         }
       }
 
-      if (workingChar === char && workingMonster === currentMonster && spellCooldowns === state.spellCooldowns) {
+      if (workingChar === char && workingMonsters === currentMonsters && spellCooldowns === state.spellCooldowns) {
         return state;
       }
 
@@ -1019,7 +1095,7 @@ function reducer(state, action) {
       workingChar = { ...workingChar, inventory: potionResult.inventory, currentHealth: potionResult.currentHealth, currentMana: potionResult.currentMana };
       log = potionResult.log;
 
-      return { ...state, character: workingChar, monster: workingMonster, log, combatPauseUntil, spellCooldowns };
+      return { ...state, character: workingChar, monsters: workingMonsters, log, combatPauseUntil, spellCooldowns };
     }
 
     // Ataque do jogador e ataque do monstro rodam em RELÓGIOS INDEPENDENTES (ver
@@ -1028,11 +1104,16 @@ function reducer(state, action) {
     // e não só "o combate passa mais rápido" (como era antes, quando os dois hits
     // aconteciam sempre juntos no mesmo tick).
     case 'PLAYER_ATTACK': {
-      const { character: char, monster: currentMonster } = state;
-      if (!char || !currentMonster || char.currentHealth <= 0) return state;
+      const { character: char, monsters } = state;
+      if (!char || !monsters || monsters.length === 0 || char.currentHealth <= 0) return state;
       // Pausa de 2s depois de derrotar um monstro, antes do próximo combate começar —
       // dá um respiro pra vida regenerar entre uma criatura e outra.
       if (state.combatPauseUntil && Date.now() < state.combatPauseUntil) return state;
+
+      // Ataque básico sempre mira o PRIMEIRO monstro vivo do grupo (foco automático,
+      // sem escolha manual de alvo) — sem mudança de comportamento aqui em relação a
+      // antes, exceto que agora pode haver mais monstros esperando atrás dele.
+      const currentMonster = monsters[0];
 
       const charStats = computeFinalStats(char);
 
@@ -1097,16 +1178,26 @@ function reducer(state, action) {
           trueDamage += Math.min(PRECISE_TEAR_CAP, currentMonster.maxHealth * (PRECISE_TEAR_HEALTH_PCT / 100));
         }
         // Explosive Ammo / Mahogany Build (Arco) / Overwhelming Force (Arma Grande):
-        // sem área de efeito nesse jogo, aproximados como chance de dano bônus no golpe
-        // (cada fonte rolada independente).
+        // ainda é aproximação (a fonte real não documenta a fórmula do "efeito especial
+        // de área") — chance de dano bônus verdadeiro no golpe principal (cada fonte
+        // rolada independente) E, se houver mais de 1 monstro vivo no grupo, o MESMO
+        // bônus também acerta 1 alvo adicional aleatório do grupo (bonusAoeDamage,
+        // aplicado fora do rollHit — ver playerDamage/AoE bônus abaixo).
+        let bonusAoeDamage = 0;
         if (charStats.bowExplosiveChance && Math.random() < charStats.bowExplosiveChance) {
-          trueDamage += (maxDamage - minDamage) * BOW_ELEMENTAL_EXTRA_PROC_MAGNITUDE;
+          const mag = (maxDamage - minDamage) * BOW_ELEMENTAL_EXTRA_PROC_MAGNITUDE;
+          trueDamage += mag;
+          bonusAoeDamage += mag;
         }
         if (charStats.bowSecondaryProcChance && Math.random() < charStats.bowSecondaryProcChance) {
-          trueDamage += (maxDamage - minDamage) * BOW_ELEMENTAL_EXTRA_PROC_MAGNITUDE;
+          const mag = (maxDamage - minDamage) * BOW_ELEMENTAL_EXTRA_PROC_MAGNITUDE;
+          trueDamage += mag;
+          bonusAoeDamage += mag;
         }
         if (charStats.overwhelmingForceChance && Math.random() < charStats.overwhelmingForceChance) {
-          trueDamage += (maxDamage - minDamage) * BOW_ELEMENTAL_EXTRA_PROC_MAGNITUDE;
+          const mag = (maxDamage - minDamage) * BOW_ELEMENTAL_EXTRA_PROC_MAGNITUDE;
+          trueDamage += mag;
+          bonusAoeDamage += mag;
         }
         // Seer Apparel (Luva): +5 de Dano Verdadeiro fixo por golpe (real).
         if (charStats.seerApparelActive) trueDamage += SEER_APPAREL_TRUE_DAMAGE;
@@ -1143,7 +1234,7 @@ function reducer(state, action) {
           expertShieldGain = Math.min(THE_EXPERT_SHIELD_CAP, charStats.ability / THE_EXPERT_SHIELD_ABILITY_DIVISOR);
         }
 
-        return { damage, isCrit, trueDamage, selfTrueDamage, coreStrengthSelfDamage, edgeLifeHeal, expertShieldGain };
+        return { damage, isCrit, trueDamage, selfTrueDamage, coreStrengthSelfDamage, edgeLifeHeal, expertShieldGain, bonusAoeDamage };
       }
 
       // Jagged Rhythm (Adaga) + To Be Ninja (Espada) + Gaff Hack (buff de 1 uso
@@ -1160,6 +1251,7 @@ function reducer(state, action) {
       const totalCoreStrengthSelfDamage = hits.reduce((sum, h) => sum + h.coreStrengthSelfDamage, 0);
       const totalEdgeLifeHeal = hits.reduce((sum, h) => sum + h.edgeLifeHeal, 0);
       const totalExpertShieldGain = hits.reduce((sum, h) => sum + h.expertShieldGain, 0);
+      const totalBonusAoeDamage = hits.reduce((sum, h) => sum + (h.bonusAoeDamage ?? 0), 0);
 
       // Charge the Stick: se um cast Elemental recente (com Cajado/Varinha) carregou o
       // próximo golpe, esse ataque soma o Dano Verdadeiro acumulado e consome o buff.
@@ -1279,56 +1371,96 @@ function reducer(state, action) {
         ),
       };
 
+      let workingChar;
+      let workingMonsters;
+      let combatPauseUntil = 0;
+
       if (monsterHealth <= 0) {
-        return {
-          ...state,
-          ...defeatMonster(charWithBuffsConsumed, currentMonster, log, { lifestealHeal, selfDamage: totalSelfInflictedDamage }),
-        };
+        const result = defeatMonster(charWithBuffsConsumed, monsters, currentMonster, log, {
+          lifestealHeal,
+          selfDamage: totalSelfInflictedDamage,
+        });
+        workingChar = result.character;
+        workingMonsters = result.monsters;
+        log = result.log;
+        combatPauseUntil = result.combatPauseUntil;
+      } else {
+        const healthAfterLifesteal = Math.max(
+          1,
+          Math.min(charStats.health, char.currentHealth + lifestealHeal) - totalSelfInflictedDamage,
+        );
+        workingChar = { ...charWithBuffsConsumed, currentHealth: healthAfterLifesteal };
+        workingMonsters = monsters.map((m, i) => (i === 0 ? { ...m, currentHealth: monsterHealth } : m));
       }
 
-      const healthAfterLifesteal = Math.max(
-        1,
-        Math.min(charStats.health, char.currentHealth + lifestealHeal) - totalSelfInflictedDamage,
-      );
+      // Explosive Ammo / Mahogany Build / Overwhelming Force: se procou e sobrou mais
+      // de 1 monstro vivo no grupo, o mesmo bônus de dano verdadeiro TAMBÉM acerta 1
+      // alvo adicional aleatório (além do foco, que já recebeu o bônus dentro de
+      // trueDamage) — ainda aproximação, sem fórmula real documentada pro "efeito
+      // especial de área", mas agora reflete melhor o espírito de acertar >1 monstro.
+      if (totalBonusAoeDamage > 0 && workingMonsters.length > 1) {
+        const randomIdx = 1 + Math.floor(Math.random() * (workingMonsters.length - 1));
+        const bonusTarget = workingMonsters[randomIdx];
+        log = pushLog(log, `Área de Efeito: +${totalBonusAoeDamage.toFixed(1)} de dano verdadeiro em ${bonusTarget.name}.`);
+        const bonusTargetHealthAfter = Math.max(0, bonusTarget.currentHealth - totalBonusAoeDamage);
+        if (bonusTargetHealthAfter <= 0) {
+          const result = defeatMonster(workingChar, workingMonsters, bonusTarget, log);
+          workingChar = result.character;
+          workingMonsters = result.monsters;
+          log = result.log;
+          if (result.combatPauseUntil) combatPauseUntil = result.combatPauseUntil;
+        } else {
+          workingMonsters = workingMonsters.map((m, i) => (i === randomIdx ? { ...m, currentHealth: bonusTargetHealthAfter } : m));
+        }
+      }
 
       return {
         ...state,
-        character: { ...charWithBuffsConsumed, currentHealth: healthAfterLifesteal },
-        monster: { ...currentMonster, currentHealth: monsterHealth },
+        character: workingChar,
+        monsters: workingMonsters,
         log,
+        combatPauseUntil,
       };
     }
 
     case 'MONSTER_ATTACK': {
-      const { character: char, monster: currentMonster } = state;
-      if (!char || !currentMonster || char.currentHealth <= 0) return state;
+      const { character: char, monsters } = state;
+      if (!char || !monsters || monsters.length === 0 || char.currentHealth <= 0) return state;
       if (state.combatPauseUntil && Date.now() < state.combatPauseUntil) return state;
 
       const charStats = computeFinalStats(char);
-      // Duas mitigações reais aplicadas em sequência (apogean.eu/lists/formulae):
-      // Defense primeiro — (DanoDoAtacante - Defesa) / NúmeroDeAtacantes (sempre 1
-      // atacante aqui) — depois Armor — (Resultado - Armadura/2) / (1 + Armadura/100).
-      const afterDefense = Math.max(0, currentMonster.damage - charStats.defense);
-      let monsterDamage = Math.max(1, (afterDefense - charStats.armor / 2) / (1 + charStats.armor / 100));
+      // TODOS os monstros vivos do grupo atacam no mesmo tick — cada um mitigado
+      // separadamente (Defense primeiro, depois Armor, com o mínimo de 1 por atacante,
+      // igual ao real "apogean.eu/lists/formulae"), já que cada monstro pode ter
+      // damage/armor diferentes; a SOMA agregada é o que sofre bloqueio/escudo depois
+      // (senão a complexidade de recalcular bloqueio/escudo POR ataque explode). Com
+      // groupSize=1 isso se reduz a exatamente 1 termo — comportamento idêntico a antes.
+      let monsterDamage = monsters.reduce((sum, m) => {
+        const afterDefense = Math.max(0, m.damage - charStats.defense);
+        return sum + Math.max(1, (afterDefense - charStats.armor / 2) / (1 + charStats.armor / 100));
+      }, 0);
       // Onyx Screen (Orbe): dobra o dano NORMAL recebido — risco pesado, mas dobra
       // também todo ganho de Escudo Mágico (ver addShieldGain).
       if (charStats.onyxScreenActive) monsterDamage *= 2;
 
       let workingChar = { ...char };
-      let workingMonster = currentMonster;
+      let workingMonsters = monsters;
       let combatPauseUntil = state.combatPauseUntil;
       let log = state.log;
 
+      const attackerLabel = monsters.length === 1 ? monsters[0].name : `${monsters.length} monstros`;
+
       // Bloqueio: Arcane Trickster (Luva, buff de 1 cast) OU escudo equipado (chance
       // base homebrew — nenhuma fonte real documenta o valor, só que talentos
-      // "melhoram" um bloqueio que já existiria). Bloqueio anula o golpe inteiro.
+      // "melhoram" um bloqueio que já existiria). Bloqueio anula o golpe inteiro (a
+      // soma agregada dos ataques do grupo, não cada um separado).
       const castBlocked = workingChar.castBlockBuff;
       const shieldBlocked = !castBlocked && charStats.hasShieldEquipped && Math.random() < (charStats.blockChance ?? 0);
       const blocked = castBlocked || shieldBlocked;
       if (castBlocked) workingChar = { ...workingChar, castBlockBuff: false };
 
       if (blocked) {
-        log = pushLog(log, `Você bloqueou o ataque de ${currentMonster.name}!${castBlocked ? ' (Arcane Trickster)' : ''}`);
+        log = pushLog(log, `Você bloqueou o ataque de ${attackerLabel}!${castBlocked ? ' (Arcane Trickster)' : ''}`);
         monsterDamage = 0;
       }
 
@@ -1345,7 +1477,7 @@ function reducer(state, action) {
       if (!blocked) {
         log = pushLog(
           log,
-          `${currentMonster.name} causou ${monsterDamage.toFixed(1)} de dano em você.${absorbed > 0 ? ` Escudo absorveu ${absorbed.toFixed(1)}.` : ''}`,
+          `${attackerLabel} causou ${monsterDamage.toFixed(1)} de dano em você.${absorbed > 0 ? ` Escudo absorveu ${absorbed.toFixed(1)}.` : ''}`,
         );
       }
       workingChar = { ...workingChar, shieldPoints: shieldAfter };
@@ -1370,34 +1502,36 @@ function reducer(state, action) {
       // não é uma das 34 magias documentadas, valor aproximado.
       if (absorbed > 0 && charStats.unstableAegisActive) {
         const burst = charStats.magic / UNSTABLE_AEGIS_MAGIC_DIVISOR;
-        log = pushLog(log, `Unstable Aegis: estourou ${burst.toFixed(1)} de dano verdadeiro em ${workingMonster.name}.`);
-        const monsterHealthAfterBurst = Math.max(0, workingMonster.currentHealth - burst);
+        const burstTarget = workingMonsters[0];
+        log = pushLog(log, `Unstable Aegis: estourou ${burst.toFixed(1)} de dano verdadeiro em ${burstTarget.name}.`);
+        const monsterHealthAfterBurst = Math.max(0, burstTarget.currentHealth - burst);
         if (monsterHealthAfterBurst <= 0) {
-          const result = defeatMonster(workingChar, workingMonster, log);
+          const result = defeatMonster(workingChar, workingMonsters, burstTarget, log);
           workingChar = result.character;
-          workingMonster = result.monster;
+          workingMonsters = result.monsters;
           log = result.log;
           combatPauseUntil = result.combatPauseUntil;
         } else {
-          workingMonster = { ...workingMonster, currentHealth: monsterHealthAfterBurst };
+          workingMonsters = workingMonsters.map((m, i) => (i === 0 ? { ...m, currentHealth: monsterHealthAfterBurst } : m));
         }
       }
 
       // Repelling Shell (Orbe): mesmo gatilho de absorção de Escudo, outro estouro
       // homebrew independente ("Repelling Force"), com divisor de Magic diferente do
       // Unstable Aegis pra distinguir os dois procs.
-      if (workingMonster && absorbed > 0 && charStats.orbShieldProcActive && Math.random() < ORB_SHIELD_PROC_CHANCE) {
+      if (workingMonsters.length > 0 && absorbed > 0 && charStats.orbShieldProcActive && Math.random() < ORB_SHIELD_PROC_CHANCE) {
         const burst = Math.floor(charStats.magic / REPELLING_SHELL_MAGIC_DIVISOR);
-        log = pushLog(log, `Repelling Shell: estourou ${burst} de dano verdadeiro em ${workingMonster.name}.`);
-        const monsterHealthAfterBurst = Math.max(0, workingMonster.currentHealth - burst);
+        const burstTarget = workingMonsters[0];
+        log = pushLog(log, `Repelling Shell: estourou ${burst} de dano verdadeiro em ${burstTarget.name}.`);
+        const monsterHealthAfterBurst = Math.max(0, burstTarget.currentHealth - burst);
         if (monsterHealthAfterBurst <= 0) {
-          const result = defeatMonster(workingChar, workingMonster, log);
+          const result = defeatMonster(workingChar, workingMonsters, burstTarget, log);
           workingChar = result.character;
-          workingMonster = result.monster;
+          workingMonsters = result.monsters;
           log = result.log;
           combatPauseUntil = result.combatPauseUntil;
         } else {
-          workingMonster = { ...workingMonster, currentHealth: monsterHealthAfterBurst };
+          workingMonsters = workingMonsters.map((m, i) => (i === 0 ? { ...m, currentHealth: monsterHealthAfterBurst } : m));
         }
       }
 
@@ -1427,7 +1561,7 @@ function reducer(state, action) {
       return {
         ...state,
         character: { ...workingChar, currentHealth: newHealth, currentMana, deaths, autoCombat, inventory },
-        monster: workingMonster,
+        monsters: workingMonsters,
         log,
         autoCombat,
         combatPauseUntil,
@@ -1978,7 +2112,21 @@ function reducer(state, action) {
       return {
         ...state,
         character: { ...state.character, zoneId: action.zoneId },
-        monster: pickMonster(action.zoneId),
+        monsters: pickMonsterGroup(action.zoneId, state.character.groupSize),
+      };
+    }
+
+    // Só o jogador escolhe (1 a 10) — zona de boss ignora esse valor e trava em 1
+    // dentro de pickMonsterGroup, então não precisamos forçar nada aqui: trocar o
+    // groupSize sempre re-sorteia o grupo atual (mesmo efeito de trocar de zona).
+    case 'SET_GROUP_SIZE': {
+      const char = state.character;
+      if (!char) return state;
+      const groupSize = Math.max(1, Math.min(10, Math.floor(action.groupSize ?? 1)));
+      return {
+        ...state,
+        character: { ...char, groupSize },
+        monsters: pickMonsterGroup(char.zoneId, groupSize),
       };
     }
 
@@ -2221,6 +2369,7 @@ export function useGameState() {
   const resetTalents = useCallback(() => dispatch({ type: 'RESET_TALENTS' }), []);
   const investTalent = useCallback((talentId) => dispatch({ type: 'INVEST_TALENT', talentId }), []);
   const changeZone = useCallback((zoneId) => dispatch({ type: 'CHANGE_ZONE', zoneId }), []);
+  const setGroupSize = useCallback((n) => dispatch({ type: 'SET_GROUP_SIZE', groupSize: n }), []);
   const claimQuest = useCallback((questId) => dispatch({ type: 'CLAIM_QUEST', questId }), []);
   const buyItem = useCallback(
     (merchantName, itemName, quantity = 1) => dispatch({ type: 'BUY_ITEM', merchantName, itemName, quantity }),
@@ -2309,7 +2458,7 @@ export function useGameState() {
 
   return {
     character,
-    monster: state.monster,
+    monsters: state.monsters,
     log: state.log,
     autoCombat: state.autoCombat,
     setAutoCombat,
@@ -2342,6 +2491,7 @@ export function useGameState() {
     unspentPoints: state.character ? unspentPoints(state.character.levelBatches) : 0,
     weight,
     changeZone,
+    setGroupSize,
     claimQuest,
     buyItem,
     sellToMerchant,

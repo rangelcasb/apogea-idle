@@ -272,12 +272,17 @@ function ItemFarmBox({ character, changeZone, setAutoCombat }) {
   );
 }
 
-export default function Cacada({ character, monster, log, autoCombat, setAutoCombat, zones, changeZone }) {
+export default function Cacada({ character, monsters, log, autoCombat, setAutoCombat, zones, changeZone, setGroupSize }) {
   const isDead = character.currentHealth <= 0;
   const floaters = useFloatingNumbers(log);
   const { playerHitId, monsterHitId } = useAttackShake(log);
   const combatStats = useCombatStats(log, autoCombat);
-  const { displayed: displayedMonster, phase: monsterPhase } = useMonsterTransition(monster, character.kills);
+  // Alvo focado: sempre o PRIMEIRO monstro vivo do grupo (foco automático). O hook de
+  // transição (entrada/saída animada) segue existindo só pra ele — os demais membros
+  // do grupo (quando groupSize > 1) aparecem/saem sem essa animação, como cards menores.
+  const focusedMonster = monsters?.[0] ?? null;
+  const { displayed: displayedMonster, phase: monsterPhase } = useMonsterTransition(focusedMonster, character.kills);
+  const groupSize = character.groupSize ?? 1;
 
   // Enquanto está caçando (combate automático ligado), mostra o painel de combate ao
   // vivo. Fora de combate, mostra a grade de zonas — igual à tela "Zonas de Caça".
@@ -292,14 +297,44 @@ export default function Cacada({ character, monster, log, autoCombat, setAutoCom
       ? zone.monsters.reduce((sum, m) => sum + m.xp, 0) / zone.monsters.length
       : 0;
     const killsPerHour = avgMonsterXp > 0 ? Math.round(zone.xpPerHour / avgMonsterXp) : 0;
+    const aliveMonsters = monsters ?? [];
+    const isSingle = aliveMonsters.length <= 1;
 
     return (
       <div className="flex-1 flex flex-col gap-4">
-        <div className="bg-wood-light border border-wood-lighter rounded-lg p-4 flex items-center justify-between">
+        <div className="bg-wood-light border border-wood-lighter rounded-lg p-4 flex items-center justify-between gap-3 flex-wrap">
           <div>
             <h3 className="text-gold font-semibold">{zone?.name}</h3>
             <p className="text-xs text-neutral-500">{zone?.region}</p>
           </div>
+
+          {/* Tamanho do grupo de monstros — só ajustável em zona normal (1 a 10). Zona
+              de boss trava sempre em 1, sem seletor nenhum (não pode ser multiplicado). */}
+          {zone?.boss ? (
+            <p className="text-xs text-blood font-medium">🐲 Boss — sempre 1 por vez</p>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-neutral-400">Monstros por vez:</span>
+              <button
+                onClick={() => setGroupSize(Math.max(1, groupSize - 1))}
+                disabled={groupSize <= 1}
+                className="w-6 h-6 flex items-center justify-center bg-wood-lighter rounded text-sm font-semibold
+                           disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer hover:text-gold"
+              >
+                −
+              </button>
+              <span className="text-sm text-gold font-semibold w-5 text-center">{groupSize}</span>
+              <button
+                onClick={() => setGroupSize(Math.min(10, groupSize + 1))}
+                disabled={groupSize >= 10}
+                className="w-6 h-6 flex items-center justify-center bg-wood-lighter rounded text-sm font-semibold
+                           disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer hover:text-gold"
+              >
+                +
+              </button>
+            </div>
+          )}
+
           <button
             onClick={() => setAutoCombat(false)}
             className="bg-blood text-white text-sm font-medium px-4 py-1.5 rounded hover:bg-red-800 cursor-pointer"
@@ -378,33 +413,68 @@ export default function Cacada({ character, monster, log, autoCombat, setAutoCom
                 </p>
               </div>
 
-              <div className="relative flex flex-col items-center gap-1">
-                <p className="text-xs font-semibold text-neutral-100 drop-shadow">
-                  {displayedMonster ? displayedMonster.name : '...'}
-                </p>
-                <div className="w-24 h-2 bg-black/50 rounded overflow-hidden">
-                  <div className="h-full bg-green-500 transition-all" style={{ width: `${monsterHpPct}%` }} />
+              {isSingle ? (
+                <div className="relative flex flex-col items-center gap-1">
+                  <p className="text-xs font-semibold text-neutral-100 drop-shadow">
+                    {displayedMonster ? displayedMonster.name : '...'}
+                  </p>
+                  <div className="w-24 h-2 bg-black/50 rounded overflow-hidden">
+                    <div className="h-full bg-green-500 transition-all" style={{ width: `${monsterHpPct}%` }} />
+                  </div>
+                  <div className="relative w-16 h-16 flex items-center justify-center bg-black/20 rounded-full">
+                    {displayedMonster && (
+                      <div
+                        key={`monster-scene-${character.kills}-${monsterPhase}`}
+                        className={
+                          monsterPhase === 'exiting'
+                            ? 'animate-monster-exit'
+                            : monsterPhase === 'entering'
+                              ? 'animate-monster-enter'
+                              : undefined
+                        }
+                      >
+                        <span key={`monster-shake-${monsterHitId}`} className={monsterPhase === 'idle' ? 'animate-shake' : undefined}>
+                          <MonsterIcon monster={displayedMonster} className="w-12 h-12" />
+                        </span>
+                      </div>
+                    )}
+                    <Floaters floaters={floaters} side="monster" />
+                  </div>
                 </div>
-                <div className="relative w-16 h-16 flex items-center justify-center bg-black/20 rounded-full">
-                  {displayedMonster && (
-                    <div
-                      key={`monster-scene-${character.kills}-${monsterPhase}`}
-                      className={
-                        monsterPhase === 'exiting'
-                          ? 'animate-monster-exit'
-                          : monsterPhase === 'entering'
-                            ? 'animate-monster-enter'
-                            : undefined
-                      }
-                    >
-                      <span key={`monster-shake-${monsterHitId}`} className={monsterPhase === 'idle' ? 'animate-shake' : undefined}>
-                        <MonsterIcon monster={displayedMonster} className="w-12 h-12" />
-                      </span>
-                    </div>
-                  )}
-                  <Floaters floaters={floaters} side="monster" />
+              ) : (
+                // Grupo com mais de 1 monstro: fileira de cards menores, um por
+                // instância viva. O primeiro (instanceId igual a aliveMonsters[0]) é o
+                // alvo focado (recebe o ataque básico) — destacado com borda dourada.
+                <div className="relative flex flex-wrap items-end justify-center gap-2.5 max-w-xs">
+                  {aliveMonsters.map((m, idx) => {
+                    const isFocused = idx === 0;
+                    const hpPct = Math.max(0, (m.currentHealth / m.maxHealth) * 100);
+                    return (
+                      <div key={m.instanceId} className="relative flex flex-col items-center gap-0.5">
+                        <p className="text-[9px] font-semibold text-neutral-100 drop-shadow truncate max-w-[3.5rem]">
+                          {m.name}
+                        </p>
+                        <div className="w-12 h-1.5 bg-black/50 rounded overflow-hidden">
+                          <div className="h-full bg-green-500 transition-all" style={{ width: `${hpPct}%` }} />
+                        </div>
+                        <div
+                          className={`relative w-10 h-10 flex items-center justify-center bg-black/20 rounded-full
+                            ${isFocused ? 'ring-2 ring-gold' : ''}`}
+                        >
+                          {isFocused ? (
+                            <span key={`monster-shake-${monsterHitId}`} className="animate-shake">
+                              <MonsterIcon monster={m} className="w-8 h-8" />
+                            </span>
+                          ) : (
+                            <MonsterIcon monster={m} className="w-7 h-7 opacity-90" />
+                          )}
+                          {isFocused && <Floaters floaters={floaters} side="monster" />}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
