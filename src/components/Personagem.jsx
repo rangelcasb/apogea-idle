@@ -161,6 +161,10 @@ export default function Personagem({
               <p className="text-neutral-500">MP Regen / 10s</p>
               <p className="text-blue-400 font-medium">+{character.stats.mpRegen.toFixed(1)}</p>
             </div>
+            <div>
+              <p className="text-neutral-500">Movespeed</p>
+              <p className="text-neutral-100 font-medium">{(character.stats.movespeed ?? 10).toFixed(1)}</p>
+            </div>
           </div>
 
           {(character.stats.lifestealPercent > 0 || character.stats.critChance > 0 || character.stats.armorPenPercent > 0) && (

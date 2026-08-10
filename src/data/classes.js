@@ -19,6 +19,13 @@ const BASE_SQUIRE_STATS = {
   armor: 0,
   defense: 0,
   damage: 5,
+  // Movespeed: "velocidade de engajamento" — não é a Attack Speed (ritmo dos golpes
+  // dentro de um combate), é o quão rápido você entra no PRÓXIMO combate depois que um
+  // grupo inteiro de monstros morre (ver playerCombatPauseUntil em useGameState.js).
+  // Base 10 pra todo mundo (nenhuma classe tem multiplicador pra esse stat — só cresce/
+  // diminui por equipamento, igual Armor/Defense). NÃO é alocável por pontos de nível
+  // (não entra em ALLOCATABLE_STATS).
+  movespeed: 10,
 };
 
 function applyMultipliers(mult) {
@@ -141,6 +148,17 @@ export function allocatePoint(levelBatches, stat) {
   return next;
 }
 
+// Sistema genérico de buffs temporizados de combate (character.activeBuffs: array de
+// { id, stat, value, expiresAt }). Reaproveitável por qualquer magia/talento futuro que
+// precise de um bônus temporário — hoje só QuickAttack usa (+6 Attackspeed por 4s).
+export function pruneExpiredBuffs(activeBuffs, now = Date.now()) {
+  return (activeBuffs ?? []).filter((b) => b.expiresAt > now);
+}
+
+export function sumActiveBuffValue(activeBuffs, stat, now = Date.now()) {
+  return (activeBuffs ?? []).reduce((sum, b) => (b.stat === stat && b.expiresAt > now ? sum + b.value : sum), 0);
+}
+
 // Stats finais de combate: base da classe + pontos alocados (health, mana, magic,
 // ability, hpRegen, mpRegen, capacity) + bônus somado de todo equipamento vestido
 // (armor, damage, attackSpeed e outros vêm só da classe + equipamento, sem pontos)
@@ -192,6 +210,22 @@ export function computeFinalStats(character) {
   // Magic alto, já que só o cajado (Magic/5) usava esse stat. A pedido do usuário,
   // pro Mage o ataque básico escala com Magic em vez de Ability.
   withSatiety.damageScalingStat = character.class === 'Mage' ? withSatiety.magic : withSatiety.ability;
+
+  // Buffs temporizados de combate (ex: QuickAttack, +6 Attackspeed por 4s) — somados
+  // por ÚLTIMO, por cima de tudo (talentos, saciedade, equipamento). ATENÇÃO: isso torna
+  // computeFinalStats DEPENDENTE de Date.now() — antes desta mudança era 100% pura
+  // (mesmo personagem = mesmo resultado sempre). Buffs expirados são ignorados aqui,
+  // mas continuam no array até algum reducer podar (ver pruneExpiredBuffs em
+  // useGameState.js) — só ler os stats não remove o buff vencido do personagem.
+  const activeBuffs = character.activeBuffs;
+  if (activeBuffs && activeBuffs.length > 0) {
+    const now = Date.now();
+    const buffStats = new Set(activeBuffs.filter((b) => b.expiresAt > now).map((b) => b.stat));
+    for (const stat of buffStats) {
+      withSatiety[stat] = (withSatiety[stat] ?? 0) + sumActiveBuffValue(activeBuffs, stat, now);
+    }
+  }
+
   return withSatiety;
 }
 

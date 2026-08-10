@@ -10,6 +10,7 @@ import {
   xpForNextLevel,
   rollLoot,
   computeFinalStats,
+  pruneExpiredBuffs,
   canAllocatePoint,
   allocatePoint,
   unspentPoints,
@@ -72,6 +73,13 @@ import {
 } from '../services/firebase';
 
 const SYNC_DEBOUNCE_MS = 1500;
+
+// Buff real de QuickAttack ("+6 Attackspeed for 4 seconds") — ver sistema de
+// character.activeBuffs / pruneExpiredBuffs / sumActiveBuffValue em classes.js.
+const QUICK_ATTACK_BUFF_ID = 'quickAttack';
+const QUICK_ATTACK_BUFF_STAT = 'attackSpeed';
+const QUICK_ATTACK_BUFF_VALUE = 6;
+const QUICK_ATTACK_BUFF_DURATION_MS = 4000;
 
 const TURN_MS = 2000;
 // Fórmula real: "Regeneration triggers every 10 seconds, restoring half of your HP
@@ -293,6 +301,8 @@ function createCharacter(name) {
     castAttackBurstBuff: false,
     castBlockBuff: false,
     blockEmpowerBuff: false,
+    // Buffs temporizados de combate (ex: QuickAttack) — { id, stat, value, expiresAt }.
+    activeBuffs: [],
     updatedAt: Date.now(),
   };
   const stats = computeFinalStats(raw);
@@ -360,6 +370,7 @@ function migrateCharacter(char) {
     castAttackBurstBuff: char.castAttackBurstBuff ?? false,
     castBlockBuff: char.castBlockBuff ?? false,
     blockEmpowerBuff: char.blockEmpowerBuff ?? false,
+    activeBuffs: char.activeBuffs ?? [],
     updatedAt: char.updatedAt ?? 0,
   };
 }
@@ -383,6 +394,21 @@ function pickMonsterGroup(zoneId, groupSize) {
   });
 }
 
+// Poda buffs temporizados vencidos (ex: QuickAttack) do personagem. Só gera uma NOVA
+// referência de personagem quando a poda realmente remove algo — isso é o que faz o
+// relógio do PLAYER_ATTACK (useMemo de attackSpeed em useGameState(), que só recalcula
+// quando state.character muda) perceber que o buff caiu e recriar o interval com o
+// ritmo normal de volta. Precisa ser chamado dentro do reducer (PLAYER_ATTACK,
+// SPELL_CAST, MONSTER_ATTACK, REGEN_TICK) pra isso acontecer sem depender de nenhuma
+// outra mudança de estado — LIMITAÇÃO conhecida: a precisão é "o tick mais próximo
+// depois do prazo" (até ~500ms de atraso no pior caso, o intervalo do relógio de
+// SPELL_CAST), não o milissegundo exato em que o buff expira.
+function pruneCharBuffs(char) {
+  if (!char?.activeBuffs?.length) return char;
+  const pruned = pruneExpiredBuffs(char.activeBuffs);
+  return pruned.length === char.activeBuffs.length ? char : { ...char, activeBuffs: pruned };
+}
+
 function pushLog(log, message) {
   return [{ message, id: Date.now() + Math.random() }, ...log].slice(0, 50);
 }
@@ -397,7 +423,11 @@ function init() {
     // Retoma o combate automático de onde parou — se estava caçando quando a aba
     // fechou (e não morreu), continua caçando ao reabrir.
     autoCombat: character?.autoCombat && character.currentHealth > 0,
-    combatPauseUntil: 0,
+    // Pausa de transição depois que um grupo inteiro de monstros morre — SEPARADA entre
+    // jogador e monstro (ver comentário em MONSTER_TRANSITION_MS/computePlayerPauseMs):
+    // o monstro sempre usa a pausa fixa; o jogador escala com a Movespeed final dele.
+    playerCombatPauseUntil: 0,
+    monsterCombatPauseUntil: 0,
     spellCooldowns: {},
   };
 }
@@ -455,7 +485,24 @@ function autoUsePotions(char, stats, log) {
   return { inventory, currentHealth, currentMana, log };
 }
 
+// Pausa de transição fixa (respiro pra vida regenerar) usada pelo MONSTRO depois que um
+// grupo inteiro morre — o monstro não tem Movespeed próprio (não existe esse dado por
+// monstro na nossa base), então sempre usa esse valor fixo.
 const MONSTER_TRANSITION_MS = 2000;
+const PLAYER_TRANSITION_MIN_MS = 300;
+const PLAYER_TRANSITION_MAX_MS = 4000;
+const PLAYER_TRANSITION_BASELINE_MOVESPEED = 10;
+
+// Pausa de transição do JOGADOR: escala de forma INVERSA com a Movespeed final dele —
+// Movespeed 10 (padrão) = pausa igual à de hoje (2000ms); Movespeed 20 = pausa de
+// 1000ms (metade); Movespeed 5 = pausa de 4000ms (dobro). Clampada num mínimo de 1 pro
+// movespeed usado na conta (evita divisão por zero/negativo com item de Movespeed muito
+// negativo) e no resultado final entre 300ms e 4000ms (evita extremos malucos).
+function computePlayerPauseMs(movespeedFinal) {
+  const safeMovespeed = Math.max(1, movespeedFinal ?? PLAYER_TRANSITION_BASELINE_MOVESPEED);
+  const raw = MONSTER_TRANSITION_MS * (PLAYER_TRANSITION_BASELINE_MOVESPEED / safeMovespeed);
+  return Math.min(PLAYER_TRANSITION_MAX_MS, Math.max(PLAYER_TRANSITION_MIN_MS, raw));
+}
 
 // Derrota de um monstro: XP, gold, drops (respeitando blacklist), auto-come comida e
 // sobe de nível — usado tanto por PLAYER_ATTACK (golpe normal) quanto por SPELL_CAST
@@ -572,7 +619,11 @@ function defeatMonster(char, monsters, deadMonster, log, { lifestealHeal = 0, se
     log,
     // Só pausa (respiro pra vida regenerar) quando o grupo INTEIRO morreu e um novo
     // grupo acabou de nascer — matar 1 de vários não interrompe o ritmo do combate.
-    combatPauseUntil: groupWiped ? Date.now() + MONSTER_TRANSITION_MS : 0,
+    // Assimétrico: o monstro sempre usa a pausa fixa; o jogador escala com a Movespeed
+    // final dele (computePlayerPauseMs), usando newStats (já com equipamento/talentos/
+    // buffs aplicados, calculado logo acima).
+    monsterCombatPauseUntil: groupWiped ? Date.now() + MONSTER_TRANSITION_MS : 0,
+    playerCombatPauseUntil: groupWiped ? Date.now() + computePlayerPauseMs(newStats.movespeed) : 0,
   };
 }
 
@@ -590,6 +641,8 @@ function reducer(state, action) {
         monsters: pickMonsterGroup(character.zoneId, character.groupSize),
         log: pushLog([], `${character.name} chegou como Squire! Junte ${VOCATION_COST} gold pra escolher uma vocação.`),
         autoCombat: false,
+        playerCombatPauseUntil: 0,
+        monsterCombatPauseUntil: 0,
       };
     }
 
@@ -620,6 +673,8 @@ function reducer(state, action) {
         monsters: pickMonsterGroup(character.zoneId, character.groupSize),
         log: pushLog([], `Personagem sincronizado! Bem-vindo de volta, ${character.name}.`),
         autoCombat: character.autoCombat && character.currentHealth > 0,
+        playerCombatPauseUntil: 0,
+        monsterCombatPauseUntil: 0,
       };
     }
 
@@ -759,9 +814,13 @@ function reducer(state, action) {
     // ataque físico — cada magia equipada tem seu próprio cooldown (spellCooldowns,
     // fora do personagem: é estado de combate efêmero, não precisa ser salvo).
     case 'SPELL_CAST': {
-      const { character: char, monsters: currentMonsters } = state;
+      const { monsters: currentMonsters } = state;
+      const origChar = state.character;
+      const char = pruneCharBuffs(origChar);
       if (!char || !currentMonsters || currentMonsters.length === 0 || char.currentHealth <= 0 || !char.autoCastSpells) return state;
-      if (state.combatPauseUntil && Date.now() < state.combatPauseUntil) return state;
+      // Conjurar magia é uma AÇÃO DO JOGADOR — gateada pela pausa do jogador (escala com
+      // Movespeed), não pela do monstro.
+      if (state.playerCombatPauseUntil && Date.now() < state.playerCombatPauseUntil) return state;
 
       const charStats = computeFinalStats(char);
       const now = Date.now();
@@ -772,7 +831,8 @@ function reducer(state, action) {
       let workingChar = char;
       let workingMonsters = currentMonsters;
       let log = state.log;
-      let combatPauseUntil = state.combatPauseUntil;
+      let playerCombatPauseUntil = state.playerCombatPauseUntil;
+      let monsterCombatPauseUntil = state.monsterCombatPauseUntil;
 
       // Reserva de mana pra Cura: se tiver magia de Cura equipada (e ela gastar Mana,
       // não Vida), as outras magias de dano não vão gastar mana até o ponto de deixar
@@ -890,7 +950,8 @@ function reducer(state, action) {
             workingMonsters = result.monsters;
             workingMonster = workingMonsters[0];
             log = result.log;
-            combatPauseUntil = result.combatPauseUntil;
+            playerCombatPauseUntil = result.playerCombatPauseUntil;
+            monsterCombatPauseUntil = result.monsterCombatPauseUntil;
             continue;
           }
           workingMonsters = workingMonsters.map((m, i) => (i === 0 ? { ...m, currentHealth: monsterHealthAfterExtra } : m));
@@ -956,28 +1017,27 @@ function reducer(state, action) {
           continue;
         }
 
-        // Quick Attack (real: "+6 Attackspeed for 4 seconds") — sem sistema de buff
-        // temporizado de combate nesse jogo, aproximado como 1 golpe básico extra
-        // imediato no alvo focado (mesmo padrão já usado pro Swiftstride).
+        // Quick Attack (real: "+6 Attackspeed for 4 seconds") — agora usa o sistema de
+        // buff temporizado de combate de verdade (character.activeBuffs), em vez da
+        // aproximação antiga (1 golpe básico extra imediato). Renova em vez de empilhar:
+        // castar de novo enquanto o buff anterior ainda tá ativo SUBSTITUI o registro
+        // (mesmo id), não soma dois +6 ao mesmo tempo.
         if (spell.kind === 'buff') {
-          workingChar = { ...workingChar, currentMana: workingChar.currentMana - effectiveManaCost };
-          log = pushLog(log, `Você conjurou ${spell.id}!`);
-          if (workingMonsters.length > 0) {
-            const extraDamage = computeExtraBasicHitDamage(charStats, workingMonster, workingChar.monsterKills?.[workingMonster.name]);
-            log = pushLog(log, `Quick Attack: golpe extra causou ${extraDamage.toFixed(1)} de dano em ${workingMonster.name}.`);
-            const monsterHealthAfterExtra = Math.max(0, workingMonster.currentHealth - extraDamage);
-            if (monsterHealthAfterExtra <= 0) {
-              const result = defeatMonster(workingChar, workingMonsters, workingMonster, log);
-              workingChar = result.character;
-              workingMonsters = result.monsters;
-              workingMonster = workingMonsters[0];
-              log = result.log;
-              combatPauseUntil = result.combatPauseUntil;
-            } else {
-              workingMonsters = workingMonsters.map((m, i) => (i === 0 ? { ...m, currentHealth: monsterHealthAfterExtra } : m));
-              workingMonster = workingMonsters[0];
-            }
-          }
+          const otherBuffs = (workingChar.activeBuffs ?? []).filter((b) => b.id !== QUICK_ATTACK_BUFF_ID);
+          workingChar = {
+            ...workingChar,
+            currentMana: workingChar.currentMana - effectiveManaCost,
+            activeBuffs: [
+              ...otherBuffs,
+              {
+                id: QUICK_ATTACK_BUFF_ID,
+                stat: QUICK_ATTACK_BUFF_STAT,
+                value: QUICK_ATTACK_BUFF_VALUE,
+                expiresAt: Date.now() + QUICK_ATTACK_BUFF_DURATION_MS,
+              },
+            ],
+          };
+          log = pushLog(log, `Você conjurou ${spell.id}! +${QUICK_ATTACK_BUFF_VALUE} Attack Speed por ${QUICK_ATTACK_BUFF_DURATION_MS / 1000}s.`);
           continue;
         }
 
@@ -1087,7 +1147,8 @@ function reducer(state, action) {
           workingMonsters = result.monsters;
           workingMonster = workingMonsters[0];
           log = result.log;
-          combatPauseUntil = result.combatPauseUntil;
+          playerCombatPauseUntil = result.playerCombatPauseUntil;
+          monsterCombatPauseUntil = result.monsterCombatPauseUntil;
           skipAoeThisCast = wasLastInGroup;
         } else {
           workingMonsters = workingMonsters.map((m, i) => (i === 0 ? { ...m, currentHealth: monsterHealth } : m));
@@ -1119,7 +1180,7 @@ function reducer(state, action) {
         }
       }
 
-      if (workingChar === char && workingMonsters === currentMonsters && spellCooldowns === state.spellCooldowns) {
+      if (workingChar === origChar && workingMonsters === currentMonsters && spellCooldowns === state.spellCooldowns) {
         return state;
       }
 
@@ -1129,7 +1190,7 @@ function reducer(state, action) {
       workingChar = { ...workingChar, inventory: potionResult.inventory, currentHealth: potionResult.currentHealth, currentMana: potionResult.currentMana };
       log = potionResult.log;
 
-      return { ...state, character: workingChar, monsters: workingMonsters, log, combatPauseUntil, spellCooldowns };
+      return { ...state, character: workingChar, monsters: workingMonsters, log, playerCombatPauseUntil, monsterCombatPauseUntil, spellCooldowns };
     }
 
     // Ataque do jogador e ataque do monstro rodam em RELÓGIOS INDEPENDENTES (ver
@@ -1138,11 +1199,13 @@ function reducer(state, action) {
     // e não só "o combate passa mais rápido" (como era antes, quando os dois hits
     // aconteciam sempre juntos no mesmo tick).
     case 'PLAYER_ATTACK': {
-      const { character: char, monsters } = state;
+      const { monsters } = state;
+      const char = pruneCharBuffs(state.character);
       if (!char || !monsters || monsters.length === 0 || char.currentHealth <= 0) return state;
-      // Pausa de 2s depois de derrotar um monstro, antes do próximo combate começar —
-      // dá um respiro pra vida regenerar entre uma criatura e outra.
-      if (state.combatPauseUntil && Date.now() < state.combatPauseUntil) return state;
+      // Pausa de transição depois de derrotar um monstro, antes do próximo combate
+      // começar — dá um respiro pra vida regenerar. Gateada pela pausa do JOGADOR
+      // (escala com Movespeed), não pela do monstro (ver computePlayerPauseMs).
+      if (state.playerCombatPauseUntil && Date.now() < state.playerCombatPauseUntil) return state;
 
       // Ataque básico sempre mira o PRIMEIRO monstro vivo do grupo (foco automático,
       // sem escolha manual de alvo) — sem mudança de comportamento aqui em relação a
@@ -1407,7 +1470,8 @@ function reducer(state, action) {
 
       let workingChar;
       let workingMonsters;
-      let combatPauseUntil = 0;
+      let playerCombatPauseUntil = 0;
+      let monsterCombatPauseUntil = 0;
 
       if (monsterHealth <= 0) {
         const result = defeatMonster(charWithBuffsConsumed, monsters, currentMonster, log, {
@@ -1417,7 +1481,8 @@ function reducer(state, action) {
         workingChar = result.character;
         workingMonsters = result.monsters;
         log = result.log;
-        combatPauseUntil = result.combatPauseUntil;
+        playerCombatPauseUntil = result.playerCombatPauseUntil;
+        monsterCombatPauseUntil = result.monsterCombatPauseUntil;
       } else {
         const healthAfterLifesteal = Math.max(
           1,
@@ -1442,7 +1507,8 @@ function reducer(state, action) {
           workingChar = result.character;
           workingMonsters = result.monsters;
           log = result.log;
-          if (result.combatPauseUntil) combatPauseUntil = result.combatPauseUntil;
+          if (result.playerCombatPauseUntil) playerCombatPauseUntil = result.playerCombatPauseUntil;
+          if (result.monsterCombatPauseUntil) monsterCombatPauseUntil = result.monsterCombatPauseUntil;
         } else {
           workingMonsters = workingMonsters.map((m, i) => (i === randomIdx ? { ...m, currentHealth: bonusTargetHealthAfter } : m));
         }
@@ -1453,14 +1519,17 @@ function reducer(state, action) {
         character: workingChar,
         monsters: workingMonsters,
         log,
-        combatPauseUntil,
+        playerCombatPauseUntil,
+        monsterCombatPauseUntil,
       };
     }
 
     case 'MONSTER_ATTACK': {
-      const { character: char, monsters } = state;
+      const { monsters } = state;
+      const char = pruneCharBuffs(state.character);
       if (!char || !monsters || monsters.length === 0 || char.currentHealth <= 0) return state;
-      if (state.combatPauseUntil && Date.now() < state.combatPauseUntil) return state;
+      // Gateado pela pausa do MONSTRO — sempre fixa (2000ms), ele não tem Movespeed próprio.
+      if (state.monsterCombatPauseUntil && Date.now() < state.monsterCombatPauseUntil) return state;
 
       const charStats = computeFinalStats(char);
       // TODOS os monstros vivos do grupo atacam no mesmo tick — cada um mitigado
@@ -1479,7 +1548,8 @@ function reducer(state, action) {
 
       let workingChar = { ...char };
       let workingMonsters = monsters;
-      let combatPauseUntil = state.combatPauseUntil;
+      let playerCombatPauseUntil = state.playerCombatPauseUntil;
+      let monsterCombatPauseUntil = state.monsterCombatPauseUntil;
       let log = state.log;
 
       const attackerLabel = monsters.length === 1 ? monsters[0].name : `${monsters.length} monstros`;
@@ -1544,7 +1614,8 @@ function reducer(state, action) {
           workingChar = result.character;
           workingMonsters = result.monsters;
           log = result.log;
-          combatPauseUntil = result.combatPauseUntil;
+          playerCombatPauseUntil = result.playerCombatPauseUntil;
+          monsterCombatPauseUntil = result.monsterCombatPauseUntil;
         } else {
           workingMonsters = workingMonsters.map((m, i) => (i === 0 ? { ...m, currentHealth: monsterHealthAfterBurst } : m));
         }
@@ -1563,7 +1634,8 @@ function reducer(state, action) {
           workingChar = result.character;
           workingMonsters = result.monsters;
           log = result.log;
-          combatPauseUntil = result.combatPauseUntil;
+          playerCombatPauseUntil = result.playerCombatPauseUntil;
+          monsterCombatPauseUntil = result.monsterCombatPauseUntil;
         } else {
           workingMonsters = workingMonsters.map((m, i) => (i === 0 ? { ...m, currentHealth: monsterHealthAfterBurst } : m));
         }
@@ -1598,12 +1670,14 @@ function reducer(state, action) {
         monsters: workingMonsters,
         log,
         autoCombat,
-        combatPauseUntil,
+        playerCombatPauseUntil,
+        monsterCombatPauseUntil,
       };
     }
 
     case 'REGEN_TICK': {
-      const char = state.character;
+      const origChar = state.character;
+      const char = pruneCharBuffs(origChar);
       if (!char || char.currentHealth <= 0) return state;
       const s = computeFinalStats(char);
       // Fórmula real: a cada 10s, restaura METADE do stat de HP/MP Regen.
@@ -1655,6 +1729,7 @@ function reducer(state, action) {
       log = potionResult.log;
 
       if (
+        char === origChar &&
         currentHealth === char.currentHealth &&
         currentManaAfterPotion === char.currentMana &&
         inventory === char.inventory &&

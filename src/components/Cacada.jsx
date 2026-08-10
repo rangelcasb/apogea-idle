@@ -410,6 +410,10 @@ export default function Cacada({ character, monsters, log, autoCombat, setAutoCo
                   {' · '}
                   <span className="text-blue-300">+{character.stats.mpRegen.toFixed(1)} MP</span>
                   <span className="text-neutral-400"> /10s</span>
+                  <br />
+                  <span className="text-neutral-400" title="Movespeed: quão rápido você engaja o próximo grupo de monstros depois de uma vitória.">
+                    Movespeed: {(character.stats.movespeed ?? 10).toFixed(1)}
+                  </span>
                 </p>
               </div>
 

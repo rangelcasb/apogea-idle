@@ -3,10 +3,10 @@
 // encontramos com fórmula, requisito de Magic/Ability, custo de mana e cooldown.
 //
 // Só entram como "castable" (usáveis pelo auto-cast) as magias com fórmula de dano ou
-// cura clara, ou (caso de QuickAttack, `kind: 'buff'`) um efeito bem definido que dê
-// pra aproximar sem precisar de um sistema de buff temporizado de verdade. Magias de
-// utilidade puras sem efeito numérico aproximável (Dash, Haste, Taunt-sem-dano, Magic
-// Wall, Mana Shield, Slow, etc.) continuam de fora.
+// cura clara, ou (caso de QuickAttack, `kind: 'buff'`) um efeito bem definido que dá pra
+// simular com o sistema de buff temporizado de combate (character.activeBuffs, ver
+// classes.js/useGameState.js). Magias de utilidade puras sem efeito numérico simulável
+// (Dash, Haste, Taunt-sem-dano, Magic Wall, Mana Shield, Slow, etc.) continuam de fora.
 //
 // bookName é o sufixo usado nos itens "<Cor> Spellbook: <bookName>" em items.js.
 //
@@ -38,12 +38,12 @@ export const SPELLS = [
   { id: 'DarkBind', bookName: 'DarkBind', book: 'Evil Spellbook: DarkBind', color: 'Evil', type: 'Death', magicReq: 15, abilityReq: 0, manaCost: 500, cooldownMs: 7000, hpCast: true, kind: 'damage', base: 50, magicPct: 50 },
   { id: 'Berserk', bookName: 'Berserk', book: 'Red Spellbook: Berserk', color: 'Red', type: 'Blade', magicReq: 1, abilityReq: 20, manaCost: 35, cooldownMs: 7000, hpCast: true, kind: 'damage', base: 15, damagePct: 35 },
   // Quick Attack é do tipo Time/Mystic (a PRIMEIRA magia castável dessa categoria nesse
-  // jogo) — real: "Increases your Attackspeed by 6 for 4 seconds". Esse jogo não tem
-  // buff temporizado de combate de verdade (o loop de ataque roda num timer recalculado
-  // só quando o personagem muda), então vira `kind: 'buff'`, tratado à parte em
-  // useGameState.js: aproximado como 1 golpe básico extra imediato no alvo focado (a
-  // mesma ideia de "atacar mais rápido por um instante", sem precisar de um sistema de
-  // buff temporizado só pra essa magia).
+  // jogo) — real: "Increases your Attackspeed by 6 for 4 seconds". Agora usa o sistema
+  // de buff temporizado de combate de verdade (character.activeBuffs, ver classes.js/
+  // useGameState.js): o cast adiciona/renova um buff { stat: 'attackSpeed', value: 6,
+  // expiresAt: +4000ms }, que soma em cima dos stats finais enquanto ativo e cai
+  // sozinho quando expira. A aproximação antiga (1 golpe básico extra imediato) não é
+  // mais necessária.
   { id: 'QuickAttack', bookName: 'QuickAttack', book: 'Red Spellbook: QuickAttack', color: 'Red', type: 'Time', magicReq: 6, abilityReq: 35, manaCost: 70, cooldownMs: 7000, hpCast: false, kind: 'buff' },
   { id: 'Taunt', bookName: 'Taunt', book: 'Green Spellbook: Taunt', color: 'Green', type: 'Conjure', magicReq: 1, abilityReq: 0, manaCost: 25, cooldownMs: DEFAULT_COOLDOWN_MS, hpCast: true, kind: 'damage', base: 10, damagePct: 5 },
   // Cura escala com Magic/Ability do personagem (1:1 e 0,5:1), não com % de vida
