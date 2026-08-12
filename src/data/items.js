@@ -184,6 +184,7 @@ export const REAL_ITEMS = [
 {"name":"Plated Legs","slot":"legs","category":"heavylegs","variants":[{"rarity":"common","weight":70,"sellPrice":30,"stats":{"armor":8}}]},
 {"name":"Plated Shield","slot":"offhand","category":"shield","variants":[{"rarity":"common","weight":80,"sellPrice":34,"equipSize":4,"stats":{"defense":18}}]},
 {"name":"Plea Toe","slot":null,"category":"MonsterProducts","variants":[{"rarity":"common","weight":0.5,"sellPrice":1}]},
+{"name":"Power Bolt","slot":"ammo","category":"arrows","variants":[{"rarity":"common","weight":1.5,"sellPrice":2}]},
 {"name":"Pocket Watch","slot":"weapon","category":"tools","variants":[{"rarity":"common","weight":3,"sellPrice":3}]},
 {"name":"Potato","slot":null,"category":"RawFood","variants":[{"rarity":"common","weight":5,"sellPrice":3}]},
 {"name":"Pumpkin","slot":null,"category":"RawFood","variants":[{"rarity":"common","weight":25,"sellPrice":11}]},

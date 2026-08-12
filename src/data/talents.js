@@ -168,7 +168,7 @@ const MECHANICS = {
   243: 'bowExplosiveChance', // Explosive Ammo — sem área de efeito: chance de dano bônus no golpe (homebrew, reaproveita mecânica antiga)
   244: 'bowSecondaryProcChance', // Mahogany Build — mesmo raciocínio de Explosive Ammo, chance de dano bônus separada (homebrew)
   245: 'timeManaDiscount', // Meditation — magias Time custam menos mana (real, agora que Quick Attack existe)
-  246: 'standby', // Chasing Prey — depende de Movespeed — sem efeito
+  246: 'chasingPrey', // Chasing Prey — agora que Movespeed existe, a parte "chance igual ao seu Movespeed" está ativa: chance de ignorar 10 de Armor do alvo nesse golpe (real, magnitude 10). O debuff de Armor/Movespeed no MONSTRO por 3s continua sem efeito — não existe sistema de debuff temporizado em monstro nesse jogo.
   247: 'standby', // Hunt Prep — depende de magia Time/Mystic e "Grand Trap" não documentada — sem efeito
   248: 'arrowExtraHitChance', // Swiftstride — cast de magia tipo Arrow tem chance de dar 1 golpe extra (homebrew: era cast de "Haste", sem timers vira golpe extra na hora)
   249: 'arrowBladeTrueDamage', // Bullseye — magia Arrow/Blade acerta = +2×(Ability/3) Dano Verdadeiro (real; "dobrado se for o alvo atual" sempre vale aqui, só existe 1 alvo)
@@ -816,6 +816,7 @@ export function computeTalentModifiers(talentPoints, equipment) {
     arrowBladeTrueDamageDivisor: 0,
     arrowBladeHealDivisor: 0,
     timeManaDiscountPercent: 0, // Meditation
+    chasingPreyActive: false, // Chasing Prey
 
     // ── Armadura Leve ──
     lightArmorCapacity: 0,
@@ -1005,6 +1006,9 @@ export function computeTalentModifiers(talentPoints, equipment) {
         break;
       case 'timeManaDiscount':
         if (!Number.isNaN(rankValue)) mods.timeManaDiscountPercent = rankValue;
+        break;
+      case 'chasingPrey':
+        mods.chasingPreyActive = true;
         break;
       case 'bowFlatDamage2':
         if (!Number.isNaN(rankValue)) mods.bowFlatDamageFromRank += rankValue;
@@ -1392,6 +1396,7 @@ export function applyTalentEffects(stats, character) {
   next.bowSecondaryProcChance = mods.bowSecondaryProcChance;
   next.arrowExtraHitChance = mods.arrowExtraHitChance;
   next.timeManaDiscountPercent = mods.timeManaDiscountPercent;
+  next.chasingPreyActive = mods.chasingPreyActive;
   // Bullseye/Deferred Reverence: dependem do Ability/Magic FINAL. Como só existe 1 alvo
   // nesse jogo (o "alvo atual" sempre é o único), a condição "dobrado se for o alvo
   // atual" da fonte real vale SEMPRE aqui — por isso já aplicamos o fator 2.

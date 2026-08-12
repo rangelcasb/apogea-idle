@@ -1212,6 +1212,26 @@ function reducer(state, action) {
       // antes, exceto que agora pode haver mais monstros esperando atrás dele.
       const currentMonster = monsters[0];
 
+      // Munição (Arco/Besta): precisa ter Arrow, Bolt ou Power Bolt equipado no slot de
+      // Munição pra atacar — sem isso, o ataque básico simplesmente não acontece (a
+      // munição em si nunca é CONSUMIDA, é infinita por design — faz sentido pra um jogo
+      // idle não exigir reabastecimento manual toda hora). Bolt dá +5 de Dano real pra
+      // Arco comum; Power Bolt dá +10 de Dano real, mas só funciona com a Besta
+      // ("Crossbow") especificamente — os dois bônus são reais (fonte oficial, só
+      // documentados no texto do item, não nos números — por isso faltavam antes).
+      const bowSlot = ['weapon', 'offhand'].find((slot) => char.equipment?.[slot]?.category === 'bow');
+      if (bowSlot) {
+        const ammoName = char.equipment?.ammo?.name;
+        if (!['Arrow', 'Bolt', 'Power Bolt'].includes(ammoName)) return state;
+      }
+      const isCrossbowEquipped = bowSlot && char.equipment[bowSlot]?.name === 'Crossbow';
+      let ammoDamageBonus = 0;
+      if (bowSlot) {
+        const ammoName = char.equipment?.ammo?.name;
+        if (ammoName === 'Bolt' && !isCrossbowEquipped) ammoDamageBonus = 5;
+        else if (ammoName === 'Power Bolt' && isCrossbowEquipped) ammoDamageBonus = 10;
+      }
+
       const charStats = computeFinalStats(char);
 
       // Ataque básico com cajado (ou na mão secundária) consome mana — a fonte real
@@ -1238,16 +1258,23 @@ function reducer(state, action) {
         let dmg = minDamage + Math.random() * (maxDamage - minDamage);
         if (isCrit) dmg *= charStats.critMultiplier ?? 1;
         if (berserkerSteps > 0) dmg += berserkerSteps;
+        if (ammoDamageBonus > 0) dmg += ammoDamageBonus;
         // Higher Ruling (Arma Grande): +1 Dano flat por ponto de Magic final.
         if (charStats.higherRulingActive) dmg += Math.floor(charStats.magic);
         // Bestiário: cada estrela ganha nessa criatura específica (marcos de abates) dá
         // +5% de dano só contra ela.
         dmg *= monsterDamageMultiplier(char.monsterKills?.[currentMonster.name] ?? 0);
 
+        // Chasing Prey (Arco): chance = Movespeed final (%, cap 100%) de ignorar 10 de
+        // Armor do alvo NESSE golpe — real (magnitude 10). A parte de debuffar o
+        // Movespeed do MONSTRO por 3s continua sem efeito (sem sistema de debuff
+        // temporizado em monstro, só no jogador).
+        const chasingPreyProc = charStats.chasingPreyActive && Math.random() < Math.min(1, (charStats.movespeed ?? 0) / 100);
+
         // Fórmula real de Armadura (apogean.eu/lists/formulae): (Dano - Armadura/2) /
         // (1 + Armadura/100) — tem uma parte flat ANTES da percentual, não só a %.
         // Resonant Blow (Espada): ignora um valor FIXO de Armor antes da % de armorPen.
-        const armorAfterFlat = Math.max(0, currentMonster.armor - (charStats.armorPenFlat ?? 0));
+        const armorAfterFlat = Math.max(0, currentMonster.armor - (charStats.armorPenFlat ?? 0) - (chasingPreyProc ? 10 : 0));
         const effectiveArmor = Math.max(0, armorAfterFlat * (1 - (charStats.armorPenPercent ?? 0) / 100));
         // One With Apogea (Luva): "você não causa mais dano físico" — zera o físico de
         // verdade (não é o mínimo de 1 de sempre), a mana vira todo o dano em troca.

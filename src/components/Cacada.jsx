@@ -414,6 +414,13 @@ export default function Cacada({ character, monsters, log, autoCombat, setAutoCo
                   <span className="text-neutral-400" title="Movespeed: quão rápido você engaja o próximo grupo de monstros depois de uma vitória.">
                     Movespeed: {(character.stats.movespeed ?? 10).toFixed(1)}
                   </span>
+                  {['weapon', 'offhand'].some((slot) => character.equipment?.[slot]?.category === 'bow')
+                    && !['Arrow', 'Bolt', 'Power Bolt'].includes(character.equipment?.ammo?.name) && (
+                    <>
+                      <br />
+                      <span className="text-blood">⚠ Sem munição equipada — Arco/Besta não atacam!</span>
+                    </>
+                  )}
                 </p>
               </div>
 
