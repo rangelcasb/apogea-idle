@@ -15,13 +15,30 @@ const REAL_ITEMS_BY_NAME = Object.fromEntries(REAL_ITEMS.map((it) => [it.name, i
 // nossas — o jogo real não publica a chance de cada tier de qualidade.
 const QUALITY_WEIGHTS = { common: 60, uncommon: 25, rare: 10, epic: 4, legendary: 1 };
 
+// Evento "Raridade Tripla": não achei documentação de um evento assim no jogo real
+// (apogeawiki.info não lista nada parecido) — é mecânica NOSSA, no espírito do
+// "Boosted do dia" que já existe (real, "+50% XP e gold hoje" numa tela enviada), só
+// que aplicada à raridade de instância em vez de XP/gold. Ativo todo fim de semana
+// (sábado e domingo, hora local), pra todo mundo ver o mesmo evento ao mesmo tempo —
+// triplica o peso de TODAS as raridades acima de "common" no sorteio de qualidade.
+export const TRIPLE_RARITY_MULTIPLIER = 3;
+export function isTripleRarityEventActive(now = new Date()) {
+  const day = now.getDay(); // 0 = domingo, 6 = sábado
+  return day === 0 || day === 6;
+}
+
 function rollQualityVariant(variants) {
   const available = variants.filter((v) => QUALITY_WEIGHTS[v.rarity] != null);
   const pool = available.length ? available : variants;
-  const total = pool.reduce((sum, v) => sum + (QUALITY_WEIGHTS[v.rarity] ?? 1), 0);
+  const tripleActive = isTripleRarityEventActive();
+  const weightFor = (rarity) => {
+    const base = QUALITY_WEIGHTS[rarity] ?? 1;
+    return tripleActive && rarity !== 'common' ? base * TRIPLE_RARITY_MULTIPLIER : base;
+  };
+  const total = pool.reduce((sum, v) => sum + weightFor(v.rarity), 0);
   let roll = Math.random() * total;
   for (const v of pool) {
-    roll -= QUALITY_WEIGHTS[v.rarity] ?? 1;
+    roll -= weightFor(v.rarity);
     if (roll <= 0) return v;
   }
   return pool[0];

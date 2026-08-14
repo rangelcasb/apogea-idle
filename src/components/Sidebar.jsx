@@ -1,4 +1,4 @@
-import { xpForNextLevel, getDailyBoostedMonster, BOOSTED_MULTIPLIER } from '../data/gameData';
+import { xpForNextLevel, getDailyBoostedMonster, BOOSTED_MULTIPLIER, isTripleRarityEventActive, TRIPLE_RARITY_MULTIPLIER } from '../data/gameData';
 
 const SYNC_STATUS_LABEL = {
   idle: '',
@@ -13,6 +13,7 @@ export default function Sidebar({ character, autoCombat, weight, zoneName, syncS
   const hpPct = Math.max(0, (character.currentHealth / character.stats.health) * 100);
   const mpPct = Math.max(0, (character.currentMana / character.stats.mana) * 100);
   const boosted = getDailyBoostedMonster();
+  const tripleRarityActive = isTripleRarityEventActive();
 
   return (
     <aside className="flex flex-col gap-4 w-full lg:w-72 shrink-0">
@@ -73,6 +74,21 @@ export default function Sidebar({ character, autoCombat, weight, zoneName, syncS
           Sair da conta
         </button>
       </div>
+
+      {tripleRarityActive && (
+        <div className="bg-wood-light border border-gold rounded-lg p-4">
+          <h3 className="text-gold font-semibold tracking-wide mb-2">◆ EVENTO: RARIDADE TRIPLA</h3>
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">✨</span>
+            <div>
+              <p className="font-medium text-neutral-100">Fim de semana especial!</p>
+              <p className="text-xs text-gold">
+                Chance {TRIPLE_RARITY_MULTIPLIER}x maior de item raro/épico/lendário até domingo à noite
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="bg-wood-light border border-wood-lighter rounded-lg p-4">
         <h3 className="text-gold font-semibold tracking-wide mb-2">◆ BOOSTED DO DIA</h3>
