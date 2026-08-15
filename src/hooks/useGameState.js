@@ -45,6 +45,7 @@ import {
   talentPointsForLevel,
   spentTalentPoints,
   canInvestTalent,
+  effectiveEquipSize,
   UNSTABLE_AEGIS_MAGIC_DIVISOR,
   MAGIC_STEEL_SHIELD_CAP,
   HIGHLANDER_MANA_DISCOUNT_PCT,
@@ -2088,14 +2089,17 @@ function reducer(state, action) {
       const previouslyEquipped = char.equipment[slot];
 
       // Tamanho das mãos: arma + mão secundária não podem somar mais que 10 (equipSize
-      // real de cada item, "MÃOS: X/10" na tela do personagem).
+      // real de cada item, "MÃOS: X/10" na tela do personagem). O talento Dual-wielding
+      // reduz o equipSize efetivo de espadas tamanho 6 pra 5 (ver effectiveEquipSize).
       if (slot === 'weapon' || slot === 'offhand') {
         const otherSlot = slot === 'weapon' ? 'offhand' : 'weapon';
-        const otherSize = char.equipment[otherSlot]?.equipSize ?? 0;
-        if ((item.equipSize ?? 0) + otherSize > HAND_CAPACITY) {
+        const otherItem = char.equipment[otherSlot];
+        const otherSize = effectiveEquipSize(otherItem, char.talentPoints);
+        const itemSize = effectiveEquipSize(item, char.talentPoints);
+        if (itemSize + otherSize > HAND_CAPACITY) {
           return {
             ...state,
-            log: pushLog(state.log, `${item.name} não cabe nas mãos (tamanho ${item.equipSize ?? 0} + ${otherSize} > ${HAND_CAPACITY}).`),
+            log: pushLog(state.log, `${item.name} não cabe nas mãos (tamanho ${itemSize} + ${otherSize} > ${HAND_CAPACITY}).`),
           };
         }
       }

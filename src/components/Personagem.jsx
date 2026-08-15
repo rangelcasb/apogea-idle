@@ -1,4 +1,5 @@
 import { ALLOCATABLE_STATS, canAllocatePoint, CLASSES, EQUIP_SLOTS, HAND_CAPACITY, RARITY_COLORS, formatItemStats, computeDamageRoll } from '../data/gameData';
+import { effectiveEquipSize } from '../data/talents';
 import Mochila from './Mochila';
 import ItemIcon from './ItemIcon';
 
@@ -43,7 +44,8 @@ export default function Personagem({
   learnSpell,
 }) {
   const isSquire = character.class === 'Squire';
-  const handSize = (character.equipment.weapon?.equipSize ?? 0) + (character.equipment.offhand?.equipSize ?? 0);
+  const handSize = effectiveEquipSize(character.equipment.weapon, character.talentPoints)
+    + effectiveEquipSize(character.equipment.offhand, character.talentPoints);
   const attackSpeed = character.stats.attackSpeed || 10;
   const interval = 2 / (attackSpeed / 10); // fórmula real: 2s / (AttackSpeed/10)
   const { min: minDamage, max: maxDamage, avg: avgDamage } = computeDamageRoll(character.stats);

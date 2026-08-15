@@ -113,6 +113,19 @@ function hasSwordAndShield(equipment) {
 function hasBigSwordNoShield(equipment) {
   return equipment?.weapon?.category === 'sword' && (equipment.weapon.equipSize ?? 0) >= 6 && !SHIELD_CATEGORIES.includes(equipment?.offhand?.category);
 }
+
+// Dual-Wielding (id 342): "Size 6 Regular Weapons have an equipsize of 5" — sem isso,
+// duas espadas tamanho 6 somam 12 e nunca cabem no limite de mãos (10), então o talento
+// nunca conseguia ser testado. Investir 1+ ponto reduz o equipSize efetivo de UMA espada
+// tamanho 6 pra 5 (real; o rank só muda o % de penalidade de dano, não essa parte).
+export const DUAL_WIELDING_TALENT_ID = 342;
+export function effectiveEquipSize(item, talentPoints) {
+  const size = item?.equipSize ?? 0;
+  if (item?.category === 'sword' && size === 6 && (talentPoints?.[DUAL_WIELDING_TALENT_ID] ?? 0) > 0) {
+    return 5;
+  }
+  return size;
+}
 function hasBothHandsFree(equipment) {
   return !!equipment?.weapon && !equipment?.offhand;
 }
